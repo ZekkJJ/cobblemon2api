@@ -14,7 +14,7 @@ const cookieParser = require('cookie-parser');
 const { MongoClient } = require('mongodb');
 
 // Environment variables
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 25573;
 const MONGODB_URI = process.env.MONGODB_URI || '';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -95,6 +95,18 @@ function createApp() {
       status: 'ok',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
+      port: PORT,
+      environment: NODE_ENV,
+    });
+  });
+
+  // Server status endpoint (for compatibility)
+  app.get('/server-status', (req, res) => {
+    res.json({
+      status: 'online',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      port: PORT,
     });
   });
 
