@@ -49,5 +49,11 @@ export async function createAuthRouter(): Promise<Router> {
    */
   router.get('/me', requireAuth, authController.getCurrentUser);
 
+  /**
+   * POST /api/auth/verify-username
+   * Verifica/registra un usuario por nombre de Discord (sin OAuth)
+   */
+  router.post('/verify-username', authController.verifyUsername);
+
   return router;
 }

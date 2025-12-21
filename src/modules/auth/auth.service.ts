@@ -123,4 +123,74 @@ export class AuthService {
       );
     }
   }
+
+  /**
+   * Verifica/registra un usuario por nombre de Discord (sin OAuth)
+   * Usado para autenticación alternativa sin Discord OAuth
+   */
+  async verifyUsernameAuth(
+    discordUsername: string,
+    nickname?: string
+  ): Promise<{ user: User; token: string }> {
+    // Generar un Discord ID único basado en el username
+    // En producción, esto debería validarse contra el servidor de Discord
+    const discordId = `username_${Buffer.from(discordUsername.toLowerCase()).toString('base64')}`;
+
+    // Buscar usuario existente por username
+    let user = await this.usersCollection.findOne({
+      $or: [
+        { discordId },
+        { discordUsername: { $regex: new RegExp(`^${discordUsername}$`, 'i') } }
+      ]
+    });
+
+    if (user) {
+      // Usuario existe, actualizar si es necesario
+      const updateData: Partial<User> = {
+        nickname: nickname || user.nickname,
+        updatedAt: new Date(),
+      };
+
+      await this.usersCollection.updateOne(
+        { _id: user._id },
+        { $set: updateData }
+      );
+
+      user = { ...user, ...updateData };
+    } else {
+      // Crear nuevo usuario
+      const userData: CreateUserData = {
+        discordId,
+        discordUsername,
+        nickname: nickname || discordUsername,
+      };
+
+      const newUser = createDefaultUser(userData);
+      const result = await this.usersCollection.insertOne(newUser as User);
+
+      user = {
+        ...newUser,
+        _id: result.insertedId,
+      } as User;
+    }
+
+    // Verificar si está baneado
+    if (user.banned) {
+      throw new AppError(
+        `Tu cuenta está baneada. Razón: ${user.banReason || 'No especificada'}`,
+        403,
+        'USER_BANNED' as any
+      );
+    }
+
+    // Generar JWT
+    const token = generateJWT({
+      discordId: user.discordId!,
+      discordUsername: user.discordUsername,
+      discordAvatar: user.discordAvatar,
+      isAdmin: user.isAdmin,
+    });
+
+    return { user, token };
+  }
 }

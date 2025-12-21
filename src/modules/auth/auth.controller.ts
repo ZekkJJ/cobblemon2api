@@ -110,4 +110,42 @@ export class AuthController {
       user: userSession,
     });
   });
+
+  /**
+   * POST /api/auth/verify-username
+   * Verifica/registra un usuario por nombre de Discord (sin OAuth)
+   */
+  verifyUsername = asyncHandler(async (req: Request, res: Response) => {
+    const { discordUsername, nickname } = req.body;
+
+    // Validar entrada
+    if (!discordUsername || typeof discordUsername !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'El nombre de usuario de Discord es requerido',
+      });
+    }
+
+    // Limpiar el username
+    const cleanUsername = discordUsername.trim();
+
+    if (cleanUsername.length < 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'El nombre de usuario debe tener al menos 2 caracteres',
+      });
+    }
+
+    // Crear o actualizar usuario
+    const result = await this.authService.verifyUsernameAuth(
+      cleanUsername,
+      nickname?.trim()
+    );
+
+    return res.json({
+      success: true,
+      user: result.user,
+      token: result.token,
+    });
+  });
 }
