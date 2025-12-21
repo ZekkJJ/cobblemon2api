@@ -53,6 +53,12 @@ ADMIN_IPS=127.0.0.1
 
 ### Run Development Server
 
+**Option 1: Plain JavaScript (Recommended - No compilation needed)**
+```bash
+node server.js
+```
+
+**Option 2: TypeScript (Requires compilation)**
 ```bash
 npm run dev
 ```
@@ -61,6 +67,12 @@ Server runs on http://localhost:4000
 
 ### Build for Production
 
+**Option 1: Plain JavaScript (Recommended)**
+```bash
+node server.js
+```
+
+**Option 2: TypeScript**
 ```bash
 npm run build
 npm start
