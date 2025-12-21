@@ -44,28 +44,55 @@ export async function createApp(): Promise<Application> {
     env.FRONTEND_URL,
     'https://cobblemon-los-pitufos.vercel.app',
     'https://cobblemon-los-pitufos-3m5qcj9kq-zekkjjs-projects.vercel.app',
+    'http://localhost:3000', // Para desarrollo local
   ].filter(Boolean);
+
+  // Log de orígenes permitidos en desarrollo
+  if (isDevelopment) {
+    console.log('🌐 CORS - Allowed origins:', allowedOrigins);
+  }
 
   app.use(cors({
     origin: (origin, callback) => {
+      // Log del origin en desarrollo
+      if (isDevelopment && origin) {
+        console.log('🔍 CORS - Request from origin:', origin);
+      }
+
       // Permitir requests sin origin (como mobile apps, curl, Postman)
-      if (!origin) return callback(null, true);
+      if (!origin) {
+        if (isDevelopment) console.log('✅ CORS - Allowing request without origin');
+        return callback(null, true);
+      }
 
       // Verificar si el origin está en la lista de permitidos
       if (allowedOrigins.includes(origin)) {
-        return callback(null, origin); // Devolver el origin específico, no true
+        if (isDevelopment) console.log('✅ CORS - Origin allowed from list');
+        return callback(null, true);
       }
 
-      // Permitir cualquier dominio .vercel.app en desarrollo
-      if (isDevelopment || origin.endsWith('.vercel.app')) {
-        return callback(null, origin); // Devolver el origin específico, no true
+      // Permitir cualquier dominio .vercel.app
+      if (origin.endsWith('.vercel.app')) {
+        if (isDevelopment) console.log('✅ CORS - Vercel domain allowed');
+        return callback(null, true);
       }
 
+      // En desarrollo, permitir localhost con cualquier puerto
+      if (isDevelopment && origin.startsWith('http://localhost:')) {
+        if (isDevelopment) console.log('✅ CORS - Localhost allowed in development');
+        return callback(null, true);
+      }
+
+      console.error('❌ CORS - Origin not allowed:', origin);
       callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Requested-With'],
+    exposedHeaders: ['Set-Cookie'],
+    maxAge: 86400, // 24 hours
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   }));
 
   // ============================================
