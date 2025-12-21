@@ -4,8 +4,11 @@
   "description": "API Backend para Cobblemon Los Pitufos - Servidor de Minecraft con Cobblemon",
   "main": "server.js",
   "scripts": {
-    "dev": "nodemon server.js",
-    "start": "node server.js",
+    "dev": "tsx watch src/server.ts",
+    "dev:old": "nodemon server.js",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "start:fallback": "node server.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
