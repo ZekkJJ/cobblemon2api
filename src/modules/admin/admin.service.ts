@@ -79,14 +79,20 @@ export class AdminService {
 
   async resetDatabase(adminName: string): Promise<{ success: boolean; message: string }> {
     try {
-      console.warn(`[ADMIN SERVICE] Base de datos reseteada por ${adminName}`);
+      console.warn(`[ADMIN SERVICE] ⚠️  RESET DE BASE DE DATOS INICIADO POR ${adminName}`);
       
-      // Esta es una operación peligrosa - solo para desarrollo
-      // En producción, esto debería estar más protegido
+      // Resetear colecciones principales
+      await this.usersCollection.deleteMany({});
+      console.log('[ADMIN SERVICE] ✅ Colección de usuarios limpiada');
+      
+      // Nota: No reseteamos starters collection porque queremos mantener el registro
+      // de qué starters fueron reclamados para estadísticas
+      
+      console.log(`[ADMIN SERVICE] ✅ Reset completado por ${adminName}`);
       
       return {
         success: true,
-        message: 'Base de datos reseteada (operación no implementada por seguridad)',
+        message: 'Base de datos reseteada exitosamente. Todos los usuarios han sido eliminados.',
       };
     } catch (error) {
       console.error('[ADMIN SERVICE] Error reseteando base de datos:', error);

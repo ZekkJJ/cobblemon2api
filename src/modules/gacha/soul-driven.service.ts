@@ -12,6 +12,7 @@ import { STARTERS_DATA, getStarterSprites } from '../../shared/data/starters.dat
 import { AppError, Errors } from '../../shared/middleware/error-handler.js';
 import { getDb } from '../../config/database.js';
 import { env } from '../../config/env.js';
+import { sendStarterWebhook } from '../../shared/utils/discord-webhook.js';
 
 // Importar Groq solo si está disponible
 let Groq: any = null;
@@ -191,6 +192,19 @@ export class SoulDrivenService {
             : `¡Tu alma resuena con ${selectedStarter.nameEs || selectedStarter.name}!`,
           suggestedPokemon: suggestedPokemon.map(p => p.name),
         };
+
+        // Enviar webhook de Discord (no bloqueante, fuera de la transacción)
+        setImmediate(async () => {
+          try {
+            await sendStarterWebhook(discordId, nickname, {
+              ...selectedStarter,
+              isShiny,
+              sprites,
+            } as any);
+          } catch (webhookError) {
+            console.error('Webhook error (non-blocking):', webhookError);
+          }
+        });
       });
 
       if (!result) {

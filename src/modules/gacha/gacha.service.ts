@@ -11,6 +11,7 @@ import { Starter, StarterWithSprites } from '../../shared/types/pokemon.types.js
 import { STARTERS_DATA, getStarterSprites } from '../../shared/data/starters.data.js';
 import { AppError, Errors } from '../../shared/middleware/error-handler.js';
 import { getDb } from '../../config/database.js';
+import { sendStarterWebhook } from '../../shared/utils/discord-webhook.js';
 
 /**
  * Resultado de verificación de estado de tirada
@@ -204,6 +205,19 @@ export class GachaService {
             ? '🌟 ¡INCREÍBLE! ¡Has obtenido un SHINY!'
             : `¡Felicidades! Has obtenido a ${selectedStarter.nameEs || selectedStarter.name}!`,
         };
+
+        // Enviar webhook de Discord (no bloqueante, fuera de la transacción)
+        setImmediate(async () => {
+          try {
+            await sendStarterWebhook(discordId, nickname, {
+              ...selectedStarter,
+              isShiny,
+              sprites,
+            } as any);
+          } catch (webhookError) {
+            console.error('Webhook error (non-blocking):', webhookError);
+          }
+        });
       });
 
       if (!result) {

@@ -40,8 +40,29 @@ export async function createApp(): Promise<Application> {
   }));
 
   // CORS configurado para el frontend
+  const allowedOrigins = [
+    env.FRONTEND_URL,
+    'https://cobblemon-los-pitufos.vercel.app',
+    'https://cobblemon-los-pitufos-3m5qcj9kq-zekkjjs-projects.vercel.app',
+  ].filter(Boolean);
+
   app.use(cors({
-    origin: env.FRONTEND_URL,
+    origin: (origin, callback) => {
+      // Permitir requests sin origin (como mobile apps, curl, Postman)
+      if (!origin) return callback(null, true);
+
+      // Verificar si el origin está en la lista de permitidos
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // Permitir cualquier dominio .vercel.app en desarrollo
+      if (isDevelopment || origin.endsWith('.vercel.app')) {
+        return callback(null, true);
+      }
+
+      callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization'],
