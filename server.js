@@ -180,9 +180,9 @@ async function startServer() {
     const app = createApp();
 
     // Iniciar servidor HTTP
-    const server = app.listen(PORT, () => {
+    const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`✅ Servidor escuchando en puerto ${PORT}`);
-      console.log(`🌐 URL: http://localhost:${PORT}`);
+      console.log(`🌐 URL: http://0.0.0.0:${PORT}`);
       console.log(`🔗 Frontend: ${FRONTEND_URL}`);
       
       console.log(`\n📋 Endpoints internos:`);
