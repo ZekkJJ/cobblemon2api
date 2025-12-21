@@ -15,10 +15,18 @@ const { MongoClient } = require('mongodb');
 
 // Environment variables
 const PORT = process.env.PORT || 4000;
-const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_URI = process.env.MONGODB_URI || '';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const isDevelopment = NODE_ENV === 'development';
+
+// Validate required environment variables
+if (!MONGODB_URI) {
+  console.error('❌ ERROR: MONGODB_URI environment variable is required!');
+  console.error('📝 Please set MONGODB_URI in your environment or .env file');
+  console.error('Example: MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/database');
+  process.exit(1);
+}
 
 // MongoDB client
 let db = null;
