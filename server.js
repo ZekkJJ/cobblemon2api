@@ -203,14 +203,14 @@ async function startServer() {
       console.log(`🔗 Frontend: ${FRONTEND_URL}`);
       
       console.log(`\n📋 Endpoints disponibles:`);
-      console.log(`   GET  /health`);
-      console.log(`   GET  /server-status`);
-      console.log(`   GET  /api/starters`);
-      console.log(`   GET  /api/players`);
-      console.log(`   GET  /api/tournaments`);
-      console.log(`   GET  /api/shop/stock`);
-      console.log(`\n🌐 Via proxy: https://api.playadoradarp.xyz/port/25573/health`);
-      console.log(`🔗 Direct: http://localhost:${PORT}/health\n`);
+      console.log(`   GET  /port/25573/health`);
+      console.log(`   GET  /port/25573/server-status`);
+      console.log(`   GET  /port/25573/api/starters`);
+      console.log(`   GET  /port/25573/api/players`);
+      console.log(`   GET  /port/25573/api/tournaments`);
+      console.log(`   GET  /port/25573/api/shop/stock`);
+      console.log(`\n🌐 Via proxy: https://api.playadoradarp.xyz/port/25573/api/starters`);
+      console.log(`🔗 Direct: http://localhost:${PORT}/port/25573/health\n`);
     });
 
     // Manejo de señales de terminación
