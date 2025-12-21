@@ -53,12 +53,12 @@ export async function createApp(): Promise<Application> {
 
       // Verificar si el origin está en la lista de permitidos
       if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
+        return callback(null, origin); // Devolver el origin específico, no true
       }
 
       // Permitir cualquier dominio .vercel.app en desarrollo
       if (isDevelopment || origin.endsWith('.vercel.app')) {
-        return callback(null, true);
+        return callback(null, origin); // Devolver el origin específico, no true
       }
 
       callback(new Error('Not allowed by CORS'));
