@@ -78,9 +78,9 @@ function createApp() {
   // Middleware de seguridad
   app.use(helmet());
 
-  // CORS
+  // CORS - Allow all origins for now
   app.use(cors({
-    origin: FRONTEND_URL,
+    origin: '*',
     credentials: true,
   }));
 
@@ -88,6 +88,22 @@ function createApp() {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
+
+  // Base path support for proxy (e.g., /port/25573)
+  const BASE_PATH = process.env.BASE_PATH || '';
+
+  // Root endpoint
+  app.get('/', (req, res) => {
+    res.json({
+      message: 'Cobblemon Los Pitufos API',
+      version: '1.0.0',
+      endpoints: {
+        health: `${BASE_PATH}/health`,
+        serverStatus: `${BASE_PATH}/server-status`,
+        api: `${BASE_PATH}/api/*`,
+      },
+    });
+  });
 
   // Health check
   app.get('/health', (req, res) => {
