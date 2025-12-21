@@ -32,8 +32,8 @@ COPY --from=builder /app/package.json ./package.json
 
 USER nodejs
 
-EXPOSE 4000
+EXPOSE 25573
 
-ENV PORT=4000
+ENV PORT=25573
 
 CMD ["npm", "start"]
