@@ -89,24 +89,24 @@ function createApp() {
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
 
-  // Base path support for proxy (e.g., /port/25573)
-  const BASE_PATH = process.env.BASE_PATH || '';
+  // Create a router for the base path
+  const router = express.Router();
 
   // Root endpoint
-  app.get('/', (req, res) => {
+  router.get('/', (req, res) => {
     res.json({
       message: 'Cobblemon Los Pitufos API',
       version: '1.0.0',
       endpoints: {
-        health: `${BASE_PATH}/health`,
-        serverStatus: `${BASE_PATH}/server-status`,
-        api: `${BASE_PATH}/api/*`,
+        health: '/port/25573/health',
+        serverStatus: '/port/25573/server-status',
+        api: '/port/25573/api/*',
       },
     });
   });
 
   // Health check
-  app.get('/health', (req, res) => {
+  router.get('/health', (req, res) => {
     res.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
@@ -117,7 +117,7 @@ function createApp() {
   });
 
   // Server status endpoint (for compatibility)
-  app.get('/server-status', (req, res) => {
+  router.get('/server-status', (req, res) => {
     res.json({
       status: 'online',
       timestamp: new Date().toISOString(),
@@ -126,22 +126,28 @@ function createApp() {
     });
   });
 
-  // API Routes - Add your routes here
-  app.get('/api/starters', (req, res) => {
+  // API Routes
+  router.get('/api/starters', (req, res) => {
     res.json({ message: 'Starters endpoint - implement your logic here' });
   });
 
-  app.get('/api/players', (req, res) => {
+  router.get('/api/players', (req, res) => {
     res.json({ message: 'Players endpoint - implement your logic here' });
   });
 
-  app.get('/api/tournaments', (req, res) => {
+  router.get('/api/tournaments', (req, res) => {
     res.json({ message: 'Tournaments endpoint - implement your logic here' });
   });
 
-  app.get('/api/shop/stock', (req, res) => {
+  router.get('/api/shop/stock', (req, res) => {
     res.json({ message: 'Shop stock endpoint - implement your logic here' });
   });
+
+  // Mount router at /port/25573
+  app.use('/port/25573', router);
+
+  // Also mount at root for direct access
+  app.use('/', router);
 
   // Error handler
   app.use((err, req, res, next) => {
