@@ -89,24 +89,39 @@ function createApp() {
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
 
-  // Root endpoint
+  // Root endpoint - both at root and /port/25573
   app.get('/', (req, res) => {
     res.json({
       message: 'Cobblemon Los Pitufos API',
       version: '1.0.0',
       endpoints: {
-        health: '/health',
-        serverStatus: '/server-status',
-        api: '/api/*',
+        health: '/port/25573/health',
+        serverStatus: '/port/25573/server-status',
+        api: '/port/25573/api/*',
       },
       proxy: {
-        note: 'When accessed via proxy, use: https://api.playadoradarp.xyz/port/25573/*',
+        url: 'https://api.playadoradarp.xyz/port/25573',
+      },
+    });
+  });
+
+  app.get('/port/25573', (req, res) => {
+    res.json({
+      message: 'Cobblemon Los Pitufos API',
+      version: '1.0.0',
+      endpoints: {
+        health: '/port/25573/health',
+        serverStatus: '/port/25573/server-status',
+        api: '/port/25573/api/*',
+      },
+      proxy: {
+        url: 'https://api.playadoradarp.xyz/port/25573',
       },
     });
   });
 
   // Health check
-  app.get('/health', (req, res) => {
+  app.get('/port/25573/health', (req, res) => {
     res.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
@@ -116,8 +131,8 @@ function createApp() {
     });
   });
 
-  // Server status endpoint (for compatibility)
-  app.get('/server-status', (req, res) => {
+  // Server status endpoint
+  app.get('/port/25573/server-status', (req, res) => {
     res.json({
       status: 'online',
       timestamp: new Date().toISOString(),
@@ -127,19 +142,19 @@ function createApp() {
   });
 
   // API Routes
-  app.get('/api/starters', (req, res) => {
+  app.get('/port/25573/api/starters', (req, res) => {
     res.json({ message: 'Starters endpoint - implement your logic here' });
   });
 
-  app.get('/api/players', (req, res) => {
+  app.get('/port/25573/api/players', (req, res) => {
     res.json({ message: 'Players endpoint - implement your logic here' });
   });
 
-  app.get('/api/tournaments', (req, res) => {
+  app.get('/port/25573/api/tournaments', (req, res) => {
     res.json({ message: 'Tournaments endpoint - implement your logic here' });
   });
 
-  app.get('/api/shop/stock', (req, res) => {
+  app.get('/port/25573/api/shop/stock', (req, res) => {
     res.json({ message: 'Shop stock endpoint - implement your logic here' });
   });
 
