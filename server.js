@@ -14,7 +14,7 @@ const cookieParser = require('cookie-parser');
 const { MongoClient } = require('mongodb');
 
 // Environment variables
-const PORT = 25573;
+const PORT = process.env.PORT || 25617;
 const MONGODB_URI = process.env.MONGODB_URI || '';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -99,7 +99,7 @@ function createApp() {
         serverStatus: '/server-status',
         api: '/api/*',
       },
-      externalUrl: 'https://api.playadoradarp.xyz/port/25573',
+      externalUrl: 'https://api.playadoradarp.xyz/port/25617',
     });
   });
 
@@ -193,8 +193,8 @@ async function startServer() {
       console.log(`   GET  /api/tournaments`);
       console.log(`   GET  /api/shop/stock`);
       console.log(`\n🌐 URLs externas (via proxy):`);
-      console.log(`   https://api.playadoradarp.xyz/port/25573/health`);
-      console.log(`   https://api.playadoradarp.xyz/port/25573/api/starters\n`);
+      console.log(`   https://api.playadoradarp.xyz/port/25617/health`);
+      console.log(`   https://api.playadoradarp.xyz/port/25617/api/starters\n`);
     });
 
     // Manejo de señales de terminación
