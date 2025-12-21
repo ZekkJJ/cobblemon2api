@@ -78,10 +78,41 @@ function createApp() {
   // Middleware de seguridad
   app.use(helmet());
 
-  // CORS - Allow all origins for now
+  const allowedOrigins = [
+    FRONTEND_URL,
+    'https://cobblemon-los-pitufos.vercel.app',
+    'https://cobblemon-los-pitufos-3m5qcj9kq-zekkjjs-projects.vercel.app',
+    'http://localhost:3000',
+  ].filter(Boolean);
+
   app.use(cors({
-    origin: '*',
+    origin: (origin, callback) => {
+      if (!origin) {
+        return callback(null, true);
+      }
+      
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      
+      if (origin.endsWith('.vercel.app')) {
+        return callback(null, true);
+      }
+      
+      if (isDevelopment && origin.startsWith('http://localhost:')) {
+        return callback(null, true);
+      }
+      
+      console.error('❌ CORS - Origin not allowed:', origin);
+      callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Requested-With'],
+    exposedHeaders: ['Set-Cookie'],
+    maxAge: 86400,
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   }));
 
   // Body parsers
@@ -125,20 +156,45 @@ function createApp() {
   });
 
   // API Routes
-  app.get('/api/starters', (req, res) => {
-    res.json({ message: 'Starters endpoint - implement your logic here' });
+  app.get('/api/starters', async (req, res, next) => {
+    try {
+      const starters = await getDb().collection('starters').find({}).toArray();
+      res.json({ starters });
+    } catch (error) {
+      console.error('Error fetching starters:', error);
+      next(error);
+    }
   });
 
-  app.get('/api/players', (req, res) => {
-    res.json({ message: 'Players endpoint - implement your logic here' });
+  app.get('/api/players', async (req, res, next) => {
+    try {
+      const players = await getDb().collection('players').find({}).toArray();
+      res.json({ players });
+    } catch (error) {
+      console.error('Error fetching players:', error);
+      next(error);
+    }
   });
 
-  app.get('/api/tournaments', (req, res) => {
-    res.json({ message: 'Tournaments endpoint - implement your logic here' });
+  app.get('/api/tournaments', async (req, res, next) => {
+    try {
+      const tournaments = await getDb().collection('tournaments').find({}).toArray();
+      tournaments.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+      res.json({ tournaments });
+    } catch (error) {
+      console.error('Error fetching tournaments:', error);
+      next(error);
+    }
   });
 
-  app.get('/api/shop/stock', (req, res) => {
-    res.json({ message: 'Shop stock endpoint - implement your logic here' });
+  app.get('/api/shop/stock', async (req, res, next) => {
+    try {
+      const stock = await getDb().collection('shop_items').find({}).toArray();
+      res.json({ stock });
+    } catch (error) {
+      console.error('Error fetching shop stock:', error);
+      next(error);
+    }
   });
 
   // Error handler
