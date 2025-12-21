@@ -89,30 +89,15 @@ function createApp() {
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
 
-  // Root endpoint - both at root and /port/25573
+  // Root endpoint
   app.get('/', (req, res) => {
     res.json({
       message: 'Cobblemon Los Pitufos API',
       version: '1.0.0',
       endpoints: {
-        health: '/port/25573/health',
-        serverStatus: '/port/25573/server-status',
-        api: '/port/25573/api/*',
-      },
-      proxy: {
-        url: 'https://api.playadoradarp.xyz/port/25573',
-      },
-    });
-  });
-
-  app.get('/port/25573', (req, res) => {
-    res.json({
-      message: 'Cobblemon Los Pitufos API',
-      version: '1.0.0',
-      endpoints: {
-        health: '/port/25573/health',
-        serverStatus: '/port/25573/server-status',
-        api: '/port/25573/api/*',
+        health: '/health',
+        serverStatus: '/server-status',
+        api: '/api/*',
       },
       proxy: {
         url: 'https://api.playadoradarp.xyz/port/25573',
@@ -121,7 +106,7 @@ function createApp() {
   });
 
   // Health check
-  app.get('/port/25573/health', (req, res) => {
+  app.get('/health', (req, res) => {
     res.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
@@ -132,7 +117,7 @@ function createApp() {
   });
 
   // Server status endpoint
-  app.get('/port/25573/server-status', (req, res) => {
+  app.get('/server-status', (req, res) => {
     res.json({
       status: 'online',
       timestamp: new Date().toISOString(),
@@ -142,19 +127,19 @@ function createApp() {
   });
 
   // API Routes
-  app.get('/port/25573/api/starters', (req, res) => {
+  app.get('/api/starters', (req, res) => {
     res.json({ message: 'Starters endpoint - implement your logic here' });
   });
 
-  app.get('/port/25573/api/players', (req, res) => {
+  app.get('/api/players', (req, res) => {
     res.json({ message: 'Players endpoint - implement your logic here' });
   });
 
-  app.get('/port/25573/api/tournaments', (req, res) => {
+  app.get('/api/tournaments', (req, res) => {
     res.json({ message: 'Tournaments endpoint - implement your logic here' });
   });
 
-  app.get('/port/25573/api/shop/stock', (req, res) => {
+  app.get('/api/shop/stock', (req, res) => {
     res.json({ message: 'Shop stock endpoint - implement your logic here' });
   });
 
@@ -203,14 +188,14 @@ async function startServer() {
       console.log(`🔗 Frontend: ${FRONTEND_URL}`);
       
       console.log(`\n📋 Endpoints disponibles:`);
-      console.log(`   GET  /port/25573/health`);
-      console.log(`   GET  /port/25573/server-status`);
-      console.log(`   GET  /port/25573/api/starters`);
-      console.log(`   GET  /port/25573/api/players`);
-      console.log(`   GET  /port/25573/api/tournaments`);
-      console.log(`   GET  /port/25573/api/shop/stock`);
+      console.log(`   GET  /health`);
+      console.log(`   GET  /server-status`);
+      console.log(`   GET  /api/starters`);
+      console.log(`   GET  /api/players`);
+      console.log(`   GET  /api/tournaments`);
+      console.log(`   GET  /api/shop/stock`);
       console.log(`\n🌐 Via proxy: https://api.playadoradarp.xyz/port/25573/api/starters`);
-      console.log(`🔗 Direct: http://localhost:${PORT}/port/25573/health\n`);
+      console.log(`🔗 Direct: http://localhost:${PORT}/health\n`);
     });
 
     // Manejo de señales de terminación
