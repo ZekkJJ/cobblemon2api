@@ -212,11 +212,19 @@ function createApp() {
         { upsert: true }
       );
 
-      // Redirect to frontend with success
-      res.redirect(`${FRONTEND_URL}?auth=success&discordId=${userData.id}&username=${encodeURIComponent(userData.username)}`);
+      // Prepare user data for frontend
+      const userForFrontend = {
+        discordId: userData.id,
+        discordUsername: `${userData.username}#${userData.discriminator}`,
+        avatar: userData.avatar ? `https://cdn.discordapp.com/avatars/${userData.id}/${userData.avatar}.png` : null,
+      };
+
+      // Redirect to auth callback with user data
+      const userParam = encodeURIComponent(JSON.stringify(userForFrontend));
+      res.redirect(`${FRONTEND_URL}/auth/callback?user=${userParam}`);
     } catch (error) {
       console.error('Discord auth error:', error);
-      res.redirect(`${FRONTEND_URL}?auth=error`);
+      res.redirect(`${FRONTEND_URL}/auth/callback?error=${encodeURIComponent('Error al autenticar con Discord')}`);
     }
   });
 
