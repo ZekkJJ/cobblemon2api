@@ -1047,6 +1047,7 @@ function createApp() {
         name: item.name,
         description: item.description,
         sprite: item.sprite,
+        spriteOpen: item.spriteOpen,
         type: item.type || 'standard',
         basePrice: item.basePrice,
         currentPrice: item.currentPrice || item.basePrice,
