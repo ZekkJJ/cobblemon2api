@@ -1319,8 +1319,15 @@ function createApp() {
       const db = getDb();
       const config = await db.collection('level_caps').findOne({});
 
+      console.log(`[LEVEL CAPS] Effective request for ${uuid}, config:`, config ? JSON.stringify({
+        version: config.version,
+        captureCap: config.globalConfig?.defaultCaptureCap,
+        ownershipCap: config.globalConfig?.defaultOwnershipCap
+      }) : 'null');
+
       // Default caps if no config
       if (!config) {
+        console.log(`[LEVEL CAPS] No config found, returning defaults (100/100)`);
         return res.json({
           success: true,
           captureCap: 100,
@@ -1330,12 +1337,15 @@ function createApp() {
         });
       }
 
-      // For now, return global defaults
-      // TODO: Implement full formula evaluation
+      const captureCap = config.globalConfig?.defaultCaptureCap || 100;
+      const ownershipCap = config.globalConfig?.defaultOwnershipCap || 100;
+
+      console.log(`[LEVEL CAPS] Returning caps: capture=${captureCap}, ownership=${ownershipCap}`);
+
       res.json({
         success: true,
-        captureCap: config.globalConfig?.defaultCaptureCap || 100,
-        ownershipCap: config.globalConfig?.defaultOwnershipCap || 100,
+        captureCap,
+        ownershipCap,
         appliedRules: [],
         calculatedAt: new Date(),
       });
@@ -1352,6 +1362,8 @@ function createApp() {
       const existing = await db.collection('level_caps').findOne({});
       const newVersion = (existing?.version || 0) + 1;
 
+      console.log(`[LEVEL CAPS] Updating config:`, JSON.stringify(req.body));
+
       await db.collection('level_caps').updateOne(
         {},
         {
@@ -1366,7 +1378,10 @@ function createApp() {
       );
 
       const updated = await db.collection('level_caps').findOne({});
-      console.log(`[LEVEL CAPS] Config updated to version ${newVersion}`);
+      console.log(`[LEVEL CAPS] Config updated to version ${newVersion}:`, JSON.stringify({
+        captureCap: updated?.globalConfig?.defaultCaptureCap,
+        ownershipCap: updated?.globalConfig?.defaultOwnershipCap
+      }));
       res.json(updated);
     } catch (error) {
       console.error('[LEVEL CAPS CONFIG] Error:', error);
