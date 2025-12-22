@@ -10,16 +10,17 @@ const { MongoClient } = require('mongodb');
 const MONGODB_URI = process.env.MONGODB_URI;
 
 // Items adicionales para la tienda
+// Usando sprites de fuentes confiables que no bloquean hotlinking
 const SHOP_ITEMS = [
   // ============================================
-  // COMIDA DE MINECRAFT
+  // COMIDA DE MINECRAFT (sprites de mc-heads.net - funciona sin hotlink protection)
   // ============================================
   {
     id: 'golden_apple',
     minecraftId: 'minecraft:golden_apple',
     name: 'Golden Apple',
     description: 'Manzana dorada. Regeneración II y Absorción por 2 minutos.',
-    sprite: 'https://static.wikia.nocookie.net/minecraft_gamepedia/images/5/51/Golden_Apple_JE2_BE2.png',
+    sprite: 'https://mc-heads.net/item/golden_apple/64',
     type: 'food',
     category: 'minecraft',
     basePrice: 5000,
@@ -32,8 +33,8 @@ const SHOP_ITEMS = [
     id: 'enchanted_golden_apple',
     minecraftId: 'minecraft:enchanted_golden_apple',
     name: 'Enchanted Golden Apple',
-    description: 'La legendaria Notch Apple. Regeneración V, Absorción IV, Resistencia y Resistencia al Fuego.',
-    sprite: 'https://static.wikia.nocookie.net/minecraft_gamepedia/images/a/a3/Enchanted_Golden_Apple_JE2_BE2.gif',
+    description: 'La legendaria Notch Apple. Regeneración V, Absorción IV, Resistencia.',
+    sprite: 'https://mc-heads.net/item/enchanted_golden_apple/64',
     type: 'food',
     category: 'minecraft',
     basePrice: 50000,
@@ -47,7 +48,7 @@ const SHOP_ITEMS = [
     minecraftId: 'minecraft:golden_carrot',
     name: 'Golden Carrot',
     description: 'Zanahoria dorada. La mejor comida del juego en saturación.',
-    sprite: 'https://static.wikia.nocookie.net/minecraft_gamepedia/images/e/e6/Golden_Carrot_JE2_BE2.png',
+    sprite: 'https://mc-heads.net/item/golden_carrot/64',
     type: 'food',
     category: 'minecraft',
     basePrice: 2000,
@@ -61,7 +62,7 @@ const SHOP_ITEMS = [
     minecraftId: 'minecraft:cooked_beef',
     name: 'Steak',
     description: 'Filete de res cocido. Restaura 8 de hambre y 12.8 de saturación.',
-    sprite: 'https://static.wikia.nocookie.net/minecraft_gamepedia/images/5/53/Steak_JE4_BE3.png',
+    sprite: 'https://mc-heads.net/item/cooked_beef/64',
     type: 'food',
     category: 'minecraft',
     basePrice: 500,
@@ -75,7 +76,7 @@ const SHOP_ITEMS = [
     minecraftId: 'minecraft:cooked_porkchop',
     name: 'Cooked Porkchop',
     description: 'Chuleta de cerdo cocida. Restaura 8 de hambre y 12.8 de saturación.',
-    sprite: 'https://static.wikia.nocookie.net/minecraft_gamepedia/images/a/ae/Cooked_Porkchop_JE4_BE3.png',
+    sprite: 'https://mc-heads.net/item/cooked_porkchop/64',
     type: 'food',
     category: 'minecraft',
     basePrice: 500,
@@ -86,7 +87,7 @@ const SHOP_ITEMS = [
   },
 
   // ============================================
-  // POKÉMON CANDIES (Cobblemon)
+  // POKÉMON CANDIES (sprites de PokeAPI - siempre funcionan)
   // ============================================
   {
     id: 'rare_candy',
@@ -202,10 +203,7 @@ async function seedShopItems() {
       console.log(`✅ ${item.name} (${item.type}) - ${item.rarity}`);
     }
     
-    console.log(`\n🎉 ${SHOP_ITEMS.length} items adicionales seeded!`);
-    console.log('\n📋 Resumen:');
-    console.log('   - 5 items de comida (Minecraft)');
-    console.log('   - 6 candies (Cobblemon)');
+    console.log(`\n🎉 ${SHOP_ITEMS.length} items actualizados con sprites funcionales!`);
     
   } catch (error) {
     console.error('❌ Error:', error);
