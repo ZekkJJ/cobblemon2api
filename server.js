@@ -1375,7 +1375,7 @@ function createApp() {
   });
 
   // GET /api/shop/purchases - Get pending purchases for player
-  // CRITICAL: Uses atomic findAndModify to prevent duplicate deliveries
+  // CRITICAL: Marks purchases as 'delivering' to prevent duplicate deliveries
   app.get('/api/shop/purchases', async (req, res) => {
     try {
       const uuid = req.query.uuid;
@@ -1385,18 +1385,7 @@ function createApp() {
 
       const db = getDb();
       
-      // First, reset any stuck "delivering" purchases older than 2 minutes back to pending
-      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
-      await db.collection('shop_purchases').updateMany(
-        { 
-          minecraftUuid: uuid, 
-          status: 'delivering',
-          deliveringStartedAt: { $lt: twoMinutesAgo }
-        },
-        { $set: { status: 'pending' }, $unset: { deliveringStartedAt: '' } }
-      );
-      
-      // Find pending purchases
+      // Find pending purchases only
       const pendingPurchases = await db.collection('shop_purchases')
         .find({ minecraftUuid: uuid, status: 'pending' })
         .toArray();
@@ -1405,18 +1394,19 @@ function createApp() {
         return res.json({ success: true, purchases: [] });
       }
       
-      // ATOMIC: Mark all as "delivering" immediately to prevent duplicate fetches
-      const purchaseIds = pendingPurchases.map(p => p._id);
-      await db.collection('shop_purchases').updateMany(
-        { _id: { $in: purchaseIds } },
-        { $set: { status: 'delivering', deliveringStartedAt: new Date() } }
-      );
+      // Mark each as "delivering" to prevent duplicate fetches
+      for (const purchase of pendingPurchases) {
+        await db.collection('shop_purchases').updateOne(
+          { _id: purchase._id, status: 'pending' },
+          { $set: { status: 'delivering', deliveringStartedAt: new Date() } }
+        );
+      }
 
       // Convert _id to string for easier handling in plugin
       const purchasesWithStringId = pendingPurchases.map(p => ({
         ...p,
         _id: p._id.toString(),
-        status: 'delivering' // Reflect the new status
+        status: 'delivering'
       }));
 
       console.log(`[SHOP PURCHASES] UUID: ${uuid}, Delivering: ${pendingPurchases.length}`);
@@ -1444,7 +1434,7 @@ function createApp() {
       const db = getDb();
       const { ObjectId } = require('mongodb');
       
-      // Try to find the purchase - accept both "pending" and "delivering" status
+      // Parse ObjectId
       let objectId;
       try {
         objectId = new ObjectId(purchaseId);
@@ -1453,20 +1443,19 @@ function createApp() {
         return res.status(400).json({ error: 'Invalid purchaseId format' });
       }
       
-      const result = await db.collection('shop_purchases').updateOne(
-        { 
-          _id: objectId, 
-          minecraftUuid: uuid, 
-          status: { $in: ['pending', 'delivering'] } // Accept both statuses
-        },
-        { 
-          $set: { 
-            status: 'claimed', 
-            claimedAt: new Date() 
-          },
-          $unset: { deliveringStartedAt: '' }
-        }
+      // First try to claim from 'delivering' status
+      let result = await db.collection('shop_purchases').updateOne(
+        { _id: objectId, minecraftUuid: uuid, status: 'delivering' },
+        { $set: { status: 'claimed', claimedAt: new Date() } }
       );
+      
+      // If not found in delivering, try pending (fallback)
+      if (result.matchedCount === 0) {
+        result = await db.collection('shop_purchases').updateOne(
+          { _id: objectId, minecraftUuid: uuid, status: 'pending' },
+          { $set: { status: 'claimed', claimedAt: new Date() } }
+        );
+      }
 
       console.log(`[SHOP CLAIM] Result: matched=${result.matchedCount}, modified=${result.modifiedCount}`);
 
