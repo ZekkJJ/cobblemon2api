@@ -58,6 +58,128 @@ function generateCode() {
   return crypto.randomBytes(4).toString('hex').toUpperCase();
 }
 
+// ============================================
+// DYNAMIC PRICING SYSTEM (AI-based)
+// ============================================
+
+// Multiplicadores de rareza - cuanto más raro, más caro respecto al promedio
+const RARITY_CONFIG = {
+  'poke_ball': { rarity: 'common', multiplier: 0.3 },
+  'great_ball': { rarity: 'common', multiplier: 0.5 },
+  'ultra_ball': { rarity: 'uncommon', multiplier: 0.8 },
+  'premier_ball': { rarity: 'common', multiplier: 0.3 },
+  'luxury_ball': { rarity: 'uncommon', multiplier: 0.7 },
+  'heal_ball': { rarity: 'common', multiplier: 0.4 },
+  'net_ball': { rarity: 'uncommon', multiplier: 0.7 },
+  'dive_ball': { rarity: 'uncommon', multiplier: 0.7 },
+  'nest_ball': { rarity: 'uncommon', multiplier: 0.7 },
+  'repeat_ball': { rarity: 'uncommon', multiplier: 0.7 },
+  'timer_ball': { rarity: 'uncommon', multiplier: 0.7 },
+  'quick_ball': { rarity: 'rare', multiplier: 1.0 },
+  'dusk_ball': { rarity: 'uncommon', multiplier: 0.8 },
+  'level_ball': { rarity: 'rare', multiplier: 1.5 },
+  'lure_ball': { rarity: 'rare', multiplier: 1.5 },
+  'moon_ball': { rarity: 'rare', multiplier: 1.5 },
+  'friend_ball': { rarity: 'rare', multiplier: 1.5 },
+  'love_ball': { rarity: 'rare', multiplier: 1.8 },
+  'heavy_ball': { rarity: 'rare', multiplier: 1.5 },
+  'fast_ball': { rarity: 'rare', multiplier: 1.5 },
+  'safari_ball': { rarity: 'rare', multiplier: 1.2 },
+  'sport_ball': { rarity: 'rare', multiplier: 1.2 },
+  'dream_ball': { rarity: 'epic', multiplier: 2.0 },
+  'beast_ball': { rarity: 'epic', multiplier: 3.0 },
+  'master_ball': { rarity: 'legendary', multiplier: 10.0 },
+};
+
+const PRICE_LIMITS = {
+  common: { min: 100, max: 2000 },
+  uncommon: { min: 500, max: 8000 },
+  rare: { min: 1500, max: 25000 },
+  epic: { min: 5000, max: 100000 },
+  legendary: { min: 50000, max: 500000 },
+};
+
+const STOCK_RANGES = {
+  common: { min: 50, max: 150 },
+  uncommon: { min: 20, max: 60 },
+  rare: { min: 5, max: 20 },
+  epic: { min: 2, max: 8 },
+  legendary: { min: 0, max: 2 },
+};
+
+function getMedian(arr) {
+  const sorted = [...arr].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 !== 0 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+}
+
+async function updateDynamicPrices() {
+  try {
+    const database = getDb();
+    
+    // Obtener balances de jugadores
+    const users = await database.collection('users').find({
+      cobbleDollars: { $exists: true, $gt: 0 }
+    }).toArray();
+
+    if (users.length === 0) {
+      console.log('[PRICE AI] No players with balance, using defaults');
+      return;
+    }
+
+    const balances = users.map(u => u.cobbleDollars || 0).filter(b => b > 0);
+    const medianBalance = getMedian(balances);
+    const basePrice = medianBalance;
+
+    console.log(`[PRICE AI] Analyzing ${balances.length} players, median: ${medianBalance}`);
+
+    // Actualizar precios de cada pokébola
+    const shopItems = await database.collection('shop_items').find({}).toArray();
+
+    for (const item of shopItems) {
+      const config = RARITY_CONFIG[item.id] || { rarity: 'uncommon', multiplier: 1.0 };
+      const limits = PRICE_LIMITS[config.rarity] || { min: 100, max: 10000 };
+      const stockRange = STOCK_RANGES[config.rarity] || { min: 10, max: 50 };
+
+      // Calcular nuevo precio
+      let newPrice = Math.round(basePrice * config.multiplier);
+      newPrice = Math.max(limits.min, Math.min(limits.max, newPrice));
+      
+      // Redondear a números bonitos
+      if (newPrice < 1000) newPrice = Math.round(newPrice / 50) * 50;
+      else if (newPrice < 10000) newPrice = Math.round(newPrice / 100) * 100;
+      else newPrice = Math.round(newPrice / 500) * 500;
+
+      // Randomizar stock
+      const newStock = Math.floor(Math.random() * (stockRange.max - stockRange.min + 1)) + stockRange.min;
+
+      await database.collection('shop_items').updateOne(
+        { id: item.id },
+        { 
+          $set: { 
+            currentPrice: newPrice,
+            currentStock: newStock,
+            maxStock: stockRange.max,
+            lastPriceUpdate: new Date(),
+          } 
+        }
+      );
+    }
+
+    // Guardar historial
+    await database.collection('price_history').insertOne({
+      timestamp: new Date(),
+      playersAnalyzed: balances.length,
+      medianBalance,
+      basePrice,
+    });
+
+    console.log(`[PRICE AI] ✅ Updated prices and stock for ${shopItems.length} items`);
+  } catch (error) {
+    console.error('[PRICE AI] Error updating prices:', error);
+  }
+}
+
 // Default Pokéballs for the shop - Using exact Cobblemon item IDs
 function getDefaultPokeballs() {
   return [
@@ -542,7 +664,193 @@ function createApp() {
     }
   });
 
-  // POST /api/verification/generate - Generate verification code
+  // ============================================
+  // NEW VERIFICATION FLOW (Web → In-Game)
+  // Code generated on WEB after gacha roll
+  // Player uses /verify <code> in-game to link accounts
+  // ============================================
+
+  // POST /api/verification/generate-web - Generate code from WEB (after Discord auth + gacha)
+  app.post('/api/verification/generate-web', async (req, res) => {
+    try {
+      const { discordId, discordUsername } = req.body;
+      if (!discordId) {
+        return res.status(400).json({ error: 'discordId required' });
+      }
+
+      const db = getDb();
+      
+      // Check if already verified
+      const existingUser = await db.collection('users').findOne({ discordId });
+      if (existingUser && existingUser.verified && existingUser.minecraftUuid) {
+        return res.json({ 
+          success: true, 
+          alreadyVerified: true,
+          minecraftUsername: existingUser.minecraftUsername 
+        });
+      }
+
+      // Generate 5-digit code (easy to type in-game)
+      const code = Math.floor(10000 + Math.random() * 90000).toString();
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+      // Store code linked to discordId (waiting for Minecraft link)
+      await db.collection('verification_codes').updateOne(
+        { discordId },
+        {
+          $set: {
+            discordId,
+            discordUsername: discordUsername || discordId,
+            code,
+            expiresAt,
+            createdAt: new Date(),
+            used: false,
+          },
+        },
+        { upsert: true }
+      );
+
+      console.log(`[VERIFICATION] Generated web code ${code} for Discord ${discordUsername || discordId}`);
+      res.json({ success: true, code, expiresAt });
+    } catch (error) {
+      console.error('[VERIFICATION GENERATE WEB] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/verification/link - Link Minecraft to Discord via code (called from plugin)
+  app.post('/api/verification/link', async (req, res) => {
+    try {
+      const { minecraftUuid, minecraftUsername, code } = req.body;
+      if (!minecraftUuid || !code) {
+        return res.status(400).json({ error: 'minecraftUuid and code required' });
+      }
+
+      const db = getDb();
+      
+      // Find the verification code
+      const verificationEntry = await db.collection('verification_codes').findOne({ 
+        code: code.toString(),
+        used: false 
+      });
+
+      if (!verificationEntry) {
+        return res.json({ success: false, message: 'Código inválido o ya usado' });
+      }
+
+      if (new Date() > new Date(verificationEntry.expiresAt)) {
+        return res.json({ success: false, message: 'Código expirado. Genera uno nuevo en la web.' });
+      }
+
+      const discordId = verificationEntry.discordId;
+      const discordUsername = verificationEntry.discordUsername;
+
+      // Check if this Minecraft account is already linked to another Discord
+      const existingMcUser = await db.collection('users').findOne({ minecraftUuid });
+      if (existingMcUser && existingMcUser.discordId && existingMcUser.discordId !== discordId) {
+        return res.json({ 
+          success: false, 
+          message: 'Esta cuenta de Minecraft ya está vinculada a otro Discord' 
+        });
+      }
+
+      // Check if this Discord is already linked to another Minecraft
+      const existingDiscordUser = await db.collection('users').findOne({ discordId });
+      if (existingDiscordUser && existingDiscordUser.minecraftUuid && existingDiscordUser.minecraftUuid !== minecraftUuid) {
+        return res.json({ 
+          success: false, 
+          message: 'Este Discord ya está vinculado a otra cuenta de Minecraft' 
+        });
+      }
+
+      // Link accounts - merge or create user
+      await db.collection('users').updateOne(
+        { $or: [{ discordId }, { minecraftUuid }] },
+        {
+          $set: {
+            discordId,
+            discordUsername,
+            minecraftUuid,
+            minecraftUsername,
+            verified: true,
+            verifiedAt: new Date(),
+            updatedAt: new Date(),
+          },
+          $setOnInsert: {
+            createdAt: new Date(),
+            cobbleDollars: 0,
+          },
+        },
+        { upsert: true }
+      );
+
+      // Mark code as used
+      await db.collection('verification_codes').updateOne(
+        { code },
+        { $set: { used: true, usedAt: new Date(), linkedMinecraftUuid: minecraftUuid } }
+      );
+
+      console.log(`[VERIFICATION] Linked ${minecraftUsername} (${minecraftUuid}) to Discord ${discordUsername} (${discordId})`);
+      
+      res.json({ 
+        success: true, 
+        message: '¡Cuenta vinculada exitosamente!',
+        discordUsername 
+      });
+    } catch (error) {
+      console.error('[VERIFICATION LINK] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // GET /api/verification/status - Check if user is verified (for web polling)
+  app.get('/api/verification/status', async (req, res) => {
+    try {
+      const { discordId, code } = req.query;
+      
+      if (!discordId && !code) {
+        return res.status(400).json({ error: 'discordId or code required' });
+      }
+
+      const db = getDb();
+      
+      if (code) {
+        // Check by code
+        const verificationEntry = await db.collection('verification_codes').findOne({ code });
+        if (!verificationEntry) {
+          return res.json({ valid: false, message: 'Code not found' });
+        }
+        
+        if (verificationEntry.used) {
+          const user = await db.collection('users').findOne({ discordId: verificationEntry.discordId });
+          return res.json({ 
+            valid: true, 
+            verified: true, 
+            minecraftUsername: user?.minecraftUsername 
+          });
+        }
+        
+        return res.json({ 
+          valid: true, 
+          verified: false,
+          expired: new Date() > new Date(verificationEntry.expiresAt)
+        });
+      }
+      
+      // Check by discordId
+      const user = await db.collection('users').findOne({ discordId });
+      res.json({
+        verified: user?.verified || false,
+        minecraftUsername: user?.minecraftUsername,
+        minecraftUuid: user?.minecraftUuid,
+      });
+    } catch (error) {
+      console.error('[VERIFICATION STATUS] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // LEGACY: POST /api/verification/generate - Generate verification code (old flow, keep for compatibility)
   app.post('/api/verification/generate', async (req, res) => {
     try {
       const { minecraftUuid, minecraftUsername } = req.body;
@@ -579,7 +887,7 @@ function createApp() {
     }
   });
 
-  // POST /api/verification/verify - Verify code from plugin
+  // LEGACY: POST /api/verification/verify - Verify code from plugin (old flow)
   app.post('/api/verification/verify', async (req, res) => {
     try {
       const { minecraftUuid, code } = req.body;
@@ -1405,13 +1713,16 @@ async function startServer() {
     await connectToDatabase();
     const app = createApp();
 
-    app.listen(PORT, '0.0.0.0', () => {
+    app.listen(PORT, '0.0.0.0', async () => {
       console.log(`✅ Servidor en puerto ${PORT}`);
       console.log(`\n📋 Endpoints del plugin:`);
       console.log(`   POST /api/players/sync`);
       console.log(`   GET  /api/admin/ban-status`);
-      console.log(`   POST /api/verification/generate`);
-      console.log(`   POST /api/verification/verify`);
+      console.log(`   POST /api/verification/generate-web (NEW)`);
+      console.log(`   POST /api/verification/link (NEW)`);
+      console.log(`   GET  /api/verification/status (NEW)`);
+      console.log(`   POST /api/verification/generate (legacy)`);
+      console.log(`   POST /api/verification/verify (legacy)`);
       console.log(`   GET  /api/gacha/delivery/status`);
       console.log(`   POST /api/gacha/delivery/start`);
       console.log(`   POST /api/gacha/delivery/success`);
@@ -1419,7 +1730,40 @@ async function startServer() {
       console.log(`   GET  /api/level-caps/version`);
       console.log(`   GET  /api/level-caps/effective`);
       console.log(`   GET  /api/shop/purchases`);
-      console.log(`   POST /api/shop/claim\n`);
+      console.log(`   POST /api/shop/claim`);
+      console.log(`   POST /api/shop/purchase\n`);
+
+      // Sistema de precios dinámicos - se ejecuta cada hora
+      // Verifica si ya pasó 1 hora desde la última actualización
+      const checkAndUpdatePrices = async () => {
+        try {
+          const database = getDb();
+          const lastUpdate = await database.collection('price_history').findOne(
+            {}, 
+            { sort: { timestamp: -1 } }
+          );
+          
+          const oneHourAgo = new Date(Date.now() - 3600000);
+          
+          if (!lastUpdate || new Date(lastUpdate.timestamp) < oneHourAgo) {
+            console.log('🤖 [PRICE AI] Running price analysis...');
+            await updateDynamicPrices();
+          } else {
+            const nextUpdate = new Date(new Date(lastUpdate.timestamp).getTime() + 3600000);
+            console.log(`🤖 [PRICE AI] Next update at ${nextUpdate.toLocaleTimeString()}`);
+          }
+        } catch (error) {
+          console.error('[PRICE AI] Error checking prices:', error);
+        }
+      };
+
+      // Verificar al iniciar
+      await checkAndUpdatePrices();
+
+      // Verificar cada 5 minutos si ya pasó 1 hora
+      setInterval(checkAndUpdatePrices, 300000); // 5 minutos
+      
+      console.log('⏰ [PRICE AI] Price system active (updates hourly)');
     });
 
     process.on('SIGTERM', () => process.exit(0));
