@@ -1604,10 +1604,13 @@ function createApp() {
       // PROTECTION 2: User must be verified
       const user = await db.collection('users').findOne({ minecraftUuid: uuid });
       if (!user) {
+        console.log(`[SHOP] Purchase rejected: User not found for uuid ${uuid}`);
         return res.status(404).json({ error: 'User not found. You need to be verified.' });
       }
       
-      if (!user.verified) {
+      // Check if user is verified (has minecraftUuid linked to discordId)
+      if (!user.discordId) {
+        console.log(`[SHOP] Purchase rejected: User ${uuid} not linked to Discord`);
         return res.status(403).json({ error: 'You must verify your account first.' });
       }
 
@@ -2101,7 +2104,7 @@ async function startServer() {
       console.log(`   POST /api/shop/purchase\n`);
 
       // Sistema de precios dinámicos - se ejecuta cada hora
-      // Verifica si ya pasó 1 hora desde la última actualización
+      // SIEMPRE actualizar al iniciar para asegurar precios correctos
       const checkAndUpdatePrices = async () => {
         try {
           const database = getDb();
@@ -2124,8 +2127,9 @@ async function startServer() {
         }
       };
 
-      // Verificar al iniciar
-      await checkAndUpdatePrices();
+      // SIEMPRE actualizar precios al iniciar el servidor
+      console.log('🤖 [PRICE AI] Updating prices on server start...');
+      await updateDynamicPrices();
 
       // Verificar cada 5 minutos si ya pasó 1 hora
       setInterval(checkAndUpdatePrices, 300000); // 5 minutos
