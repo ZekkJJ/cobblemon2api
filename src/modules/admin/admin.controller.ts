@@ -9,6 +9,10 @@ const banSchema = z.object({
   ban: z.boolean(),
 });
 
+const uuidQuerySchema = z.object({
+  uuid: z.string().uuid('UUID de Minecraft inválido'),
+});
+
 export class AdminController {
   constructor(private adminService: AdminService) {}
 
@@ -29,5 +33,15 @@ export class AdminController {
     const adminName = (req as any).user?.discordUsername || 'Admin';
     const result = await this.adminService.resetDatabase(adminName);
     res.json(result);
+  });
+
+  /**
+   * GET /api/admin/ban-status
+   * Obtiene el estado de ban de un jugador (alias para plugin)
+   */
+  getBanStatus = asyncHandler(async (req: Request, res: Response) => {
+    const validatedQuery = uuidQuerySchema.parse({ uuid: req.query['uuid'] });
+    const status = await this.adminService.getBanStatus(validatedQuery.uuid);
+    res.json(status);
   });
 }

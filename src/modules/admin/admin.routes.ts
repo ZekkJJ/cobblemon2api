@@ -12,9 +12,14 @@ export async function createAdminRouter(): Promise<Router> {
   const adminController = new AdminController(adminService);
 
   const writeLimiter = createRateLimiter({ windowMs: 60000, max: 20, message: 'Demasiadas solicitudes' });
+  const readLimiter = createRateLimiter({ windowMs: 60000, max: 100, message: 'Demasiadas solicitudes' });
 
+  // Admin panel endpoints (require auth)
   router.post('/ban', requireAuth, requireAdmin, writeLimiter, adminController.banPlayer);
   router.post('/reset-db', requireAuth, requireAdmin, writeLimiter, adminController.resetDatabase);
+
+  // Plugin endpoints (no auth required, uses IP whitelist in players routes)
+  router.get('/ban-status', readLimiter, adminController.getBanStatus);
 
   return router;
 }
