@@ -10,17 +10,18 @@ const { MongoClient } = require('mongodb');
 const MONGODB_URI = process.env.MONGODB_URI;
 
 // Items adicionales para la tienda
-// Usando sprites de fuentes confiables que no bloquean hotlinking
+// URLs verificadas que funcionan
 const SHOP_ITEMS = [
   // ============================================
-  // COMIDA DE MINECRAFT (sprites de mc-heads.net - funciona sin hotlink protection)
+  // COMIDA DE MINECRAFT 
+  // Usando emojis como placeholder hasta tener sprites propios
   // ============================================
   {
     id: 'golden_apple',
     minecraftId: 'minecraft:golden_apple',
     name: 'Golden Apple',
     description: 'Manzana dorada. Regeneración II y Absorción por 2 minutos.',
-    sprite: 'https://mc-heads.net/item/golden_apple/64',
+    sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/golden-razz-berry.png',
     type: 'food',
     category: 'minecraft',
     basePrice: 5000,
@@ -34,7 +35,7 @@ const SHOP_ITEMS = [
     minecraftId: 'minecraft:enchanted_golden_apple',
     name: 'Enchanted Golden Apple',
     description: 'La legendaria Notch Apple. Regeneración V, Absorción IV, Resistencia.',
-    sprite: 'https://mc-heads.net/item/enchanted_golden_apple/64',
+    sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/starf-berry.png',
     type: 'food',
     category: 'minecraft',
     basePrice: 50000,
@@ -48,7 +49,7 @@ const SHOP_ITEMS = [
     minecraftId: 'minecraft:golden_carrot',
     name: 'Golden Carrot',
     description: 'Zanahoria dorada. La mejor comida del juego en saturación.',
-    sprite: 'https://mc-heads.net/item/golden_carrot/64',
+    sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/sitrus-berry.png',
     type: 'food',
     category: 'minecraft',
     basePrice: 2000,
@@ -62,7 +63,7 @@ const SHOP_ITEMS = [
     minecraftId: 'minecraft:cooked_beef',
     name: 'Steak',
     description: 'Filete de res cocido. Restaura 8 de hambre y 12.8 de saturación.',
-    sprite: 'https://mc-heads.net/item/cooked_beef/64',
+    sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/oran-berry.png',
     type: 'food',
     category: 'minecraft',
     basePrice: 500,
@@ -76,7 +77,7 @@ const SHOP_ITEMS = [
     minecraftId: 'minecraft:cooked_porkchop',
     name: 'Cooked Porkchop',
     description: 'Chuleta de cerdo cocida. Restaura 8 de hambre y 12.8 de saturación.',
-    sprite: 'https://mc-heads.net/item/cooked_porkchop/64',
+    sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/leppa-berry.png',
     type: 'food',
     category: 'minecraft',
     basePrice: 500,
@@ -87,7 +88,7 @@ const SHOP_ITEMS = [
   },
 
   // ============================================
-  // POKÉMON CANDIES (sprites de PokeAPI - siempre funcionan)
+  // POKÉMON CANDIES (sprites de PokeAPI GitHub - 100% confiable)
   // ============================================
   {
     id: 'rare_candy',
@@ -203,7 +204,9 @@ async function seedShopItems() {
       console.log(`✅ ${item.name} (${item.type}) - ${item.rarity}`);
     }
     
-    console.log(`\n🎉 ${SHOP_ITEMS.length} items actualizados con sprites funcionales!`);
+    console.log(`\n🎉 ${SHOP_ITEMS.length} items actualizados!`);
+    console.log('\n⚠️  NOTA: Los items de comida usan sprites de berries como placeholder.');
+    console.log('    Para sprites reales de Minecraft, súbelos a frontend/public/shop/');
     
   } catch (error) {
     console.error('❌ Error:', error);
