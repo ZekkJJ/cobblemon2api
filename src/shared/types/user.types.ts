@@ -38,6 +38,7 @@ export interface User {
   verified: boolean;
   verifiedAt?: string;
   verificationCode?: string;
+  verificationCodeExpiresAt?: string;
   lastVerificationCode?: string;
   
   // Starter (Gacha)

@@ -8,6 +8,7 @@
 import { Collection } from 'mongodb';
 import { User } from '../../shared/types/user.types.js';
 import { AppError, Errors } from '../../shared/middleware/error-handler.js';
+import { randomBytes } from 'crypto';
 
 /**
  * Resultado de generación de código
@@ -27,13 +28,48 @@ export interface VerificationResult {
 }
 
 export class VerificationService {
-  constructor(private usersCollection: Collection<User>) {}
+  // Códigos activos con timestamp de expiración (15 minutos)
+  private activeCodes: Map<string, { uuid: string; expiresAt: number }> = new Map();
+  
+  constructor(private usersCollection: Collection<User>) {
+    // Limpiar códigos expirados cada 5 minutos
+    setInterval(() => this.cleanupExpiredCodes(), 5 * 60 * 1000);
+  }
 
   /**
-   * Genera un código de verificación de 5 dígitos
+   * Genera un código de verificación seguro de 8 caracteres alfanuméricos
+   * Usa crypto.randomBytes en lugar de Math.random() para mayor seguridad
    */
   private generateCode(): string {
-    return Math.floor(10000 + Math.random() * 90000).toString();
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Sin caracteres ambiguos (0, O, 1, I)
+    const codeLength = 8;
+    const bytes = randomBytes(codeLength);
+    
+    let code = '';
+    for (let i = 0; i < codeLength; i++) {
+      code += chars[bytes[i] % chars.length];
+    }
+    
+    return code;
+  }
+
+  /**
+   * Limpia códigos expirados del mapa en memoria
+   */
+  private cleanupExpiredCodes(): void {
+    const now = Date.now();
+    let cleaned = 0;
+    
+    for (const [code, data] of this.activeCodes.entries()) {
+      if (data.expiresAt < now) {
+        this.activeCodes.delete(code);
+        cleaned++;
+      }
+    }
+    
+    if (cleaned > 0) {
+      console.log(`[VERIFICATION SERVICE] Limpiados ${cleaned} códigos expirados`);
+    }
   }
 
   /**
@@ -45,10 +81,14 @@ export class VerificationService {
     minecraftUsername: string
   ): Promise<GenerateCodeResult> {
     try {
-      // Generar código de 5 dígitos
+      // Generar código seguro de 8 caracteres
       const code = this.generateCode();
+      const expiresAt = Date.now() + (15 * 60 * 1000); // 15 minutos
 
       console.log('[VERIFICATION SERVICE] Generando código para:', { minecraftUuid, minecraftUsername, code });
+
+      // Guardar código en memoria con expiración
+      this.activeCodes.set(code, { uuid: minecraftUuid, expiresAt });
 
       // Buscar usuario existente
       const existing = await this.usersCollection.findOne({ minecraftUuid });
@@ -61,6 +101,7 @@ export class VerificationService {
             $set: {
               minecraftUsername,
               verificationCode: code,
+              verificationCodeExpiresAt: new Date(expiresAt).toISOString(),
               verified: false,
               updatedAt: new Date(),
             },
@@ -76,6 +117,7 @@ export class VerificationService {
           minecraftUuid,
           minecraftUsername,
           verificationCode: code,
+          verificationCodeExpiresAt: new Date(expiresAt).toISOString(),
           verified: false,
           starterId: null,
           starterIsShiny: false,
@@ -112,6 +154,16 @@ export class VerificationService {
     try {
       console.log('[VERIFICATION SERVICE] Verificando código desde plugin:', { minecraftUuid, code });
 
+      // Verificar si el código está en memoria y no ha expirado
+      const codeData = this.activeCodes.get(code);
+      if (!codeData || codeData.expiresAt < Date.now()) {
+        console.log('[VERIFICATION SERVICE] Código expirado o no encontrado en memoria');
+        return {
+          success: false,
+          message: 'Código de verificación expirado o inválido',
+        };
+      }
+
       // Buscar usuario con UUID y código coincidentes
       const user = await this.usersCollection.findOne({
         minecraftUuid,
@@ -123,6 +175,15 @@ export class VerificationService {
         return {
           success: false,
           message: 'Código de verificación inválido',
+        };
+      }
+
+      // Verificar expiración en base de datos también
+      if (user.verificationCodeExpiresAt && new Date(user.verificationCodeExpiresAt) < new Date()) {
+        console.log('[VERIFICATION SERVICE] Código expirado en base de datos');
+        return {
+          success: false,
+          message: 'Código de verificación expirado',
         };
       }
 
@@ -138,9 +199,13 @@ export class VerificationService {
           },
           $unset: {
             verificationCode: '',
+            verificationCodeExpiresAt: '',
           },
         }
       );
+
+      // Remover código de memoria
+      this.activeCodes.delete(code);
 
       console.log('[VERIFICATION SERVICE] Verificación exitosa para:', user.minecraftUsername);
 
@@ -167,10 +232,21 @@ export class VerificationService {
     try {
       console.log('[VERIFICATION SERVICE] Verificando código desde web:', { code, discordId });
 
+      // Verificar si el código está en memoria y no ha expirado
+      const codeData = this.activeCodes.get(code);
+      if (!codeData || codeData.expiresAt < Date.now()) {
+        throw Errors.invalidCode();
+      }
+
       // Buscar usuario de Minecraft con este código
       const minecraftUser = await this.usersCollection.findOne({ verificationCode: code });
 
       if (!minecraftUser) {
+        throw Errors.invalidCode();
+      }
+
+      // Verificar expiración en base de datos también
+      if (minecraftUser.verificationCodeExpiresAt && new Date(minecraftUser.verificationCodeExpiresAt) < new Date()) {
         throw Errors.invalidCode();
       }
 
@@ -202,6 +278,7 @@ export class VerificationService {
             },
             $unset: {
               verificationCode: '',
+              verificationCodeExpiresAt: '',
             },
           }
         );
@@ -230,12 +307,16 @@ export class VerificationService {
             },
             $unset: {
               verificationCode: '',
+              verificationCodeExpiresAt: '',
             },
           }
         );
 
         console.log(`[VERIFICATION SERVICE] Linked Discord ${discordId} to Minecraft ${minecraftUser.minecraftUuid}`);
       }
+
+      // Remover código de memoria
+      this.activeCodes.delete(code);
 
       return {
         success: true,
