@@ -1355,6 +1355,11 @@ function createApp() {
         .find({ minecraftUuid: uuid, status: 'pending' })
         .toArray();
 
+      console.log(`[SHOP PURCHASES] UUID: ${uuid}, Pending: ${purchases.length}`);
+      if (purchases.length > 0) {
+        console.log(`[SHOP PURCHASES] Items:`, purchases.map(p => `${p.quantity}x ${p.ballName}`).join(', '));
+      }
+
       res.json({ success: true, purchases });
     } catch (error) {
       console.error('[SHOP PURCHASES] Error:', error);
