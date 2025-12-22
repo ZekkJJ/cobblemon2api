@@ -123,17 +123,21 @@ async function callGroqLLM(prompt) {
         messages: [
           {
             role: 'system',
-            content: `You are an expert game economist for a Pokémon Minecraft server. Your job is to analyze player economy data and set fair but challenging prices for Pokéballs. 
+            content: `You are an AGGRESSIVE game economist for a Pokémon Minecraft server. Your job is to set HIGH prices that make players WORK HARD for items.
 
-IMPORTANT RULES:
-- Prices should be HIGH enough that players need to work for them
-- Common balls should cost 5-15% of median player balance
-- Rare balls should cost 50-100% of median balance
-- Epic balls should cost 150-300% of median balance
-- Legendary (Master Ball) should cost 500-1000% of median balance
-- If economy is inflated (lots of money), prices should be HIGHER
-- If economy is deflated (little money), prices should be slightly lower but still challenging
-- NEVER make items too cheap - this ruins the game economy
+CRITICAL PRICING RULES:
+- Use the 75th PERCENTILE (P75) as your base, NOT the median - this targets the richer players
+- If there's high wealth inequality (some rich, some poor), prices should target the RICH players
+- Players with 0 balance should be IGNORED when calculating prices
+- Common balls: 15-25% of P75 balance (minimum 500)
+- Uncommon balls: 30-50% of P75 balance (minimum 1,000)
+- Rare balls: 75-150% of P75 balance (minimum 3,000)
+- Epic balls: 200-400% of P75 balance (minimum 10,000)
+- Legendary (Master Ball): 800-1500% of P75 balance (minimum 50,000)
+- NEVER set prices below the minimums listed above
+- Items should feel EXPENSIVE - players should need to grind
+- A Poké Ball should NEVER cost less than 500
+- A Master Ball should NEVER cost less than 50,000
 - Always respond with valid JSON only, no explanations`
           },
           {
@@ -178,20 +182,20 @@ async function updateDynamicPricesWithAI() {
     const database = getDb();
     console.log('[ECONOMIC AI] Starting LLM-powered economic analysis...');
     
-    // Gather economic data
+    // Gather economic data - EXCLUDE players with 0 balance
     const users = await database.collection('users').find({
-      cobbleDollars: { $exists: true }
+      cobbleDollars: { $exists: true, $gt: 0 }
     }).toArray();
 
-    const balances = users.map(u => u.cobbleDollars || 0).filter(b => b >= 0);
+    const balances = users.map(u => u.cobbleDollars || 0).filter(b => b > 0);
     
     if (balances.length === 0) {
-      console.log('[ECONOMIC AI] No players with balance, using minimum prices');
+      console.log('[ECONOMIC AI] No players with balance > 0, using minimum prices');
       await setFallbackPrices(database);
       return;
     }
 
-    // Calculate statistics
+    // Calculate statistics (excluding 0 balances)
     const sortedBalances = [...balances].sort((a, b) => a - b);
     const totalPlayers = balances.length;
     const totalWealth = balances.reduce((a, b) => a + b, 0);
@@ -201,6 +205,10 @@ async function updateDynamicPricesWithAI() {
     const maxBalance = sortedBalances[sortedBalances.length - 1];
     const p25 = sortedBalances[Math.floor(sortedBalances.length * 0.25)];
     const p75 = sortedBalances[Math.floor(sortedBalances.length * 0.75)];
+    const p90 = sortedBalances[Math.floor(sortedBalances.length * 0.90)];
+    
+    // Calculate wealth inequality (Gini-like)
+    const wealthGap = maxBalance > 0 ? (maxBalance - minBalance) / maxBalance : 0;
 
     // Get recent purchase history
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -215,57 +223,66 @@ async function updateDynamicPricesWithAI() {
     const shopItems = await database.collection('shop_items').find({}).toArray();
     const itemNames = shopItems.map(i => ({ id: i.id, name: i.name, rarity: RARITY_CONFIG[i.id]?.rarity || 'uncommon' }));
 
-    // Build prompt for Groq
-    const prompt = `Analyze this Pokémon server economy and set prices for Pokéballs.
+    // Build prompt for Groq - emphasize P75 and high prices
+    const prompt = `Analyze this Pokémon server economy and set AGGRESSIVE prices for Pokéballs.
 
-ECONOMY DATA:
-- Total Players: ${totalPlayers}
+ECONOMY DATA (players with balance > 0 only):
+- Active Players: ${totalPlayers}
 - Total Wealth: ${totalWealth.toLocaleString()} CobbleDollars
 - Average Balance: ${averageBalance.toLocaleString()}
 - Median Balance: ${medianBalance.toLocaleString()}
 - Min Balance: ${minBalance.toLocaleString()}
 - Max Balance: ${maxBalance.toLocaleString()}
-- 25th Percentile: ${p25.toLocaleString()}
-- 75th Percentile: ${p75.toLocaleString()}
+- 25th Percentile (P25): ${p25.toLocaleString()}
+- 75th Percentile (P75): ${p75.toLocaleString()} <-- USE THIS AS BASE
+- 90th Percentile (P90): ${p90.toLocaleString()}
+- Wealth Inequality: ${(wealthGap * 100).toFixed(1)}% gap between richest and poorest
 - Purchases in last 24h: ${purchaseCount24h}
 - Money spent in 24h: ${totalSpent24h.toLocaleString()}
 
-ITEMS TO PRICE:
+ITEMS TO PRICE (use P75 as base, prices should be HIGH):
 ${itemNames.map(i => `- ${i.id} (${i.rarity}): ${i.name}`).join('\n')}
 
-Based on this data, set prices that are CHALLENGING but FAIR. Players should need to work to afford items.
+MINIMUM PRICES (NEVER go below these):
+- Common balls: minimum 500
+- Uncommon balls: minimum 1,000
+- Rare balls: minimum 3,000
+- Epic balls: minimum 10,000
+- Legendary: minimum 50,000
+
+Set prices that make players GRIND. Use P75 (${p75.toLocaleString()}) as your reference point.
 
 Respond with ONLY a JSON object in this exact format:
 {
-  "analysis": "Brief 1-2 sentence analysis of the economy",
+  "analysis": "Brief 1-2 sentence analysis",
   "economyHealth": "healthy|inflated|deflated",
-  "recommendedBasePrice": <number based on median>,
+  "recommendedBasePrice": <number based on P75>,
   "prices": {
-    "poke_ball": <price>,
-    "great_ball": <price>,
-    "ultra_ball": <price>,
-    "premier_ball": <price>,
-    "luxury_ball": <price>,
-    "heal_ball": <price>,
-    "net_ball": <price>,
-    "dive_ball": <price>,
-    "nest_ball": <price>,
-    "repeat_ball": <price>,
-    "timer_ball": <price>,
-    "quick_ball": <price>,
-    "dusk_ball": <price>,
-    "level_ball": <price>,
-    "lure_ball": <price>,
-    "moon_ball": <price>,
-    "friend_ball": <price>,
-    "love_ball": <price>,
-    "heavy_ball": <price>,
-    "fast_ball": <price>,
-    "safari_ball": <price>,
-    "sport_ball": <price>,
-    "dream_ball": <price>,
-    "beast_ball": <price>,
-    "master_ball": <price>
+    "poke_ball": <price, min 500>,
+    "great_ball": <price, min 500>,
+    "ultra_ball": <price, min 1000>,
+    "premier_ball": <price, min 500>,
+    "luxury_ball": <price, min 1000>,
+    "heal_ball": <price, min 500>,
+    "net_ball": <price, min 1000>,
+    "dive_ball": <price, min 1000>,
+    "nest_ball": <price, min 1000>,
+    "repeat_ball": <price, min 1000>,
+    "timer_ball": <price, min 1000>,
+    "quick_ball": <price, min 3000>,
+    "dusk_ball": <price, min 1000>,
+    "level_ball": <price, min 3000>,
+    "lure_ball": <price, min 3000>,
+    "moon_ball": <price, min 3000>,
+    "friend_ball": <price, min 3000>,
+    "love_ball": <price, min 3000>,
+    "heavy_ball": <price, min 3000>,
+    "fast_ball": <price, min 3000>,
+    "safari_ball": <price, min 3000>,
+    "sport_ball": <price, min 3000>,
+    "dream_ball": <price, min 10000>,
+    "beast_ball": <price, min 10000>,
+    "master_ball": <price, min 50000>
   }
 }`;
 
@@ -277,16 +294,28 @@ Respond with ONLY a JSON object in this exact format:
       console.log(`[ECONOMIC AI] Economy Health: ${aiResponse.economyHealth}`);
       console.log(`[ECONOMIC AI] Recommended Base: ${aiResponse.recommendedBasePrice}`);
 
-      // Apply AI-recommended prices
+      // Minimum prices by rarity (ENFORCED)
+      const MIN_PRICES = {
+        common: 500,
+        uncommon: 1000,
+        rare: 3000,
+        epic: 10000,
+        legendary: 50000,
+      };
+
+      // Apply AI-recommended prices with ENFORCED minimums
       for (const item of shopItems) {
         const aiPrice = aiResponse.prices[item.id];
         if (aiPrice && typeof aiPrice === 'number' && aiPrice > 0) {
           const config = RARITY_CONFIG[item.id] || { rarity: 'uncommon' };
           const stockRange = STOCK_RANGES[config.rarity] || { min: 10, max: 50 };
+          const minPrice = MIN_PRICES[config.rarity] || 500;
+          
+          // Enforce minimum price
+          let finalPrice = Math.max(Math.round(aiPrice), minPrice);
           
           // Round to nice numbers
-          let finalPrice = Math.round(aiPrice);
-          if (finalPrice < 500) finalPrice = Math.round(finalPrice / 25) * 25;
+          if (finalPrice < 500) finalPrice = 500;
           else if (finalPrice < 2000) finalPrice = Math.round(finalPrice / 50) * 50;
           else if (finalPrice < 10000) finalPrice = Math.round(finalPrice / 100) * 100;
           else if (finalPrice < 50000) finalPrice = Math.round(finalPrice / 500) * 500;
@@ -295,7 +324,7 @@ Respond with ONLY a JSON object in this exact format:
           // Calculate stock
           let newStock = Math.floor(Math.random() * (stockRange.max - stockRange.min + 1)) + stockRange.min;
           if (config.rarity === 'legendary') {
-            newStock = Math.random() < 0.15 ? 1 : 0; // 15% chance for Master Ball
+            newStock = Math.random() < 0.10 ? 1 : 0; // 10% chance for Master Ball (rarer)
           }
 
           await database.collection('shop_items').updateOne(
@@ -323,6 +352,9 @@ Respond with ONLY a JSON object in this exact format:
         totalWealth,
         averageBalance,
         medianBalance,
+        p75,
+        p90,
+        wealthGap,
         aiAnalysis: aiResponse.analysis,
         economyHealth: aiResponse.economyHealth,
         recommendedBasePrice: aiResponse.recommendedBasePrice,
