@@ -12,18 +12,6 @@ import { Errors } from '../middleware/error-handler.js';
 // Use mathjs directly for safe evaluation
 const math = mathjs;
 
-// Whitelist of allowed functions and operators
-const ALLOWED_FUNCTIONS = new Set([
-  'add', 'subtract', 'multiply', 'divide', 'mod',
-  'min', 'max', 'floor', 'ceil', 'round', 'abs',
-  'sqrt', 'pow', 'exp', 'log', 'log10',
-  'sin', 'cos', 'tan', // Trigonometric (rarely needed but safe)
-]);
-
-const ALLOWED_OPERATORS = new Set([
-  '+', '-', '*', '/', '%', '(', ')', ',', ' '
-]);
-
 export interface ValidationResult {
   valid: boolean;
   error?: string;
