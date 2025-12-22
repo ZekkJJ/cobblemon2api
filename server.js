@@ -267,3 +267,188 @@ function createApp() {
       res.status(500).json({ error: 'Internal server error' });
     }
   });
+
+  // GET /api/gacha/delivery/status - Check starter delivery status
+  app.get('/api/gacha/delivery/status', async (req, res) => {
+    try {
+      const uuid = req.query.uuid;
+      if (!uuid) {
+        return res.status(400).json({ error: 'uuid required' });
+      }
+
+      const db = getDb();
+      const user = await db.collection('users').findOne({ minecraftUuid: uuid });
+
+      if (!user) {
+        return res.json({ deliveryInProgress: false, hasPendingStarter: false });
+      }
+
+      res.json({
+        deliveryInProgress: user.starterDeliveryInProgress || false,
+        hasPendingStarter: user.starterClaimed && !user.starterDelivered,
+        starterId: user.starterId,
+        starterIsShiny: user.starterIsShiny || false,
+      });
+    } catch (error) {
+      console.error('[DELIVERY STATUS] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/gacha/delivery/start - Mark delivery as started
+  app.post('/api/gacha/delivery/start', async (req, res) => {
+    try {
+      const { uuid } = req.body;
+      if (!uuid) {
+        return res.status(400).json({ error: 'uuid required' });
+      }
+
+      const db = getDb();
+      await db.collection('users').updateOne(
+        { minecraftUuid: uuid },
+        { $set: { starterDeliveryInProgress: true, updatedAt: new Date() } }
+      );
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('[DELIVERY START] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/gacha/delivery/success - Mark delivery as successful
+  app.post('/api/gacha/delivery/success', async (req, res) => {
+    try {
+      const { uuid } = req.body;
+      if (!uuid) {
+        return res.status(400).json({ error: 'uuid required' });
+      }
+
+      const db = getDb();
+      await db.collection('users').updateOne(
+        { minecraftUuid: uuid },
+        {
+          $set: {
+            starterDelivered: true,
+            starterDeliveryInProgress: false,
+            starterDeliveredAt: new Date(),
+            updatedAt: new Date(),
+          },
+        }
+      );
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('[DELIVERY SUCCESS] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/gacha/delivery/failed - Mark delivery as failed
+  app.post('/api/gacha/delivery/failed', async (req, res) => {
+    try {
+      const { uuid, reason } = req.body;
+      if (!uuid) {
+        return res.status(400).json({ error: 'uuid required' });
+      }
+
+      const db = getDb();
+      await db.collection('users').updateOne(
+        { minecraftUuid: uuid },
+        {
+          $set: {
+            starterDeliveryInProgress: false,
+            starterDeliveryFailedReason: reason,
+            updatedAt: new Date(),
+          },
+        }
+      );
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('[DELIVERY FAILED] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // GET /api/level-caps/version - Get level caps config version
+  app.get('/api/level-caps/version', async (req, res) => {
+    try {
+      const db = getDb();
+      const config = await db.collection('level_caps').findOne({});
+
+      res.json({
+        version: config?.version || 1,
+        lastUpdated: config?.lastModified || config?.updatedAt || new Date(),
+      });
+    } catch (error) {
+      console.error('[LEVEL CAPS VERSION] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // GET /api/level-caps/effective - Get effective caps for player
+  app.get('/api/level-caps/effective', async (req, res) => {
+    try {
+      const uuid = req.query.uuid;
+      if (!uuid) {
+        return res.status(400).json({ error: 'uuid required' });
+      }
+
+      const db = getDb();
+      const config = await db.collection('level_caps').findOne({});
+
+      // Default caps if no config
+      if (!config) {
+        return res.json({
+          success: true,
+          captureCap: 100,
+          ownershipCap: 100,
+          appliedRules: [],
+          calculatedAt: new Date(),
+        });
+      }
+
+      // For now, return global defaults
+      // TODO: Implement full formula evaluation
+      res.json({
+        success: true,
+        captureCap: config.globalConfig?.defaultCaptureCap || 100,
+        ownershipCap: config.globalConfig?.defaultOwnershipCap || 100,
+        appliedRules: [],
+        calculatedAt: new Date(),
+      });
+    } catch (error) {
+      console.error('[LEVEL CAPS EFFECTIVE] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // PUT /api/level-caps/config - Update level caps config (admin)
+  app.put('/api/level-caps/config', async (req, res) => {
+    try {
+      const db = getDb();
+      const existing = await db.collection('level_caps').findOne({});
+      const newVersion = (existing?.version || 0) + 1;
+
+      await db.collection('level_caps').updateOne(
+        {},
+        {
+          $set: {
+            ...req.body,
+            version: newVersion,
+            lastModified: new Date(),
+            updatedAt: new Date(),
+          },
+        },
+        { upsert: true }
+      );
+
+      const updated = await db.collection('level_caps').findOne({});
+      console.log(`[LEVEL CAPS] Config updated to version ${newVersion}`);
+      res.json(updated);
+    } catch (error) {
+      console.error('[LEVEL CAPS CONFIG] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
