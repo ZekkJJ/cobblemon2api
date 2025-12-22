@@ -156,6 +156,70 @@ function createApp() {
   });
 
   // API Routes
+  
+  // Auth routes
+  app.get('/api/auth/discord', (req, res) => {
+    const clientId = process.env.DISCORD_CLIENT_ID;
+    const redirectUri = process.env.DISCORD_REDIRECT_URI || `https://api.playadoradarp.xyz/port/25617/api/auth/discord/callback`;
+    const discordAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=identify%20email`;
+    res.redirect(discordAuthUrl);
+  });
+
+  app.get('/api/auth/discord/callback', async (req, res) => {
+    const { code } = req.query;
+    if (!code) {
+      return res.redirect(`${FRONTEND_URL}?auth=error`);
+    }
+
+    try {
+      // Exchange code for token
+      const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: process.env.DISCORD_CLIENT_ID,
+          client_secret: process.env.DISCORD_CLIENT_SECRET,
+          grant_type: 'authorization_code',
+          code: code,
+          redirect_uri: process.env.DISCORD_REDIRECT_URI || `https://api.playadoradarp.xyz/port/25617/api/auth/discord/callback`,
+        }),
+      });
+
+      const tokenData = await tokenResponse.json();
+      if (!tokenData.access_token) {
+        return res.redirect(`${FRONTEND_URL}?auth=error`);
+      }
+
+      // Get user info
+      const userResponse = await fetch('https://discord.com/api/users/@me', {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      });
+
+      const userData = await userResponse.json();
+      
+      // Save or update user in database
+      await getDb().collection('users').updateOne(
+        { discordId: userData.id },
+        {
+          $set: {
+            discordId: userData.id,
+            discordUsername: `${userData.username}#${userData.discriminator}`,
+            avatar: userData.avatar ? `https://cdn.discordapp.com/avatars/${userData.id}/${userData.avatar}.png` : null,
+            email: userData.email,
+            lastLogin: new Date(),
+          },
+        },
+        { upsert: true }
+      );
+
+      // Redirect to frontend with success
+      res.redirect(`${FRONTEND_URL}?auth=success&discordId=${userData.id}&username=${encodeURIComponent(userData.username)}`);
+    } catch (error) {
+      console.error('Discord auth error:', error);
+      res.redirect(`${FRONTEND_URL}?auth=error`);
+    }
+  });
+
   app.get('/api/starters', async (req, res, next) => {
     try {
       const starters = await getDb().collection('starters').find({}).toArray();
