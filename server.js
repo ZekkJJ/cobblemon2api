@@ -1762,6 +1762,8 @@ function createApp() {
       const query = discordId ? { discordId } : { minecraftUuid: uuid };
       const user = await db.collection('users').findOne(query);
 
+      console.log(`[SHOP BALANCE] Query: ${JSON.stringify(query)}, Found user: ${user ? 'yes' : 'no'}, minecraftUuid: ${user?.minecraftUuid || 'none'}`);
+
       res.json({
         success: true,
         balance: user?.cobbleDollars || 0,
