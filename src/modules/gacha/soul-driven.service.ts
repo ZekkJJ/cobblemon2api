@@ -83,133 +83,121 @@ export class SoulDrivenService {
       );
     }
 
-    const db = await getDb();
-    const session = db.client.startSession();
-
     try {
-      let result: SoulDrivenResult | null = null;
+      // Buscar o crear usuario
+      let user = await this.usersCollection.findOne({ discordId });
 
-      await session.withTransaction(async () => {
-        // Buscar o crear usuario
-        let user = await this.usersCollection.findOne({ discordId }, { session });
+      if (!user) {
+        const newUser: Partial<User> = {
+          discordId,
+          discordUsername: discordUsername || 'Unknown',
+          nickname: discordUsername || '',
+          starterId: null,
+          starterIsShiny: false,
+          starterGiven: false,
+          rolledAt: null,
+          isAdmin: false,
+          banned: false,
+          verified: false,
+          pokemonParty: [],
+          pcStorage: [],
+          cobbleDollarsBalance: 0,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
 
-        if (!user) {
-          const newUser: Partial<User> = {
-            discordId,
-            discordUsername: discordUsername || 'Unknown',
-            nickname: discordUsername || '',
-            starterId: null,
-            starterIsShiny: false,
-            starterGiven: false,
-            rolledAt: null,
-            isAdmin: false,
-            banned: false,
-            verified: false,
-            pokemonParty: [],
-            pcStorage: [],
-            cobbleDollarsBalance: 0,
-            createdAt: new Date(),
+        const insertResult = await this.usersCollection.insertOne(newUser as User);
+        user = { ...newUser, _id: insertResult.insertedId } as any;
+      }
+
+      // Verificar si ya hizo tirada
+      if (user && user.starterId !== null) {
+        throw new AppError('¡Ya has hecho tu tirada!', 400);
+      }
+
+      // Obtener starters disponibles
+      const claimedStarters = await this.startersCollection.find({ isClaimed: true }).toArray();
+      const claimedIds = new Set(claimedStarters.map(s => s.pokemonId));
+      const availableStarters = STARTERS_DATA.filter(s => !claimedIds.has(s.pokemonId));
+
+      if (availableStarters.length === 0) {
+        throw new AppError('No hay starters disponibles', 400);
+      }
+
+      // Analizar personalidad con IA
+      const suggestedPokemon = await this.analyzePersonality(answers, availableStarters);
+
+      // Seleccionar con pesos (40%, 25%, 20%, 10%, 5%)
+      const selectedStarter = this.selectWithWeights(suggestedPokemon);
+
+      // 1% probabilidad de shiny
+      const isShiny = Math.random() < 0.01;
+
+      // Actualizar usuario
+      await this.usersCollection.updateOne(
+        { discordId },
+        {
+          $set: {
+            starterId: selectedStarter.pokemonId,
+            starterIsShiny: isShiny,
+            rolledAt: new Date().toISOString(),
             updatedAt: new Date(),
-          };
-
-          const insertResult = await this.usersCollection.insertOne(newUser as User, { session });
-          user = { ...newUser, _id: insertResult.insertedId } as any;
-        }
-
-        // Verificar si ya hizo tirada
-        if (user && user.starterId !== null) {
-          throw new AppError('¡Ya has hecho tu tirada!', 400);
-        }
-
-        // Obtener starters disponibles
-        const claimedStarters = await this.startersCollection.find({ isClaimed: true }, { session }).toArray();
-        const claimedIds = new Set(claimedStarters.map(s => s.pokemonId));
-        const availableStarters = STARTERS_DATA.filter(s => !claimedIds.has(s.pokemonId));
-
-        if (availableStarters.length === 0) {
-          throw new AppError('No hay starters disponibles', 400);
-        }
-
-        // Analizar personalidad con IA
-        const suggestedPokemon = await this.analyzePersonality(answers, availableStarters);
-
-        // Seleccionar con pesos (40%, 25%, 20%, 10%, 5%)
-        const selectedStarter = this.selectWithWeights(suggestedPokemon);
-
-        // 1% probabilidad de shiny
-        const isShiny = Math.random() < 0.01;
-
-        // Actualizar usuario
-        await this.usersCollection.updateOne(
-          { discordId },
-          {
-            $set: {
-              starterId: selectedStarter.pokemonId,
-              starterIsShiny: isShiny,
-              rolledAt: new Date().toISOString(),
-              updatedAt: new Date(),
-            },
           },
-          { session }
-        );
+        }
+      );
 
-        // Marcar starter como reclamado
-        const nickname = discordUsername || user?.nickname || user?.discordUsername || 'Desconocido';
-        
-        await this.startersCollection.updateOne(
-          { pokemonId: selectedStarter.pokemonId },
-          {
-            $set: {
-              pokemonId: selectedStarter.pokemonId,
-              name: selectedStarter.name,
-              isClaimed: true,
-              claimedBy: discordId,
-              claimedByNickname: nickname,
-              minecraftUsername: user?.minecraftUsername,
-              claimedAt: new Date().toISOString(),
-              starterIsShiny: isShiny,
-              updatedAt: new Date(),
-            },
+      // Marcar starter como reclamado
+      const nickname = discordUsername || user?.nickname || user?.discordUsername || 'Desconocido';
+      
+      await this.startersCollection.updateOne(
+        { pokemonId: selectedStarter.pokemonId },
+        {
+          $set: {
+            pokemonId: selectedStarter.pokemonId,
+            name: selectedStarter.name,
+            isClaimed: true,
+            claimedBy: discordId,
+            claimedByNickname: nickname,
+            minecraftUsername: user?.minecraftUsername,
+            claimedAt: new Date().toISOString(),
+            starterIsShiny: isShiny,
+            updatedAt: new Date(),
           },
-          { upsert: true, session }
-        );
+        },
+        { upsert: true }
+      );
 
-        // Obtener sprites
-        const sprites = getStarterSprites(selectedStarter.pokemonId, isShiny);
+      // Obtener sprites
+      const sprites = getStarterSprites(selectedStarter.pokemonId, isShiny);
 
-        result = {
-          success: true,
-          starter: {
+      const result: SoulDrivenResult = {
+        success: true,
+        starter: {
+          ...selectedStarter,
+          isShiny,
+          sprites,
+          isClaimed: true,
+          claimedBy: nickname,
+          claimedAt: new Date().toISOString(),
+        },
+        message: isShiny
+          ? '🌟 ¡INCREÍBLE! ¡Tu alma ha atraído un SHINY!'
+          : `¡Tu alma resuena con ${selectedStarter.nameEs || selectedStarter.name}!`,
+        suggestedPokemon: suggestedPokemon.map(p => p.name),
+      };
+
+      // Enviar webhook de Discord (no bloqueante)
+      setImmediate(async () => {
+        try {
+          await sendStarterWebhook(discordId, nickname, {
             ...selectedStarter,
             isShiny,
             sprites,
-            isClaimed: true,
-            claimedBy: nickname,
-            claimedAt: new Date().toISOString(),
-          },
-          message: isShiny
-            ? '🌟 ¡INCREÍBLE! ¡Tu alma ha atraído un SHINY!'
-            : `¡Tu alma resuena con ${selectedStarter.nameEs || selectedStarter.name}!`,
-          suggestedPokemon: suggestedPokemon.map(p => p.name),
-        };
-
-        // Enviar webhook de Discord (no bloqueante, fuera de la transacción)
-        setImmediate(async () => {
-          try {
-            await sendStarterWebhook(discordId, nickname, {
-              ...selectedStarter,
-              isShiny,
-              sprites,
-            } as any);
-          } catch (webhookError) {
-            console.error('Webhook error (non-blocking):', webhookError);
-          }
-        });
+          } as any);
+        } catch (webhookError) {
+          console.error('Webhook error (non-blocking):', webhookError);
+        }
       });
-
-      if (!result) {
-        throw new Error('La transacción no produjo resultado');
-      }
 
       return result;
     } catch (error) {
@@ -218,8 +206,6 @@ export class SoulDrivenService {
       }
       console.error('[SOUL DRIVEN SERVICE] Error en tirada Soul Driven:', error);
       throw new AppError('Error durante la tirada Soul Driven. Por favor intenta de nuevo.', 500);
-    } finally {
-      await session.endSession();
     }
   }
 

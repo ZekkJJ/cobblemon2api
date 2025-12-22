@@ -24,10 +24,14 @@ export class AuthService {
   async handleDiscordCallback(code: string): Promise<{ user: User; token: string }> {
     try {
       // Intercambiar código por tokens
+      console.log('Intercambiando código por tokens...');
       const tokens = await exchangeCodeForTokens(code);
+      console.log('Tokens obtenidos exitosamente');
       
       // Obtener información del usuario de Discord
+      console.log('Obteniendo información del usuario de Discord...');
       const discordUser = await getDiscordUser(tokens.access_token);
+      console.log('Usuario de Discord obtenido:', discordUser.username);
       
       // Crear datos del usuario
       const userData: CreateUserData = {
@@ -38,7 +42,9 @@ export class AuthService {
       };
 
       // Buscar o crear usuario
+      console.log('Buscando o creando usuario en la base de datos...');
       const user = await this.findOrCreateUser(userData);
+      console.log('Usuario procesado exitosamente:', user.discordUsername);
 
       // Generar JWT
       const token = generateJWT({
@@ -49,11 +55,17 @@ export class AuthService {
       });
 
       return { user, token };
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Error en handleDiscordCallback:', error);
       if (error instanceof AppError) {
         throw error;
       }
-      throw Errors.externalService('Discord OAuth');
+      // Proporcionar más detalles del error
+      throw new AppError(
+        `Error en Discord OAuth: ${error.message || 'Error desconocido'}`,
+        500,
+        'EXTERNAL_SERVICE_ERROR' as any
+      );
     }
   }
 
@@ -137,26 +149,28 @@ export class AuthService {
     const discordId = `username_${Buffer.from(discordUsername.toLowerCase()).toString('base64')}`;
 
     // Buscar usuario existente por username
-    let user = await this.usersCollection.findOne({
+    const foundUser = await this.usersCollection.findOne({
       $or: [
         { discordId },
-        { discordUsername: { $regex: new RegExp(`^${discordUsername}$`, 'i') } }
+        { discordUsername: { $regex: new RegExp(`^${discordUsername}`, 'i') } }
       ]
     });
 
-    if (user) {
+    let user: User;
+
+    if (foundUser) {
       // Usuario existe, actualizar si es necesario
       const updateData: Partial<User> = {
-        nickname: nickname || user.nickname,
+        nickname: nickname || foundUser.nickname,
         updatedAt: new Date(),
       };
 
       await this.usersCollection.updateOne(
-        { _id: user._id },
+        { _id: foundUser._id },
         { $set: updateData }
       );
 
-      user = { ...user, ...updateData };
+      user = { ...foundUser, ...updateData } as User;
     } else {
       // Crear nuevo usuario
       const userData: CreateUserData = {

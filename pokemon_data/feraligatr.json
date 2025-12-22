@@ -1,0 +1,48 @@
+{
+  "name": "Feraligatr",
+  "pokedex_number": "160",
+  "sprite_url": "https://cobblemon.tools/pokedex/pokemon/feraligatr/sprite.png",
+  "types": ["Water"],
+  "abilities": ["Torrent", "Sheer force"],
+  "ev_yield": "Attack 2, Defence 1",
+  "dropped_items": [
+    {
+      "name": "Mystic Water",
+      "sprite_url": "https://cobblemon.tools/pokedex/items/cobblemon:mystic_water/sprite.png",
+      "chance": "25%",
+      "quantity": "1"
+    }
+  ],
+  "base_stats": {
+    "hp": 85,
+    "attack": 105,
+    "defence": 100,
+    "sp_atk": 79,
+    "sp_def": 83,
+    "speed": 78
+  },
+  "spawn_locations": [
+    {
+      "bucket": "Ultra-rare",
+      "level": "30-53",
+      "preset": "natural",
+      "requirements": {
+        "biomes_yes": ["#cobblemon:is_swamp"],
+        "biomes_no": [],
+        "other": {}
+      }
+    },
+    {
+      "bucket": "Ultra-rare",
+      "level": "30-53",
+      "preset": "water",
+      "requirements": {
+        "biomes_yes": ["#cobblemon:is_swamp"],
+        "biomes_no": [],
+        "other": {
+          "Can See Sky": "True"
+        }
+      }
+    }
+  ]
+}

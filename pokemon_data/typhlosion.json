@@ -1,0 +1,36 @@
+{
+  "name": "Typhlosion",
+  "pokedex_number": "157",
+  "sprite_url": "https://cobblemon.tools/pokedex/pokemon/typhlosion/sprite.png",
+  "types": ["Fire"],
+  "abilities": ["Blaze", "Flash fire"],
+  "ev_yield": "SpAtk 3",
+  "dropped_items": [
+    {
+      "name": "Charcoal Stick",
+      "sprite_url": "https://cobblemon.tools/pokedex/items/cobblemon:charcoal_stick/sprite.png",
+      "chance": "25%",
+      "quantity": "1"
+    }
+  ],
+  "base_stats": {
+    "hp": 78,
+    "attack": 84,
+    "defence": 78,
+    "sp_atk": 109,
+    "sp_def": 85,
+    "speed": 100
+  },
+  "spawn_locations": [
+    {
+      "bucket": "Ultra-rare",
+      "level": "36-53",
+      "preset": "natural",
+      "requirements": {
+        "biomes_yes": ["#cobblemon:is_temperate"],
+        "biomes_no": ["#cobblemon:is_spooky"],
+        "other": {}
+      }
+    }
+  ]
+}

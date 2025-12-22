@@ -1,0 +1,42 @@
+{
+  "name": "Lucario",
+  "pokedex_number": "448",
+  "sprite_url": "https://cobblemon.tools/pokedex/pokemon/lucario/sprite.png",
+  "types": ["Fighting", "Steel"],
+  "abilities": ["Steadfast", "Inner focus", "Justified"],
+  "ev_yield": "Attack 1, SpAtk 1",
+  "dropped_items": [
+    {
+      "name": "Chople Berry",
+      "sprite_url": "https://cobblemon.tools/pokedex/items/cobblemon:chople_berry/sprite.png",
+      "chance": "5%",
+      "quantity": "1"
+    },
+    {
+      "name": "Expert Belt",
+      "sprite_url": "https://cobblemon.tools/pokedex/items/cobblemon:expert_belt/sprite.png",
+      "chance": "5%",
+      "quantity": "1"
+    }
+  ],
+  "base_stats": {
+    "hp": 70,
+    "attack": 110,
+    "defence": 70,
+    "sp_atk": 115,
+    "sp_def": 70,
+    "speed": 90
+  },
+  "spawn_locations": [
+    {
+      "bucket": "Rare",
+      "level": "24-53",
+      "preset": "natural",
+      "requirements": {
+        "biomes_yes": ["#cobblemon:is_mountain"],
+        "biomes_no": [],
+        "other": {}
+      }
+    }
+  ]
+}

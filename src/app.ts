@@ -136,6 +136,16 @@ export async function createApp(): Promise<Application> {
     });
   });
 
+  // Server status endpoint (alias for health check)
+  app.get('/api/server-status', (req, res) => {
+    res.json({
+      success: true,
+      status: 'online',
+      timestamp: new Date().toISOString(),
+      message: 'Backend API is running',
+    });
+  });
+
   // ============================================
   // RUTAS DE LA API
   // ============================================

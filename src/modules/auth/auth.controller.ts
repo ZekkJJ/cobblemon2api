@@ -28,11 +28,8 @@ export class AuthController {
     
     const authUrl = getDiscordAuthUrl(state);
     
-    res.json({
-      success: true,
-      authUrl,
-      state,
-    });
+    // Redirigir directamente a Discord en lugar de devolver JSON
+    return res.redirect(authUrl);
   });
 
   /**
@@ -43,31 +40,40 @@ export class AuthController {
     const { code, state } = req.query;
 
     if (!code || typeof code !== 'string') {
-      return res.status(400).json({
-        success: false,
-        error: 'Código de autorización no proporcionado',
-      });
+      const frontendUrl = env.FRONTEND_URL || 'http://localhost:3000';
+      return res.redirect(`${frontendUrl}/auth/callback?error=no_code`);
     }
 
-    // TODO: Validar state para prevenir CSRF en producción
+    try {
+      // TODO: Validar state para prevenir CSRF en producción
 
-    // Procesar callback
-    const { user, token } = await this.authService.handleDiscordCallback(code);
+      // Procesar callback
+      const { user, token } = await this.authService.handleDiscordCallback(code);
 
-    // Verificar si está baneado
-    await this.authService.checkUserBan(user.discordId!);
+      // Verificar si está baneado
+      await this.authService.checkUserBan(user.discordId!);
 
-    // En producción, establecer cookie httpOnly
-    res.cookie('auth_token', token, {
-      httpOnly: true,
-      secure: env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
-    });
+      // En producción, establecer cookie httpOnly
+      res.cookie('auth_token', token, {
+        httpOnly: true,
+        secure: env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
+      });
 
-    // Redirigir al frontend
-    const frontendUrl = env.FRONTEND_URL || 'http://localhost:3000';
-    return res.redirect(`${frontendUrl}?auth=success`);
+      // Convertir usuario a sesión
+      const userSession = toUserSession(user);
+
+      // Redirigir al frontend con datos del usuario
+      const frontendUrl = env.FRONTEND_URL || 'http://localhost:3000';
+      const userData = encodeURIComponent(JSON.stringify(userSession));
+      return res.redirect(`${frontendUrl}/auth/callback?user=${userData}`);
+    } catch (error: any) {
+      console.error('Discord OAuth callback error:', error);
+      const frontendUrl = env.FRONTEND_URL || 'http://localhost:3000';
+      const errorMsg = encodeURIComponent(error.message || 'Error de autenticación');
+      return res.redirect(`${frontendUrl}/auth/callback?error=${errorMsg}`);
+    }
   });
 
   /**

@@ -94,135 +94,123 @@ export class GachaService {
    * Realiza una tirada clásica (aleatoria)
    */
   async performClassicRoll(discordId: string, discordUsername?: string): Promise<RollResult> {
-    const db = await getDb();
-    const session = db.client.startSession();
-
     try {
-      let result: RollResult | null = null;
+      // Buscar o crear usuario
+      let user = await this.usersCollection.findOne({ discordId });
 
-      await session.withTransaction(async () => {
-        // Buscar o crear usuario
-        let user = await this.usersCollection.findOne({ discordId }, { session });
-
-        if (!user) {
-          const newUser: Partial<User> = {
-            discordId,
-            discordUsername: discordUsername || 'Unknown',
-            nickname: discordUsername || '',
-            starterId: null,
-            starterIsShiny: false,
-            starterGiven: false,
-            rolledAt: null,
-            isAdmin: false,
-            banned: false,
-            verified: false,
-            pokemonParty: [],
-            pcStorage: [],
-            cobbleDollarsBalance: 0,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          };
-
-          const insertResult = await this.usersCollection.insertOne(newUser as User, { session });
-          user = { ...newUser, _id: insertResult.insertedId } as any;
-        }
-
-        // Verificar si ya hizo tirada
-        if (user && user.starterId !== null) {
-          throw Errors.alreadyRolled();
-        }
-
-        // Obtener starters disponibles
-        const claimedStarters = await this.startersCollection.find({ isClaimed: true }, { session }).toArray();
-        const claimedIds = new Set(claimedStarters.map(s => s.pokemonId));
-        const availableStarters = STARTERS_DATA.filter(s => !claimedIds.has(s.pokemonId));
-
-        if (availableStarters.length === 0) {
-          throw Errors.noStartersAvailable();
-        }
-
-        // Selección aleatoria
-        const randomIndex = Math.floor(Math.random() * availableStarters.length);
-        const selectedStarter = availableStarters[randomIndex];
-
-        if (!selectedStarter) {
-          throw Errors.noStartersAvailable();
-        }
-
-        // 1% probabilidad de shiny
-        const isShiny = Math.random() < 0.01;
-
-        // Actualizar usuario
-        await this.usersCollection.updateOne(
-          { discordId },
-          {
-            $set: {
-              starterId: selectedStarter.pokemonId,
-              starterIsShiny: isShiny,
-              rolledAt: new Date().toISOString(),
-              updatedAt: new Date(),
-            },
-          },
-          { session }
-        );
-
-        // Marcar starter como reclamado
-        const nickname = discordUsername || user?.nickname || user?.discordUsername || 'Desconocido';
-        
-        await this.startersCollection.updateOne(
-          { pokemonId: selectedStarter.pokemonId },
-          {
-            $set: {
-              pokemonId: selectedStarter.pokemonId,
-              name: selectedStarter.name,
-              isClaimed: true,
-              claimedBy: discordId,
-              claimedByNickname: nickname,
-              minecraftUsername: user?.minecraftUsername,
-              claimedAt: new Date().toISOString(),
-              starterIsShiny: isShiny,
-              updatedAt: new Date(),
-            },
-          },
-          { upsert: true, session }
-        );
-
-        // Obtener sprites
-        const sprites = getStarterSprites(selectedStarter.pokemonId, isShiny);
-
-        result = {
-          success: true,
-          starter: {
-            ...selectedStarter,
-            pokemonId: selectedStarter.pokemonId!,
-            isShiny,
-            sprites,
-            isClaimed: true,
-            claimedBy: nickname,
-            claimedAt: new Date().toISOString(),
-          },
-          message: isShiny
-            ? '🌟 ¡INCREÍBLE! ¡Has obtenido un SHINY!'
-            : `¡Felicidades! Has obtenido a ${selectedStarter.nameEs || selectedStarter.name}!`,
+      if (!user) {
+        const newUser: Partial<User> = {
+          discordId,
+          discordUsername: discordUsername || 'Unknown',
+          nickname: discordUsername || '',
+          starterId: null,
+          starterIsShiny: false,
+          starterGiven: false,
+          rolledAt: null,
+          isAdmin: false,
+          banned: false,
+          verified: false,
+          pokemonParty: [],
+          pcStorage: [],
+          cobbleDollarsBalance: 0,
+          createdAt: new Date(),
+          updatedAt: new Date(),
         };
 
-        // Enviar webhook de Discord (no bloqueante, fuera de la transacción)
-        setImmediate(async () => {
-          try {
-            await sendStarterWebhook(discordId, nickname, {
-              ...selectedStarter,
-              isShiny,
-              sprites,
-            } as any);
-          } catch (webhookError) {
-            console.error('Webhook error (non-blocking):', webhookError);
-          }
-        });
-      });
-
-      if (!result) {
-        throw new Error('La transacción no produjo resultado');
+        const insertResult = await this.usersCollection.insertOne(newUser as User);
+        user = { ...newUser, _id: insertResult.insertedId } as any;
       }
+
+      // Verificar si ya hizo tirada
+      if (user && user.starterId !== null) {
+        throw Errors.alreadyRolled();
+      }
+
+      // Obtener starters disponibles
+      const claimedStarters = await this.startersCollection.find({ isClaimed: true }).toArray();
+      const claimedIds = new Set(claimedStarters.map(s => s.pokemonId));
+      const availableStarters = STARTERS_DATA.filter(s => !claimedIds.has(s.pokemonId));
+
+      if (availableStarters.length === 0) {
+        throw Errors.noStartersAvailable();
+      }
+
+      // Selección aleatoria
+      const randomIndex = Math.floor(Math.random() * availableStarters.length);
+      const selectedStarter = availableStarters[randomIndex];
+
+      if (!selectedStarter) {
+        throw Errors.noStartersAvailable();
+      }
+
+      // 1% probabilidad de shiny
+      const isShiny = Math.random() < 0.01;
+
+      // Actualizar usuario
+      await this.usersCollection.updateOne(
+        { discordId },
+        {
+          $set: {
+            starterId: selectedStarter.pokemonId,
+            starterIsShiny: isShiny,
+            rolledAt: new Date().toISOString(),
+            updatedAt: new Date(),
+          },
+        }
+      );
+
+      // Marcar starter como reclamado
+      const nickname = discordUsername || user?.nickname || user?.discordUsername || 'Desconocido';
+      
+      await this.startersCollection.updateOne(
+        { pokemonId: selectedStarter.pokemonId },
+        {
+          $set: {
+            pokemonId: selectedStarter.pokemonId,
+            name: selectedStarter.name,
+            isClaimed: true,
+            claimedBy: discordId,
+            claimedByNickname: nickname,
+            minecraftUsername: user?.minecraftUsername,
+            claimedAt: new Date().toISOString(),
+            starterIsShiny: isShiny,
+            updatedAt: new Date(),
+          },
+        },
+        { upsert: true }
+      );
+
+      // Obtener sprites
+      const sprites = getStarterSprites(selectedStarter.pokemonId, isShiny);
+
+      const result: RollResult = {
+        success: true,
+        starter: {
+          ...selectedStarter,
+          pokemonId: selectedStarter.pokemonId!,
+          isShiny,
+          sprites,
+          isClaimed: true,
+          claimedBy: nickname,
+          claimedAt: new Date().toISOString(),
+        },
+        message: isShiny
+          ? '🌟 ¡INCREÍBLE! ¡Has obtenido un SHINY!'
+          : `¡Felicidades! Has obtenido a ${selectedStarter.nameEs || selectedStarter.name}!`,
+      };
+
+      // Enviar webhook de Discord (no bloqueante)
+      setImmediate(async () => {
+        try {
+          await sendStarterWebhook(discordId, nickname, {
+            ...selectedStarter,
+            isShiny,
+            sprites,
+          } as any);
+        } catch (webhookError) {
+          console.error('Webhook error (non-blocking):', webhookError);
+        }
+      });
 
       return result;
     } catch (error) {
@@ -231,8 +219,6 @@ export class GachaService {
       }
       console.error('[GACHA SERVICE] Error en tirada clásica:', error);
       throw Errors.internal('Error durante la tirada. Por favor intenta de nuevo.');
-    } finally {
-      await session.endSession();
     }
   }
 

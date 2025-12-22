@@ -1,0 +1,52 @@
+{
+  "name": "Eevee",
+  "pokedex_number": "133",
+  "sprite_url": "https://cobblemon.tools/pokedex/pokemon/eevee/sprite.png",
+  "types": ["Normal"],
+  "abilities": ["Run away", "Adaptability", "Anticipation"],
+  "ev_yield": "SpDef 1",
+  "dropped_items": [
+    {
+      "name": "Eviolite",
+      "sprite_url": "https://cobblemon.tools/pokedex/items/cobblemon:eviolite/sprite.png",
+      "chance": "5%",
+      "quantity": "1"
+    },
+    {
+      "name": "Silk Scarf",
+      "sprite_url": "https://cobblemon.tools/pokedex/items/cobblemon:silk_scarf/sprite.png",
+      "chance": "5%",
+      "quantity": "1"
+    }
+  ],
+  "base_stats": {
+    "hp": 55,
+    "attack": 55,
+    "defence": 50,
+    "sp_atk": 45,
+    "sp_def": 65,
+    "speed": 55
+  },
+  "spawn_locations": [
+    {
+      "bucket": "Ultra-rare",
+      "level": "5-33",
+      "preset": "natural",
+      "requirements": {
+        "biomes_yes": ["#cobblemon:is_overworld"],
+        "biomes_no": ["#cobblemon:is_ocean", "#cobblemon:is_temperate"],
+        "other": {}
+      }
+    },
+    {
+      "bucket": "Rare",
+      "level": "5-33",
+      "preset": "natural",
+      "requirements": {
+        "biomes_yes": ["#cobblemon:is_temperate"],
+        "biomes_no": [],
+        "other": {}
+      }
+    }
+  ]
+}

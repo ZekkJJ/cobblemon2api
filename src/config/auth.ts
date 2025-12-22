@@ -68,7 +68,13 @@ export async function exchangeCodeForTokens(code: string): Promise<{
 
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`Error intercambiando código: ${error}`);
+    console.error('Discord OAuth Error:', {
+      status: response.status,
+      statusText: response.statusText,
+      error,
+      redirect_uri: env.DISCORD_REDIRECT_URI,
+    });
+    throw new Error(`Error intercambiando código de Discord: ${response.status} - ${error}`);
   }
 
   return response.json() as Promise<{

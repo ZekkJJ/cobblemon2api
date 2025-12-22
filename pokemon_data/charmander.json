@@ -1,0 +1,44 @@
+{
+  "name": "Charmander",
+  "pokedex_number": "004",
+  "sprite_url": "https://cobblemon.tools/pokedex/pokemon/charmander/sprite.png",
+  "types": ["Fire"],
+  "abilities": ["Blaze", "Solar power"],
+  "ev_yield": "Speed 1",
+  "dropped_items": [
+    {
+      "name": "Charcoal Stick",
+      "sprite_url": "https://cobblemon.tools/pokedex/items/cobblemon:charcoal_stick/sprite.png",
+      "chance": "5%",
+      "quantity": "1"
+    },
+    {
+      "name": "Blaze Powder",
+      "sprite_url": "https://cobblemon.tools/pokedex/items/minecraft:blaze_powder/sprite.png",
+      "chance": "100%",
+      "quantity": "0-1"
+    }
+  ],
+  "base_stats": {
+    "hp": 39,
+    "attack": 52,
+    "defence": 43,
+    "sp_atk": 60,
+    "sp_def": 50,
+    "speed": 65
+  },
+  "spawn_locations": [
+    {
+      "bucket": "Ultra-rare",
+      "level": "5-31",
+      "preset": "natural",
+      "requirements": {
+        "biomes_yes": ["#cobblemon:is_hills", "#cobblemon:is_volcanic"],
+        "biomes_no": [],
+        "other": {
+          "Is Raining": "False"
+        }
+      }
+    }
+  ]
+}

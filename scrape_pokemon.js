@@ -1,0 +1,51 @@
+const fs = require('fs').promises;
+const path = require('path');
+
+const pokemonLinks = [
+    "https://cobblemon.tools/pokedex/pokemon/doublade",
+    "https://cobblemon.tools/pokedex/pokemon/gholdengo",
+    "https://cobblemon.tools/pokedex/pokemon/lilligant",
+    "https://cobblemon.tools/pokedex/pokemon/kyogre",
+    "https://cobblemon.tools/pokedex/pokemon/bastiodon",
+    "https://cobblemon.tools/pokedex/pokemon/dwebble",
+    "https://cobblemon.tools/pokedex/pokemon/magearna",
+    "https://cobblemon.tools/pokedex/pokemon/samurott",
+    "https://cobblemon.tools/pokedex/pokemon/escavalier",
+    "https://cobblemon.tools/pokedex/pokemon/quagsire",
+    "https://cobblemon.tools/pokedex/pokemon/glimmet",
+    "https://cobblemon.tools/pokedex/pokemon/mareanie",
+    "https://cobblemon.tools/pokedex/pokemon/swirlix",
+    "https://cobblemon.tools/pokedex/pokemon/goodra",
+    "https://cobblemon.tools/pokedex/pokemon/kricketune",
+    "https://cobblemon.tools/pokedex/pokemon/wattrel",
+    "https://cobblemon.tools/pokedex/pokemon/foongus",
+    "https://cobblemon.tools/pokedex/pokemon/oranguru",
+    "https://cobblemon.tools/pokedex/pokemon/fletchling",
+    "https://cobblemon.tools/pokedex/pokemon/aurorus",
+    "https://cobblemon.tools/pokedex/pokemon/piplup",
+    "https://cobblemon.tools/pokedex/pokemon/arctovish",
+    "https://cobblemon.tools/pokedex/pokemon/hatterene",
+    "https://cobblemon.tools/pokedex/pokemon/polteageist",
+    "https://cobblemon.tools/pokedex/pokemon/bergmite",
+    "https://cobblemon.tools/pokedex/pokemon/minun",
+    "https://cobblemon.tools/pokedex/pokemon/steenee",
+    "https://cobblemon.tools/pokedex/pokemon/togedemaru",
+    "https://cobblemon.tools/pokedex/pokemon/dugtrio",
+    "https://cobblemon.tools/pokedex/pokemon/muk",
+    "https://cobblemon.tools/pokedex/pokemon/ironboulder",
+    "https://cobblemon.tools/pokedex/pokemon/xurkitree",
+    "https://cobblemon.tools/pokedex/pokemon/skarmory",
+    "https://cobblemon.tools/pokedex/pokemon/herdier",
+    "https://cobblemon.tools/pokedex/pokemon/pidgeot",
+    "https://cobblemon.tools/pokedex/pokemon/lanturn",
+    "https://cobblemon.tools/pokedex/pokemon/graveler",
+    "https://cobblemon.tools/pokedex/pokemon/lurantis",
+    "https://cobblemon.tools/pokedex/pokemon/virizion",
+    "https://cobblemon.tools/pokedex/pokemon/delcatty",
+    "https://cobblemon.tools/pokedex/pokemon/larvesta",
+    "https://cobblemon.tools/pokedex/pokemon/pikachu",
+    "https://cobblemon.tools/pokedex/pokemon/bulbasaur"
+];
+
+console.log(`Total Pokemon to scrape: ${pokemonLinks.length}`);
+console.log(JSON.stringify(pokemonLinks, null, 2));

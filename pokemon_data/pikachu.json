@@ -1,0 +1,48 @@
+{
+  "name": "Pikachu",
+  "pokedex_number": "025",
+  "sprite_url": "https://cobblemon.tools/pokedex/pokemon/pikachu/sprite.png",
+  "types": ["Electric"],
+  "abilities": ["Static", "Lightning rod"],
+  "ev_yield": "Speed 2",
+  "dropped_items": [
+    {
+      "name": "Light Ball",
+      "sprite_url": "https://cobblemon.tools/pokedex/items/cobblemon:light_ball/sprite.png",
+      "chance": "5%",
+      "quantity": "1"
+    },
+    {
+      "name": "Oran Berry",
+      "sprite_url": "https://cobblemon.tools/pokedex/items/cobblemon:oran_berry/sprite.png",
+      "chance": "5%",
+      "quantity": "1"
+    },
+    {
+      "name": "Thunder Stone",
+      "sprite_url": "https://cobblemon.tools/pokedex/items/cobblemon:thunder_stone/sprite.png",
+      "chance": "5%",
+      "quantity": "1"
+    }
+  ],
+  "base_stats": {
+    "hp": 35,
+    "attack": 55,
+    "defence": 40,
+    "sp_atk": 50,
+    "sp_def": 50,
+    "speed": 90
+  },
+  "spawn_locations": [
+    {
+      "bucket": "Uncommon",
+      "level": "16-32",
+      "preset": "natural",
+      "requirements": {
+        "biomes_yes": ["#cobblemon:is_forest"],
+        "biomes_no": ["#cobblemon:is_spooky"],
+        "other": {}
+      }
+    }
+  ]
+}

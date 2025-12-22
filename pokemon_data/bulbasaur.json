@@ -1,0 +1,42 @@
+{
+  "name": "Bulbasaur",
+  "pokedex_number": "001",
+  "sprite_url": "https://cobblemon.tools/pokedex/pokemon/bulbasaur/sprite.png",
+  "types": ["Grass", "Poison"],
+  "abilities": ["Overgrow", "Chlorophyll"],
+  "ev_yield": "SpAtk 1",
+  "dropped_items": [
+    {
+      "name": "Miracle Seed",
+      "sprite_url": "https://cobblemon.tools/pokedex/items/cobblemon:miracle_seed/sprite.png",
+      "chance": "5%",
+      "quantity": "1"
+    },
+    {
+      "name": "Melon Seeds",
+      "sprite_url": "https://cobblemon.tools/pokedex/items/minecraft:melon_seeds/sprite.png",
+      "chance": "100%",
+      "quantity": "0-1"
+    }
+  ],
+  "base_stats": {
+    "hp": 45,
+    "attack": 49,
+    "defence": 49,
+    "sp_atk": 65,
+    "sp_def": 65,
+    "speed": 45
+  },
+  "spawn_locations": [
+    {
+      "bucket": "Ultra-rare",
+      "level": "5-32",
+      "preset": "natural",
+      "requirements": {
+        "biomes_yes": ["#cobblemon:is_jungle", "#cobblemon:is_tropical_island"],
+        "biomes_no": [],
+        "other": {}
+      }
+    }
+  ]
+}

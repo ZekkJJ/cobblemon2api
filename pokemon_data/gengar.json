@@ -1,0 +1,66 @@
+{
+  "name": "Gengar",
+  "pokedex_number": "094",
+  "sprite_url": "https://cobblemon.tools/pokedex/pokemon/gengar/sprite.png",
+  "types": ["Poison", "Ghost"],
+  "abilities": ["Cursed body"],
+  "ev_yield": "SpAtk 3",
+  "dropped_items": [
+    {
+      "name": "Payapa Berry",
+      "sprite_url": "https://cobblemon.tools/pokedex/items/cobblemon:payapa_berry/sprite.png",
+      "chance": "10%",
+      "quantity": "1"
+    },
+    {
+      "name": "Spell Tag",
+      "sprite_url": "https://cobblemon.tools/pokedex/items/cobblemon:spell_tag/sprite.png",
+      "chance": "10%",
+      "quantity": "1"
+    }
+  ],
+  "base_stats": {
+    "hp": 60,
+    "attack": 65,
+    "defence": 60,
+    "sp_atk": 130,
+    "sp_def": 75,
+    "speed": 110
+  },
+  "spawn_locations": [
+    {
+      "bucket": "Common",
+      "level": "36-50",
+      "preset": "natural",
+      "requirements": {
+        "biomes_yes": ["#cobblemon:is_overworld"],
+        "biomes_no": ["#cobblemon:is_deep_dark"],
+        "other": {
+          "Max Light": "0"
+        }
+      }
+    },
+    {
+      "bucket": "Common",
+      "level": "36-50",
+      "preset": "natural",
+      "requirements": {
+        "biomes_yes": ["#cobblemon:is_spooky"],
+        "biomes_no": [],
+        "other": {
+          "Max Light": "0"
+        }
+      }
+    },
+    {
+      "bucket": "Common",
+      "level": "36-50",
+      "preset": "natural",
+      "requirements": {
+        "biomes_yes": ["#minecraft:is_nether"],
+        "biomes_no": [],
+        "other": {}
+      }
+    }
+  ]
+}

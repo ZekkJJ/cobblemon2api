@@ -26,7 +26,7 @@ const mongoOptions = {
   minPoolSize: isProduction ? 10 : 2,
   serverSelectionTimeoutMS: 5000,
   socketTimeoutMS: 45000,
-  retryWrites: true,
+  retryWrites: false, // Oracle MongoDB no soporta retryable writes
   retryReads: true,
 };
 
