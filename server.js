@@ -58,6 +58,342 @@ function generateCode() {
   return crypto.randomBytes(4).toString('hex').toUpperCase();
 }
 
+// Default Pokéballs for the shop - Using exact Cobblemon item IDs
+function getDefaultPokeballs() {
+  return [
+    // Standard Balls
+    {
+      id: 'poke_ball',
+      cobblemonId: 'poke_ball',
+      name: 'Poké Ball',
+      description: 'La Pokéball estándar. Tasa de captura básica.',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/poke-ball.png',
+      type: 'standard',
+      basePrice: 200,
+      currentPrice: 200,
+      currentStock: 100,
+      maxStock: 100,
+      catchRate: 1.0,
+    },
+    {
+      id: 'great_ball',
+      cobblemonId: 'great_ball',
+      name: 'Great Ball',
+      description: 'Mejor que una Poké Ball normal. 1.5x tasa de captura.',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/great-ball.png',
+      type: 'standard',
+      basePrice: 600,
+      currentPrice: 600,
+      currentStock: 50,
+      maxStock: 50,
+      catchRate: 1.5,
+    },
+    {
+      id: 'ultra_ball',
+      cobblemonId: 'ultra_ball',
+      name: 'Ultra Ball',
+      description: 'Una de las mejores Pokéballs. 2x tasa de captura.',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/ultra-ball.png',
+      type: 'standard',
+      basePrice: 1200,
+      currentPrice: 1200,
+      currentStock: 30,
+      maxStock: 30,
+      catchRate: 2.0,
+    },
+    {
+      id: 'master_ball',
+      cobblemonId: 'master_ball',
+      name: 'Master Ball',
+      description: '¡Captura garantizada! Extremadamente rara.',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/master-ball.png',
+      type: 'special',
+      basePrice: 50000,
+      currentPrice: 50000,
+      currentStock: 1,
+      maxStock: 1,
+      catchRate: 255.0,
+    },
+    // Special Balls
+    {
+      id: 'premier_ball',
+      cobblemonId: 'premier_ball',
+      name: 'Premier Ball',
+      description: 'Una Pokéball conmemorativa. Igual que una Poké Ball.',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/premier-ball.png',
+      type: 'special',
+      basePrice: 200,
+      currentPrice: 200,
+      currentStock: 20,
+      maxStock: 20,
+      catchRate: 1.0,
+    },
+    {
+      id: 'luxury_ball',
+      cobblemonId: 'luxury_ball',
+      name: 'Luxury Ball',
+      description: 'El Pokémon capturado se vuelve más amigable.',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/luxury-ball.png',
+      type: 'special',
+      basePrice: 1000,
+      currentPrice: 1000,
+      currentStock: 15,
+      maxStock: 15,
+      catchRate: 1.0,
+    },
+    // Situational Balls
+    {
+      id: 'net_ball',
+      cobblemonId: 'net_ball',
+      name: 'Net Ball',
+      description: 'Efectiva contra Pokémon de tipo Agua y Bicho. 3.5x',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/net-ball.png',
+      type: 'situational',
+      basePrice: 1000,
+      currentPrice: 1000,
+      currentStock: 25,
+      maxStock: 25,
+      catchRate: 3.5,
+    },
+    {
+      id: 'dive_ball',
+      cobblemonId: 'dive_ball',
+      name: 'Dive Ball',
+      description: 'Efectiva bajo el agua. 3.5x en agua.',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/dive-ball.png',
+      type: 'situational',
+      basePrice: 1000,
+      currentPrice: 1000,
+      currentStock: 25,
+      maxStock: 25,
+      catchRate: 3.5,
+    },
+    {
+      id: 'nest_ball',
+      cobblemonId: 'nest_ball',
+      name: 'Nest Ball',
+      description: 'Más efectiva contra Pokémon de bajo nivel.',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/nest-ball.png',
+      type: 'situational',
+      basePrice: 1000,
+      currentPrice: 1000,
+      currentStock: 25,
+      maxStock: 25,
+      catchRate: 4.0,
+    },
+    {
+      id: 'repeat_ball',
+      cobblemonId: 'repeat_ball',
+      name: 'Repeat Ball',
+      description: 'Efectiva contra Pokémon ya capturados. 3.5x',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/repeat-ball.png',
+      type: 'situational',
+      basePrice: 1000,
+      currentPrice: 1000,
+      currentStock: 20,
+      maxStock: 20,
+      catchRate: 3.5,
+    },
+    {
+      id: 'timer_ball',
+      cobblemonId: 'timer_ball',
+      name: 'Timer Ball',
+      description: 'Más efectiva cuanto más dure el combate. Hasta 4x',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/timer-ball.png',
+      type: 'situational',
+      basePrice: 1000,
+      currentPrice: 1000,
+      currentStock: 20,
+      maxStock: 20,
+      catchRate: 4.0,
+    },
+    {
+      id: 'quick_ball',
+      cobblemonId: 'quick_ball',
+      name: 'Quick Ball',
+      description: 'Muy efectiva al inicio del combate. 5x primer turno.',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/quick-ball.png',
+      type: 'situational',
+      basePrice: 1000,
+      currentPrice: 1000,
+      currentStock: 20,
+      maxStock: 20,
+      catchRate: 5.0,
+    },
+    {
+      id: 'dusk_ball',
+      cobblemonId: 'dusk_ball',
+      name: 'Dusk Ball',
+      description: 'Efectiva de noche o en cuevas. 3x',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/dusk-ball.png',
+      type: 'situational',
+      basePrice: 1000,
+      currentPrice: 1000,
+      currentStock: 25,
+      maxStock: 25,
+      catchRate: 3.0,
+    },
+    {
+      id: 'heal_ball',
+      cobblemonId: 'heal_ball',
+      name: 'Heal Ball',
+      description: 'Cura al Pokémon capturado completamente.',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/heal-ball.png',
+      type: 'special',
+      basePrice: 300,
+      currentPrice: 300,
+      currentStock: 30,
+      maxStock: 30,
+      catchRate: 1.0,
+    },
+    // Apricorn Balls (raras)
+    {
+      id: 'level_ball',
+      cobblemonId: 'level_ball',
+      name: 'Level Ball',
+      description: 'Más efectiva si tu Pokémon es de mayor nivel.',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/level-ball.png',
+      type: 'apricorn',
+      basePrice: 2000,
+      currentPrice: 2000,
+      currentStock: 10,
+      maxStock: 10,
+      catchRate: 8.0,
+    },
+    {
+      id: 'lure_ball',
+      cobblemonId: 'lure_ball',
+      name: 'Lure Ball',
+      description: 'Efectiva contra Pokémon pescados. 4x',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/lure-ball.png',
+      type: 'apricorn',
+      basePrice: 2000,
+      currentPrice: 2000,
+      currentStock: 10,
+      maxStock: 10,
+      catchRate: 4.0,
+    },
+    {
+      id: 'moon_ball',
+      cobblemonId: 'moon_ball',
+      name: 'Moon Ball',
+      description: 'Efectiva contra Pokémon que evolucionan con Piedra Lunar. 4x',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/moon-ball.png',
+      type: 'apricorn',
+      basePrice: 2000,
+      currentPrice: 2000,
+      currentStock: 10,
+      maxStock: 10,
+      catchRate: 4.0,
+    },
+    {
+      id: 'friend_ball',
+      cobblemonId: 'friend_ball',
+      name: 'Friend Ball',
+      description: 'El Pokémon capturado empieza con alta amistad.',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/friend-ball.png',
+      type: 'apricorn',
+      basePrice: 2000,
+      currentPrice: 2000,
+      currentStock: 10,
+      maxStock: 10,
+      catchRate: 1.0,
+    },
+    {
+      id: 'love_ball',
+      cobblemonId: 'love_ball',
+      name: 'Love Ball',
+      description: 'Efectiva contra Pokémon del sexo opuesto. 8x',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/love-ball.png',
+      type: 'apricorn',
+      basePrice: 2000,
+      currentPrice: 2000,
+      currentStock: 10,
+      maxStock: 10,
+      catchRate: 8.0,
+    },
+    {
+      id: 'heavy_ball',
+      cobblemonId: 'heavy_ball',
+      name: 'Heavy Ball',
+      description: 'Efectiva contra Pokémon pesados.',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/heavy-ball.png',
+      type: 'apricorn',
+      basePrice: 2000,
+      currentPrice: 2000,
+      currentStock: 10,
+      maxStock: 10,
+      catchRate: 4.0,
+    },
+    {
+      id: 'fast_ball',
+      cobblemonId: 'fast_ball',
+      name: 'Fast Ball',
+      description: 'Efectiva contra Pokémon rápidos (velocidad >100). 4x',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/fast-ball.png',
+      type: 'apricorn',
+      basePrice: 2000,
+      currentPrice: 2000,
+      currentStock: 10,
+      maxStock: 10,
+      catchRate: 4.0,
+    },
+    // Safari/Sport/Dream
+    {
+      id: 'safari_ball',
+      cobblemonId: 'safari_ball',
+      name: 'Safari Ball',
+      description: 'Ball especial de la Zona Safari. 1.5x',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/safari-ball.png',
+      type: 'special',
+      basePrice: 1500,
+      currentPrice: 1500,
+      currentStock: 15,
+      maxStock: 15,
+      catchRate: 1.5,
+    },
+    {
+      id: 'sport_ball',
+      cobblemonId: 'sport_ball',
+      name: 'Sport Ball',
+      description: 'Ball especial del Bug-Catching Contest. 1.5x',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/sport-ball.png',
+      type: 'special',
+      basePrice: 1500,
+      currentPrice: 1500,
+      currentStock: 15,
+      maxStock: 15,
+      catchRate: 1.5,
+    },
+    {
+      id: 'dream_ball',
+      cobblemonId: 'dream_ball',
+      name: 'Dream Ball',
+      description: 'Efectiva contra Pokémon dormidos. 4x',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/dream-ball.png',
+      type: 'special',
+      basePrice: 2500,
+      currentPrice: 2500,
+      currentStock: 10,
+      maxStock: 10,
+      catchRate: 4.0,
+    },
+    {
+      id: 'beast_ball',
+      cobblemonId: 'beast_ball',
+      name: 'Beast Ball',
+      description: 'Diseñada para Ultra Bestias. 5x contra ellas, 0.1x contra otros.',
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/beast-ball.png',
+      type: 'special',
+      basePrice: 5000,
+      currentPrice: 5000,
+      currentStock: 5,
+      maxStock: 5,
+      catchRate: 5.0,
+    },
+  ];
+}
+
 function createApp() {
   const app = express();
 
@@ -104,41 +440,6 @@ function createApp() {
       uptime: process.uptime(),
       message: 'Backend API is running'
     });
-  });
-
-  // ============================================
-  // BLUEMAP PROXY - Para embeber en frontend HTTPS
-  // ============================================
-  
-  const BLUEMAP_URL = 'http://cobblemon2.pals.army:17335';
-  
-  // Proxy para BlueMap - permite embeber HTTP en HTTPS
-  app.get('/api/bluemap/*', async (req, res) => {
-    try {
-      const path = req.params[0] || '';
-      const queryString = req.url.includes('?') ? req.url.split('?')[1] : '';
-      const targetUrl = `${BLUEMAP_URL}/${path}${queryString ? '?' + queryString : ''}`;
-      
-      const response = await fetch(targetUrl);
-      
-      // Copiar headers relevantes
-      const contentType = response.headers.get('content-type');
-      if (contentType) {
-        res.setHeader('Content-Type', contentType);
-      }
-      
-      // Para archivos binarios (imágenes, etc)
-      if (contentType && (contentType.includes('image') || contentType.includes('octet-stream'))) {
-        const buffer = await response.arrayBuffer();
-        res.send(Buffer.from(buffer));
-      } else {
-        const text = await response.text();
-        res.send(text);
-      }
-    } catch (error) {
-      console.error('[BLUEMAP PROXY] Error:', error);
-      res.status(502).json({ error: 'BlueMap not available' });
-    }
   });
 
   // ============================================
@@ -727,13 +1028,131 @@ function createApp() {
     }
   });
 
-  // GET /api/shop/stock - Get shop stock
+  // GET /api/shop/stock - Get shop stock (Pokéballs)
   app.get('/api/shop/stock', async (req, res) => {
     try {
-      const stock = await getDb().collection('shop_items').find({}).toArray();
-      res.json({ stock });
+      const db = getDb();
+      let items = await db.collection('shop_items').find({}).toArray();
+      
+      // Si no hay items, crear los defaults
+      if (items.length === 0) {
+        const defaultBalls = getDefaultPokeballs();
+        await db.collection('shop_items').insertMany(defaultBalls);
+        items = defaultBalls;
+      }
+      
+      // Transformar al formato esperado por el frontend
+      const balls = items.map(item => ({
+        id: item.id || item.ballId,
+        name: item.name,
+        description: item.description,
+        sprite: item.sprite,
+        type: item.type || 'standard',
+        basePrice: item.basePrice,
+        currentPrice: item.currentPrice || item.basePrice,
+        currentStock: item.currentStock,
+        maxStock: item.maxStock,
+        catchRate: item.catchRate,
+        cobblemonId: item.cobblemonId, // ID exacto para Cobblemon
+      }));
+      
+      res.json({ balls });
     } catch (error) {
       console.error('[SHOP STOCK] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/shop/purchase - Purchase pokeballs
+  app.post('/api/shop/purchase', async (req, res) => {
+    try {
+      const { uuid, itemId, quantity } = req.body;
+      if (!uuid || !itemId || !quantity) {
+        return res.status(400).json({ error: 'uuid, itemId and quantity required' });
+      }
+
+      if (quantity < 1 || quantity > 999) {
+        return res.status(400).json({ error: 'Invalid quantity (1-999)' });
+      }
+
+      const db = getDb();
+      
+      // Buscar usuario por minecraftUuid
+      const user = await db.collection('users').findOne({ minecraftUuid: uuid });
+      if (!user) {
+        return res.status(404).json({ error: 'User not found. You need to be verified.' });
+      }
+
+      // Buscar el item
+      const item = await db.collection('shop_items').findOne({ 
+        $or: [{ id: itemId }, { ballId: itemId }] 
+      });
+      if (!item) {
+        return res.status(404).json({ error: 'Item not found' });
+      }
+
+      // Verificar stock
+      if (item.currentStock < quantity) {
+        return res.status(400).json({ error: `Not enough stock. Available: ${item.currentStock}` });
+      }
+
+      // Calcular precio total
+      const totalPrice = (item.currentPrice || item.basePrice) * quantity;
+
+      // Verificar balance
+      const userBalance = user.cobbleDollars || 0;
+      if (userBalance < totalPrice) {
+        return res.status(400).json({ 
+          error: `Insufficient balance. Need: ${totalPrice}, Have: ${userBalance}` 
+        });
+      }
+
+      // Realizar la compra (transacción)
+      const newBalance = userBalance - totalPrice;
+      const newStock = item.currentStock - quantity;
+
+      // Actualizar balance del usuario
+      await db.collection('users').updateOne(
+        { minecraftUuid: uuid },
+        { $set: { cobbleDollars: newBalance, updatedAt: new Date() } }
+      );
+
+      // Actualizar stock del item
+      await db.collection('shop_items').updateOne(
+        { $or: [{ id: itemId }, { ballId: itemId }] },
+        { $set: { currentStock: newStock, updatedAt: new Date() } }
+      );
+
+      // Crear registro de compra pendiente (para que el plugin lo entregue)
+      const purchase = {
+        minecraftUuid: uuid,
+        minecraftUsername: user.minecraftUsername,
+        discordId: user.discordId,
+        ballId: item.cobblemonId || item.id || itemId, // ID exacto de Cobblemon
+        ballName: item.name,
+        quantity: quantity,
+        pricePerUnit: item.currentPrice || item.basePrice,
+        totalPrice: totalPrice,
+        status: 'pending',
+        createdAt: new Date(),
+      };
+
+      await db.collection('shop_purchases').insertOne(purchase);
+
+      console.log(`[SHOP] Purchase: ${user.minecraftUsername} bought ${quantity}x ${item.name} for ${totalPrice} CobbleDollars`);
+
+      res.json({
+        success: true,
+        message: `¡Compra exitosa! Usa /claim en el juego para recibir tus ${quantity}x ${item.name}`,
+        newBalance: newBalance,
+        purchase: {
+          itemName: item.name,
+          quantity: quantity,
+          totalPrice: totalPrice,
+        }
+      });
+    } catch (error) {
+      console.error('[SHOP PURCHASE] Error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
