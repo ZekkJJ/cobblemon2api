@@ -107,6 +107,41 @@ function createApp() {
   });
 
   // ============================================
+  // BLUEMAP PROXY - Para embeber en frontend HTTPS
+  // ============================================
+  
+  const BLUEMAP_URL = 'http://cobblemon2.pals.army:17335';
+  
+  // Proxy para BlueMap - permite embeber HTTP en HTTPS
+  app.get('/api/bluemap/*', async (req, res) => {
+    try {
+      const path = req.params[0] || '';
+      const queryString = req.url.includes('?') ? req.url.split('?')[1] : '';
+      const targetUrl = `${BLUEMAP_URL}/${path}${queryString ? '?' + queryString : ''}`;
+      
+      const response = await fetch(targetUrl);
+      
+      // Copiar headers relevantes
+      const contentType = response.headers.get('content-type');
+      if (contentType) {
+        res.setHeader('Content-Type', contentType);
+      }
+      
+      // Para archivos binarios (imágenes, etc)
+      if (contentType && (contentType.includes('image') || contentType.includes('octet-stream'))) {
+        const buffer = await response.arrayBuffer();
+        res.send(Buffer.from(buffer));
+      } else {
+        const text = await response.text();
+        res.send(text);
+      }
+    } catch (error) {
+      console.error('[BLUEMAP PROXY] Error:', error);
+      res.status(502).json({ error: 'BlueMap not available' });
+    }
+  });
+
+  // ============================================
   // PLUGIN ENDPOINTS - CRITICAL
   // ============================================
 
