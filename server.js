@@ -668,18 +668,21 @@ function createApp() {
   // GET /api/shop/balance - Get player balance
   app.get('/api/shop/balance', async (req, res) => {
     try {
-      const discordId = req.query.discordId;
-      if (!discordId) {
-        return res.status(400).json({ error: 'discordId required' });
+      const { discordId, uuid } = req.query;
+      if (!discordId && !uuid) {
+        return res.status(400).json({ error: 'discordId or uuid required' });
       }
 
       const db = getDb();
-      const user = await db.collection('users').findOne({ discordId });
+      // Buscar por discordId o minecraftUuid
+      const query = discordId ? { discordId } : { minecraftUuid: uuid };
+      const user = await db.collection('users').findOne(query);
 
       res.json({
         success: true,
         balance: user?.cobbleDollars || 0,
-        discordId,
+        discordId: user?.discordId,
+        minecraftUuid: user?.minecraftUuid,
       });
     } catch (error) {
       console.error('[SHOP BALANCE] Error:', error);
