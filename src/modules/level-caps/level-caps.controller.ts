@@ -50,6 +50,10 @@ export class LevelCapsController {
     const validatedData = updateConfigSchema.parse(req.body);
     const adminName = (req as any).user?.discordUsername || 'Admin';
     const config = await this.levelCapsService.updateConfig(validatedData, adminName);
+    
+    console.log(`[LEVEL CAPS] Config updated by ${adminName}, version: ${config.version}`);
+    console.log(`[LEVEL CAPS] 🔔 Plugin should detect this change and refresh all player caches`);
+    
     res.json(config);
   });
 }
