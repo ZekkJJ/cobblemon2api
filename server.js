@@ -975,9 +975,10 @@ function createApp() {
         });
       }
 
-      // Link accounts - merge or create user
-      await db.collection('users').updateOne(
-        { $or: [{ discordId }, { minecraftUuid }] },
+      // FIXED: Update the Discord user document directly (this is the one created at login)
+      // This ensures we update the existing document instead of creating a new one
+      const updateResult = await db.collection('users').updateOne(
+        { discordId }, // Find by discordId (the document created at login)
         {
           $set: {
             discordId,
@@ -995,6 +996,8 @@ function createApp() {
         },
         { upsert: true }
       );
+
+      console.log(`[VERIFICATION] Update result: matched=${updateResult.matchedCount}, modified=${updateResult.modifiedCount}, upserted=${updateResult.upsertedCount}`);
 
       // Mark code as used
       await db.collection('verification_codes').updateOne(
@@ -1629,12 +1632,13 @@ function createApp() {
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
       
-      const dailySpending = await db.collection('shop_purchases').aggregate([
-        { $match: { minecraftUuid: uuid, createdAt: { $gte: todayStart } } },
-        { $group: { _id: null, total: { $sum: '$totalPrice' } } }
-      ]).toArray();
+      // Use find() instead of aggregate() for Oracle 19c compatibility
+      const todayPurchases = await db.collection('shop_purchases').find({
+        minecraftUuid: uuid,
+        createdAt: { $gte: todayStart }
+      }).toArray();
       
-      const spentToday = dailySpending[0]?.total || 0;
+      const spentToday = todayPurchases.reduce((sum, p) => sum + (p.totalPrice || 0), 0);
       const dailyLimit = 500000; // 500k daily limit
       
       // Buscar el item
