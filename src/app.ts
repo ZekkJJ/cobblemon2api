@@ -152,23 +152,63 @@ export async function createApp(): Promise<Application> {
   // HEALTH CHECK
   // ============================================
 
-  app.get('/health', (req, res) => {
-    res.json({
-      success: true,
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      environment: env.NODE_ENV,
-    });
+  // Health check endpoint with detailed status
+  app.get('/health', async (req, res) => {
+    try {
+      const healthMonitor = app.get('healthMonitor') as HealthMonitorService;
+      const health = await healthMonitor.getHealthStatus();
+      
+      const statusCode = health.status === 'healthy' ? 200 : health.status === 'degraded' ? 200 : 503;
+      
+      res.status(statusCode).json(health);
+    } catch (error) {
+      res.status(503).json({
+        status: 'unhealthy',
+        timestamp: new Date(),
+        error: 'Health check failed',
+      });
+    }
+  });
+
+  // Metrics endpoint (Prometheus-compatible format)
+  app.get('/api/metrics', (req, res) => {
+    try {
+      const healthMonitor = app.get('healthMonitor') as HealthMonitorService;
+      const metrics = healthMonitor.getMetrics();
+      
+      res.json({
+        success: true,
+        metrics,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to retrieve metrics',
+      });
+    }
   });
 
   // Server status endpoint (alias for health check)
-  app.get('/api/server-status', (req, res) => {
-    res.json({
-      success: true,
-      status: 'online',
-      timestamp: new Date().toISOString(),
-      message: 'Backend API is running',
-    });
+  app.get('/api/server-status', async (req, res) => {
+    try {
+      const healthMonitor = app.get('healthMonitor') as HealthMonitorService;
+      const health = await healthMonitor.getHealthStatus();
+      
+      res.json({
+        success: true,
+        status: health.status === 'healthy' ? 'online' : 'degraded',
+        timestamp: new Date().toISOString(),
+        message: 'Backend API is running',
+        details: health,
+      });
+    } catch (error) {
+      res.json({
+        success: true,
+        status: 'online',
+        timestamp: new Date().toISOString(),
+        message: 'Backend API is running',
+      });
+    }
   });
 
   // ============================================

@@ -43,9 +43,9 @@ const baseOptions: Partial<Options> = {
   legacyHeaders: false,
   keyGenerator: getKeyGenerator,
   handler: (req: Request, res: Response) => {
-    // Calcular Retry-After en segundos
-    const retryAfter = Math.ceil((req.rateLimit?.resetTime?.getTime() || Date.now()) / 1000 - Date.now() / 1000);
-    res.setHeader('Retry-After', Math.max(retryAfter, 1));
+    // Calcular Retry-After en segundos (60 segundos por defecto)
+    const retryAfter = 60;
+    res.setHeader('Retry-After', retryAfter);
     res.status(429).json(rateLimitResponse);
   },
 };

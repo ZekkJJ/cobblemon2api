@@ -87,6 +87,14 @@ export async function getDb(): Promise<Db> {
   return db;
 }
 
+/**
+ * Obtiene el cliente de MongoDB
+ */
+export async function getMongoClient(): Promise<MongoClient> {
+  const { client } = await connectToDatabase();
+  return client;
+}
+
 // ============================================
 // COLECCIONES
 // ============================================
