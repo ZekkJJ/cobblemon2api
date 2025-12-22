@@ -95,6 +95,17 @@ function createApp() {
     res.json({ status: 'online', timestamp: new Date().toISOString(), uptime: process.uptime() });
   });
 
+  // API server status (for frontend)
+  app.get('/api/server-status', (req, res) => {
+    res.json({ 
+      success: true,
+      status: 'online', 
+      timestamp: new Date().toISOString(), 
+      uptime: process.uptime(),
+      message: 'Backend API is running'
+    });
+  });
+
   // ============================================
   // PLUGIN ENDPOINTS - CRITICAL
   // ============================================
@@ -102,13 +113,16 @@ function createApp() {
   // POST /api/players/sync - Sync player data from plugin
   app.post('/api/players/sync', async (req, res) => {
     try {
-      const { uuid, username, online, party, pcStorage } = req.body;
+      const { uuid, username, online, party, pcStorage, cobbleDollars, cobbleDollarsBalance, badges, playtime } = req.body;
       if (!uuid || !username) {
         return res.status(400).json({ error: 'uuid and username required' });
       }
 
       const db = getDb();
       const user = await db.collection('users').findOne({ minecraftUuid: uuid });
+      
+      // Use cobbleDollarsBalance if cobbleDollars not provided (plugin sends cobbleDollarsBalance)
+      const balance = cobbleDollars !== undefined ? cobbleDollars : cobbleDollarsBalance;
 
       if (!user) {
         // Create new user
@@ -118,6 +132,9 @@ function createApp() {
           online: online || false,
           party: party || [],
           pcStorage: pcStorage || [],
+          cobbleDollars: balance || 0,
+          badges: badges || 0,
+          playtime: playtime || 0,
           verified: false,
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -126,17 +143,22 @@ function createApp() {
       }
 
       // Update existing user
+      const updateData = {
+        minecraftUsername: username,
+        online: online || false,
+        updatedAt: new Date(),
+      };
+      
+      // Only update these if provided
+      if (party !== undefined) updateData.party = party;
+      if (pcStorage !== undefined) updateData.pcStorage = pcStorage;
+      if (balance !== undefined) updateData.cobbleDollars = balance;
+      if (badges !== undefined) updateData.badges = badges;
+      if (playtime !== undefined) updateData.playtime = playtime;
+
       await db.collection('users').updateOne(
         { minecraftUuid: uuid },
-        {
-          $set: {
-            minecraftUsername: username,
-            online: online || false,
-            party: party || user.party || [],
-            pcStorage: pcStorage || user.pcStorage || [],
-            updatedAt: new Date(),
-          },
-        }
+        { $set: updateData }
       );
 
       res.json({
@@ -639,6 +661,28 @@ function createApp() {
       res.json({ stock });
     } catch (error) {
       console.error('[SHOP STOCK] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // GET /api/shop/balance - Get player balance
+  app.get('/api/shop/balance', async (req, res) => {
+    try {
+      const discordId = req.query.discordId;
+      if (!discordId) {
+        return res.status(400).json({ error: 'discordId required' });
+      }
+
+      const db = getDb();
+      const user = await db.collection('users').findOne({ discordId });
+
+      res.json({
+        success: true,
+        balance: user?.cobbleDollars || 0,
+        discordId,
+      });
+    } catch (error) {
+      console.error('[SHOP BALANCE] Error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
