@@ -99,23 +99,4 @@ export class AdminService {
       throw Errors.databaseError();
     }
   }
-
-  async getBanStatus(uuid: string): Promise<{ banned: boolean; banReason?: string }> {
-    try {
-      const user = await this.usersCollection.findOne({ minecraftUuid: uuid });
-
-      if (!user) {
-        // Si el usuario no existe, no está baneado
-        return { banned: false };
-      }
-
-      return {
-        banned: user.banned || false,
-        banReason: user.banReason,
-      };
-    } catch (error) {
-      console.error('[ADMIN SERVICE] Error obteniendo estado de ban:', error);
-      throw Errors.databaseError();
-    }
-  }
 }

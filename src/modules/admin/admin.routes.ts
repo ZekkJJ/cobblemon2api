@@ -15,9 +15,6 @@ export async function createAdminRouter(): Promise<Router> {
 
   router.post('/ban', requireAuth, requireAdmin, writeLimiter, adminController.banPlayer);
   router.post('/reset-db', requireAuth, requireAdmin, writeLimiter, adminController.resetDatabase);
-  
-  // Endpoint para el plugin (sin autenticación, solo IP whitelist)
-  router.get('/ban-status', adminController.getBanStatus);
 
   return router;
 }

@@ -30,15 +30,4 @@ export class AdminController {
     const result = await this.adminService.resetDatabase(adminName);
     res.json(result);
   });
-
-  getBanStatus = asyncHandler(async (req: Request, res: Response) => {
-    const { uuid } = req.query;
-
-    if (!uuid || typeof uuid !== 'string') {
-      throw Errors.VALIDATION_ERROR('UUID is required');
-    }
-
-    const status = await this.adminService.getBanStatus(uuid);
-    res.json(status);
-  });
 }
