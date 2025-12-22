@@ -98,3 +98,172 @@ function createApp() {
   // ============================================
   // PLUGIN ENDPOINTS - CRITICAL
   // ============================================
+
+  // POST /api/players/sync - Sync player data from plugin
+  app.post('/api/players/sync', async (req, res) => {
+    try {
+      const { uuid, username, online, party, pcStorage } = req.body;
+      if (!uuid || !username) {
+        return res.status(400).json({ error: 'uuid and username required' });
+      }
+
+      const db = getDb();
+      const user = await db.collection('users').findOne({ minecraftUuid: uuid });
+
+      if (!user) {
+        // Create new user
+        await db.collection('users').insertOne({
+          minecraftUuid: uuid,
+          minecraftUsername: username,
+          online: online || false,
+          party: party || [],
+          pcStorage: pcStorage || [],
+          verified: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+        return res.json({ success: true, verified: false, banned: false });
+      }
+
+      // Update existing user
+      await db.collection('users').updateOne(
+        { minecraftUuid: uuid },
+        {
+          $set: {
+            minecraftUsername: username,
+            online: online || false,
+            party: party || user.party || [],
+            pcStorage: pcStorage || user.pcStorage || [],
+            updatedAt: new Date(),
+          },
+        }
+      );
+
+      res.json({
+        success: true,
+        verified: user.verified || false,
+        banned: user.banned || false,
+        banReason: user.banReason,
+      });
+    } catch (error) {
+      console.error('[PLAYERS SYNC] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // GET /api/admin/ban-status - Check if player is banned
+  app.get('/api/admin/ban-status', async (req, res) => {
+    try {
+      const uuid = req.query.uuid;
+      if (!uuid) {
+        return res.status(400).json({ error: 'uuid required' });
+      }
+
+      const db = getDb();
+      const user = await db.collection('users').findOne({ minecraftUuid: uuid });
+
+      if (!user) {
+        return res.json({ banned: false });
+      }
+
+      res.json({
+        banned: user.banned || false,
+        banReason: user.banReason,
+      });
+    } catch (error) {
+      console.error('[BAN STATUS] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/verification/generate - Generate verification code
+  app.post('/api/verification/generate', async (req, res) => {
+    try {
+      const { minecraftUuid, minecraftUsername } = req.body;
+      if (!minecraftUuid || !minecraftUsername) {
+        return res.status(400).json({ error: 'minecraftUuid and minecraftUsername required' });
+      }
+
+      const db = getDb();
+      const code = generateCode();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+      await db.collection('users').updateOne(
+        { minecraftUuid },
+        {
+          $set: {
+            minecraftUuid,
+            minecraftUsername,
+            verificationCode: code,
+            verificationCodeExpiresAt: expiresAt,
+            updatedAt: new Date(),
+          },
+          $setOnInsert: {
+            createdAt: new Date(),
+            verified: false,
+          },
+        },
+        { upsert: true }
+      );
+
+      res.json({ success: true, code });
+    } catch (error) {
+      console.error('[VERIFICATION GENERATE] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/verification/verify - Verify code from plugin
+  app.post('/api/verification/verify', async (req, res) => {
+    try {
+      const { minecraftUuid, code } = req.body;
+      if (!minecraftUuid || !code) {
+        return res.status(400).json({ error: 'minecraftUuid and code required' });
+      }
+
+      const db = getDb();
+      const user = await db.collection('users').findOne({ minecraftUuid });
+
+      if (!user) {
+        return res.json({ success: false, message: 'User not found' });
+      }
+
+      if (user.verified) {
+        return res.json({ success: true, message: 'Already verified' });
+      }
+
+      if (user.verificationCode !== code) {
+        return res.json({ success: false, message: 'Invalid code' });
+      }
+
+      if (new Date() > new Date(user.verificationCodeExpiresAt)) {
+        return res.json({ success: false, message: 'Code expired' });
+      }
+
+      // Check if Discord is linked
+      if (!user.discordId) {
+        return res.json({ success: false, message: 'Discord not linked yet' });
+      }
+
+      // Mark as verified
+      await db.collection('users').updateOne(
+        { minecraftUuid },
+        {
+          $set: {
+            verified: true,
+            verifiedAt: new Date(),
+            updatedAt: new Date(),
+          },
+          $unset: {
+            verificationCode: '',
+            verificationCodeExpiresAt: '',
+          },
+        }
+      );
+
+      res.json({ success: true, message: 'Verified successfully' });
+    } catch (error) {
+      console.error('[VERIFICATION VERIFY] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
