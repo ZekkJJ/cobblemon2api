@@ -616,7 +616,32 @@ function createApp() {
   // GET /api/players - Get all players
   app.get('/api/players', async (req, res) => {
     try {
-      const players = await getDb().collection('users').find({}).toArray();
+      const users = await getDb().collection('users').find({}).toArray();
+      
+      // Transformar a formato esperado por el frontend
+      const players = users.map(user => ({
+        uuid: user.minecraftUuid || user._id.toString(),
+        username: user.minecraftUsername || user.discordUsername || 'Unknown',
+        totalPokemon: (user.party?.length || 0) + (user.pcStorage?.length || 0),
+        shinies: [...(user.party || []), ...(user.pcStorage || [])].filter(p => p?.shiny).length,
+        starter: user.starterId ? {
+          id: user.starterId,
+          name: user.starterName || `Pokemon #${user.starterId}`,
+          isShiny: user.starterIsShiny || false,
+        } : null,
+        partyPreview: (user.party || []).slice(0, 6).map(p => ({
+          species: p?.species || 'Unknown',
+          speciesId: p?.speciesId || 1,
+          level: p?.level || 1,
+          shiny: p?.shiny || false,
+        })),
+        cobbleDollars: user.cobbleDollars || 0,
+        badges: user.badges || 0,
+        playtime: user.playtime || 0,
+        online: user.online || false,
+        verified: user.verified || false,
+      }));
+      
       res.json({ players });
     } catch (error) {
       console.error('[PLAYERS] Error:', error);
