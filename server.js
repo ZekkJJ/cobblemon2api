@@ -1644,6 +1644,80 @@ function createApp() {
     }
   });
 
+  // ============================================
+  // LEADERBOARD ENDPOINTS
+  // ============================================
+
+  // GET /api/leaderboard - Get all leaderboards
+  app.get('/api/leaderboard', async (req, res) => {
+    try {
+      const db = getDb();
+      const users = await db.collection('users').find({
+        minecraftUsername: { $exists: true, $ne: null },
+        verified: true
+      }).toArray();
+
+      // Calculate stats for each player
+      const playersWithStats = users.map(user => {
+        const allPokemon = [...(user.party || []), ...(user.pcStorage || [])];
+        const partyPokemon = user.party || [];
+        
+        // Calculate average level of party (max 6)
+        const partyLevels = partyPokemon.slice(0, 6).map(p => p?.level || 0);
+        const avgLevel = partyLevels.length > 0 
+          ? Math.round(partyLevels.reduce((a, b) => a + b, 0) / partyLevels.length) 
+          : 0;
+        
+        // Count shinies
+        const shinyCount = allPokemon.filter(p => p?.shiny === true).length;
+        
+        return {
+          uuid: user.minecraftUuid,
+          username: user.minecraftUsername,
+          cobbleDollars: user.cobbleDollars || 0,
+          avgLevel,
+          shinyCount,
+          totalPokemon: allPokemon.length,
+          online: user.online || false,
+        };
+      });
+
+      // Top CobbleDollars (Top 10)
+      const topCobbleDollars = [...playersWithStats]
+        .sort((a, b) => b.cobbleDollars - a.cobbleDollars)
+        .slice(0, 10)
+        .map((p, i) => ({ rank: i + 1, ...p }));
+
+      // Top Average Level (Top 10)
+      const topAvgLevel = [...playersWithStats]
+        .filter(p => p.avgLevel > 0)
+        .sort((a, b) => b.avgLevel - a.avgLevel)
+        .slice(0, 10)
+        .map((p, i) => ({ rank: i + 1, ...p }));
+
+      // Top Shinies (Top 10)
+      const topShinies = [...playersWithStats]
+        .filter(p => p.shinyCount > 0)
+        .sort((a, b) => b.shinyCount - a.shinyCount)
+        .slice(0, 10)
+        .map((p, i) => ({ rank: i + 1, ...p }));
+
+      res.json({
+        success: true,
+        leaderboards: {
+          cobbleDollars: topCobbleDollars,
+          avgLevel: topAvgLevel,
+          shinies: topShinies,
+        },
+        totalPlayers: users.length,
+        lastUpdated: new Date(),
+      });
+    } catch (error) {
+      console.error('[LEADERBOARD] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // GET /api/tournaments - Get all tournaments
   app.get('/api/tournaments', async (req, res) => {
     try {
@@ -1656,7 +1730,7 @@ function createApp() {
     }
   });
 
-  // GET /api/shop/stock - Get shop stock (Pokéballs)
+  // GET /api/shop/stock - Get shop stock (all items)
   app.get('/api/shop/stock', async (req, res) => {
     try {
       const db = getDb();
@@ -1677,12 +1751,15 @@ function createApp() {
         sprite: item.sprite,
         spriteOpen: item.spriteOpen,
         type: item.type || 'standard',
+        category: item.category || 'pokeball',
+        rarity: item.rarity,
         basePrice: item.basePrice,
         currentPrice: item.currentPrice || item.basePrice,
         currentStock: item.currentStock,
         maxStock: item.maxStock,
         catchRate: item.catchRate,
-        cobblemonId: item.cobblemonId, // ID exacto para Cobblemon
+        cobblemonId: item.cobblemonId,
+        minecraftId: item.minecraftId,
       }));
       
       res.json({ balls });
@@ -1829,8 +1906,10 @@ function createApp() {
         minecraftUuid: uuid,
         minecraftUsername: user.minecraftUsername,
         discordId: user.discordId,
-        ballId: item.cobblemonId || item.id || itemId,
+        ballId: item.minecraftId || item.cobblemonId || item.id || itemId,
         ballName: item.name,
+        itemType: item.type || 'standard',
+        itemCategory: item.category || 'pokeball',
         quantity: parsedQuantity,
         pricePerUnit: item.currentPrice || item.basePrice,
         totalPrice: totalPrice,
