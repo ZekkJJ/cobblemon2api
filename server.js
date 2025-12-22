@@ -113,7 +113,7 @@ function createApp() {
   // POST /api/players/sync - Sync player data from plugin
   app.post('/api/players/sync', async (req, res) => {
     try {
-      const { uuid, username, online, party, pcStorage, cobbleDollars, cobbleDollarsBalance, badges, playtime } = req.body;
+      const { uuid, username, online, party, pcStorage, cobbleDollars, cobbleDollarsBalance, badges, playtime, x, y, z, world } = req.body;
       if (!uuid || !username) {
         return res.status(400).json({ error: 'uuid and username required' });
       }
@@ -135,6 +135,10 @@ function createApp() {
           cobbleDollars: balance || 0,
           badges: badges || 0,
           playtime: playtime || 0,
+          x: x,
+          y: y,
+          z: z,
+          world: world || 'overworld',
           verified: false,
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -155,6 +159,10 @@ function createApp() {
       if (balance !== undefined) updateData.cobbleDollars = balance;
       if (badges !== undefined) updateData.badges = badges;
       if (playtime !== undefined) updateData.playtime = playtime;
+      if (x !== undefined) updateData.x = x;
+      if (y !== undefined) updateData.y = y;
+      if (z !== undefined) updateData.z = z;
+      if (world !== undefined) updateData.world = world;
 
       await db.collection('users').updateOne(
         { minecraftUuid: uuid },
@@ -640,6 +648,11 @@ function createApp() {
         playtime: user.playtime || 0,
         online: user.online || false,
         verified: user.verified || false,
+        // Coordenadas para el mapa
+        x: user.x,
+        y: user.y,
+        z: user.z,
+        world: user.world || 'overworld',
       }));
       
       res.json({ players });
