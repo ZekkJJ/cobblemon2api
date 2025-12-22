@@ -10,7 +10,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 const crypto = require('crypto');
 
 // Environment variables
@@ -1432,9 +1432,8 @@ function createApp() {
       console.log(`[SHOP CLAIM] Attempting to claim: uuid=${uuid}, purchaseId=${purchaseId}`);
 
       const db = getDb();
-      const { ObjectId } = require('mongodb');
       
-      // Parse ObjectId
+      // Parse ObjectId (ObjectId is imported at top of file)
       let objectId;
       try {
         objectId = new ObjectId(purchaseId);
