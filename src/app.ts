@@ -12,6 +12,9 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { env, isDevelopment } from './config/env.js';
 import { errorHandler, notFoundHandler } from './shared/middleware/error-handler.js';
+import { sanitizeMiddleware } from './shared/middleware/sanitize.js';
+import { HealthMonitorService } from './shared/services/health-monitor.service.js';
+import { getMongoClient } from './config/database.js';
 
 // Importar funciones de creación de routers
 import { createAuthRouter } from './modules/auth/auth.routes.js';
@@ -28,6 +31,25 @@ import { createAdminRouter } from './modules/admin/admin.routes.js';
  */
 export async function createApp(): Promise<Application> {
   const app = express();
+
+  // Inicializar Health Monitor
+  const mongoClient = await getMongoClient();
+  const healthMonitor = new HealthMonitorService(mongoClient);
+
+  // Middleware para registrar métricas de requests
+  app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+      const duration = Date.now() - start;
+      const endpoint = `${req.method} ${req.route?.path || req.path}`;
+      const isError = res.statusCode >= 400;
+      healthMonitor.recordRequest(endpoint, duration, isError);
+    });
+    next();
+  });
+
+  // Hacer healthMonitor disponible en toda la app
+  app.set('healthMonitor', healthMonitor);
 
   // ============================================
   // MIDDLEWARES DE SEGURIDAD
@@ -99,14 +121,17 @@ export async function createApp(): Promise<Application> {
   // MIDDLEWARES DE PARSING
   // ============================================
 
-  // Parser de JSON
-  app.use(express.json({ limit: '10mb' }));
+  // Parser de JSON con límite de 1MB para prevenir DoS
+  app.use(express.json({ limit: '1mb' }));
 
-  // Parser de URL-encoded
-  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+  // Parser de URL-encoded con límite de 1MB
+  app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
   // Parser de cookies
   app.use(cookieParser());
+
+  // Sanitizar todos los inputs para prevenir inyección
+  app.use(sanitizeMiddleware);
 
   // ============================================
   // LOGGING EN DESARROLLO

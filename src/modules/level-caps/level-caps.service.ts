@@ -198,15 +198,38 @@ export class LevelCapsService {
       const existing = await this.levelCapsCollection.findOne({});
 
       if (existing) {
-        await this.levelCapsCollection.updateOne({}, { $set: { ...data, updatedAt: new Date() } });
+        // Increment version on update
+        const newVersion = (existing.version || 0) + 1;
+        await this.levelCapsCollection.updateOne(
+          {},
+          {
+            $set: {
+              ...data,
+              version: newVersion,
+              lastModified: new Date(),
+              modifiedBy: adminName,
+              updatedAt: new Date(),
+            },
+          }
+        );
       } else {
-        await this.levelCapsCollection.insertOne({ ...data, createdAt: new Date(), updatedAt: new Date() } as LevelCapsDocument);
+        // Initialize version to 1 for new config
+        await this.levelCapsCollection.insertOne({
+          ...data,
+          version: 1,
+          lastModified: new Date(),
+          modifiedBy: adminName,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as LevelCapsDocument);
       }
 
       const updated = await this.levelCapsCollection.findOne({});
       if (!updated) {
         throw Errors.databaseError();
       }
+
+      console.log(`[LEVEL CAPS SERVICE] Config updated by ${adminName}, new version: ${updated.version}`);
 
       return updated;
     } catch (error) {
@@ -220,8 +243,8 @@ export class LevelCapsService {
     try {
       const config = await this.levelCapsCollection.findOne({});
       return {
-        version: config?.updatedAt?.getTime() || Date.now(),
-        lastUpdated: config?.updatedAt || new Date(),
+        version: config?.version || 1,
+        lastUpdated: config?.lastModified || config?.updatedAt || new Date(),
       };
     } catch (error) {
       console.error('[LEVEL CAPS SERVICE] Error obteniendo versión:', error);

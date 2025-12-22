@@ -1,14 +1,37 @@
 import { Request, Response } from 'express';
 import { LevelCapsService } from './level-caps.service.js';
 import { asyncHandler, Errors } from '../../shared/middleware/error-handler.js';
+import { z } from 'zod';
+
+/**
+ * Esquema de validación para consulta de caps efectivos
+ */
+const getEffectiveCapsSchema = z.object({
+  uuid: z.string().uuid('UUID de Minecraft inválido'),
+});
+
+/**
+ * Esquema de validación para actualizar configuración
+ */
+const updateConfigSchema = z.object({
+  captureCapEnabled: z.boolean().optional(),
+  ownershipCapEnabled: z.boolean().optional(),
+  defaultCaptureCapFormula: z.string().max(200).optional(),
+  defaultOwnershipCapFormula: z.string().max(200).optional(),
+  enforcementMode: z.enum(['hard', 'soft']).optional(),
+  customMessages: z.object({
+    captureFailed: z.string().max(200).optional(),
+    expBlocked: z.string().max(200).optional(),
+  }).optional(),
+});
 
 export class LevelCapsController {
   constructor(private levelCapsService: LevelCapsService) {}
 
   getEffectiveCaps = asyncHandler(async (req: Request, res: Response) => {
-    const uuid = req.query['uuid'] as string;
-    if (!uuid) throw Errors.validationError('UUID es requerido');
-    const caps = await this.levelCapsService.getEffectiveCaps(uuid);
+    // Validar query params
+    const validatedQuery = getEffectiveCapsSchema.parse({ uuid: req.query['uuid'] });
+    const caps = await this.levelCapsService.getEffectiveCaps(validatedQuery.uuid);
     res.json({ ...caps, success: true });
   });
 
@@ -23,8 +46,10 @@ export class LevelCapsController {
   });
 
   updateConfig = asyncHandler(async (req: Request, res: Response) => {
+    // Validar body
+    const validatedData = updateConfigSchema.parse(req.body);
     const adminName = (req as any).user?.discordUsername || 'Admin';
-    const config = await this.levelCapsService.updateConfig(req.body, adminName);
+    const config = await this.levelCapsService.updateConfig(validatedData, adminName);
     res.json(config);
   });
 }

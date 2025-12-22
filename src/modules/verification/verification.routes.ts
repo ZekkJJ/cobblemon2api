@@ -26,6 +26,12 @@ export async function createVerificationRouter(): Promise<Router> {
   const verificationController = new VerificationController(verificationService);
 
   // Rate limiters
+  const verificationLimiter = createRateLimiter({
+    windowMs: 60000, // 1 minuto
+    max: 5, // 5 intentos de verificación por minuto por IP
+    message: 'Demasiados intentos de verificación, intenta de nuevo más tarde',
+  });
+
   const pluginLimiter = createRateLimiter({
     windowMs: 60000, // 1 minuto
     max: 60, // 60 solicitudes por minuto
@@ -45,8 +51,9 @@ export async function createVerificationRouter(): Promise<Router> {
   /**
    * POST /api/verification/verify
    * Verifica un código desde el plugin
+   * Rate limit: 5 intentos por minuto por IP
    */
-  router.post('/verify', ipWhitelistMiddleware, pluginLimiter, verificationController.verifyFromPlugin);
+  router.post('/verify', ipWhitelistMiddleware, verificationLimiter, verificationController.verifyFromPlugin);
 
   return router;
 }
@@ -65,6 +72,12 @@ export async function createVerifyRouter(): Promise<Router> {
   const verificationController = new VerificationController(verificationService);
 
   // Rate limiters
+  const verificationLimiter = createRateLimiter({
+    windowMs: 60000, // 1 minuto
+    max: 5, // 5 intentos de verificación por minuto por IP
+    message: 'Demasiados intentos de verificación, intenta de nuevo más tarde',
+  });
+
   const webLimiter = createRateLimiter({
     windowMs: 60000, // 1 minuto
     max: 20, // 20 solicitudes por minuto
@@ -90,8 +103,9 @@ export async function createVerifyRouter(): Promise<Router> {
   /**
    * POST /api/verify/check
    * Verifica un código desde la web y vincula con Discord
+   * Rate limit: 5 intentos por minuto por IP
    */
-  router.post('/check', webLimiter, verificationController.verifyFromWeb);
+  router.post('/check', verificationLimiter, verificationController.verifyFromWeb);
 
   /**
    * POST /api/verify/register

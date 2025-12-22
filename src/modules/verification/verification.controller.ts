@@ -16,7 +16,6 @@ import { z } from 'zod';
 const generateCodeSchema = z.object({
   minecraftUuid: z.string().uuid('UUID de Minecraft inválido'),
   minecraftUsername: z.string().min(1, 'Username es requerido'),
-  code: z.string().length(5, 'El código debe tener 5 dígitos').optional(),
 });
 
 /**
@@ -24,14 +23,14 @@ const generateCodeSchema = z.object({
  */
 const verifyFromPluginSchema = z.object({
   minecraftUuid: z.string().uuid('UUID de Minecraft inválido'),
-  code: z.string().length(5, 'El código debe tener 5 dígitos'),
+  code: z.string().length(8, 'El código debe tener 8 caracteres').regex(/^[A-Z0-9]+$/, 'El código debe ser alfanumérico'),
 });
 
 /**
  * Esquema de validación para verificar código desde web
  */
 const verifyFromWebSchema = z.object({
-  code: z.string().length(5, 'El código debe tener 5 dígitos'),
+  code: z.string().length(8, 'El código debe tener 8 caracteres').regex(/^[A-Z0-9]+$/, 'El código debe ser alfanumérico'),
   discordId: z.string().min(1, 'Discord ID es requerido'),
   discordUsername: z.string().optional(),
 });
@@ -47,25 +46,15 @@ export class VerificationController {
     // Validar datos de entrada
     const validatedData = generateCodeSchema.parse(req.body);
 
-    // Si el plugin ya generó el código, usarlo; si no, generar uno nuevo
-    let code = validatedData.code;
-    if (!code) {
-      const result = await this.verificationService.generateVerificationCode(
-        validatedData.minecraftUuid,
-        validatedData.minecraftUsername
-      );
-      code = result.code;
-    } else {
-      // El plugin ya generó el código, solo guardarlo
-      await this.verificationService.generateVerificationCode(
-        validatedData.minecraftUuid,
-        validatedData.minecraftUsername
-      );
-    }
+    // Generar código seguro de 8 caracteres
+    const result = await this.verificationService.generateVerificationCode(
+      validatedData.minecraftUuid,
+      validatedData.minecraftUsername
+    );
 
     res.json({
       success: true,
-      code,
+      code: result.code,
     });
   });
 
@@ -115,8 +104,8 @@ export class VerificationController {
       throw Errors.validationError('Código es requerido');
     }
 
-    if (code.length !== 5) {
-      throw Errors.validationError('El código debe tener 5 dígitos');
+    if (code.length !== 8) {
+      throw Errors.validationError('El código debe tener 8 caracteres');
     }
 
     const status = await this.verificationService.checkCodeStatus(code);
@@ -135,20 +124,20 @@ export class VerificationController {
     const mappedBody = {
       minecraftUuid: body.uuid,
       minecraftUsername: body.username,
-      code: body.code,
     };
 
     // Validar datos de entrada
     const validatedData = generateCodeSchema.parse(mappedBody);
 
-    // Generar/guardar código
-    await this.verificationService.generateVerificationCode(
+    // Generar código seguro
+    const result = await this.verificationService.generateVerificationCode(
       validatedData.minecraftUuid,
       validatedData.minecraftUsername
     );
 
     res.json({
       success: true,
+      code: result.code,
     });
   });
 }

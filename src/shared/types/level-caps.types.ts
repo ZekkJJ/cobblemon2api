@@ -129,6 +129,9 @@ export interface LevelCapsDocument {
   timeBasedRules: TimeBasedLevelCapRule[];
   changeHistory: LevelCapChange[];
   playerCapCache?: PlayerCapCache[];
+  version?: number; // Version number for cache invalidation
+  lastModified?: Date; // Last modification timestamp
+  modifiedBy?: string; // Admin who made the last modification
   createdAt: Date;
   updatedAt: Date;
 }

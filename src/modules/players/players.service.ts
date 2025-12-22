@@ -178,6 +178,7 @@ export class PlayersService {
         nickname: username,
         minecraftOnline: online || false,
         minecraftLastSeen: lastSeen || new Date().toISOString(),
+        lastHeartbeat: new Date(), // Update heartbeat for disconnect detection
         cobbleDollarsBalance: cobbleDollarsBalance || 0,
         syncedAt: new Date().toISOString(),
         updatedAt: new Date(),

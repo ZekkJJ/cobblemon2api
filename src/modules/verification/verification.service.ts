@@ -47,7 +47,10 @@ export class VerificationService {
     
     let code = '';
     for (let i = 0; i < codeLength; i++) {
-      code += chars[bytes[i] % chars.length];
+      const byte = bytes[i];
+      if (byte !== undefined) {
+        code += chars[byte % chars.length];
+      }
     }
     
     return code;

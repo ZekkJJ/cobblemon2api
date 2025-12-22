@@ -11,6 +11,20 @@ import { playerSyncSchema, starterGivenSchema } from './players.schema.js';
 import { asyncHandler, Errors } from '../../shared/middleware/error-handler.js';
 import { z } from 'zod';
 
+/**
+ * Esquema de validación para UUID en query params
+ */
+const uuidQuerySchema = z.object({
+  uuid: z.string().uuid('UUID de Minecraft inválido'),
+});
+
+/**
+ * Esquema de validación para UUID en params
+ */
+const uuidParamSchema = z.object({
+  uuid: z.string().uuid('UUID de Minecraft inválido'),
+});
+
 export class PlayersController {
   constructor(private playersService: PlayersService) {}
 
@@ -33,13 +47,9 @@ export class PlayersController {
    * Obtiene el perfil completo de un jugador
    */
   getPlayerProfile = asyncHandler(async (req: Request, res: Response) => {
-    const { uuid } = req.params;
-
-    if (!uuid) {
-      throw Errors.validationError('UUID es requerido');
-    }
-
-    const profile = await this.playersService.getPlayerProfile(uuid);
+    // Validar UUID en params
+    const validatedParams = uuidParamSchema.parse(req.params);
+    const profile = await this.playersService.getPlayerProfile(validatedParams.uuid);
 
     res.json({
       success: true,
@@ -70,13 +80,9 @@ export class PlayersController {
    * Verifica si un jugador tiene un starter pendiente de entrega
    */
   checkPendingStarter = asyncHandler(async (req: Request, res: Response) => {
-    const uuid = req.query['uuid'] as string;
-
-    if (!uuid) {
-      throw Errors.validationError('UUID es requerido');
-    }
-
-    const result = await this.playersService.checkPendingStarter(uuid);
+    // Validar UUID en query
+    const validatedQuery = uuidQuerySchema.parse({ uuid: req.query['uuid'] });
+    const result = await this.playersService.checkPendingStarter(validatedQuery.uuid);
 
     res.json(result);
   });
@@ -100,13 +106,9 @@ export class PlayersController {
    * Obtiene el estado de verificación de un jugador
    */
   getVerificationStatus = asyncHandler(async (req: Request, res: Response) => {
-    const uuid = req.query['uuid'] as string;
-
-    if (!uuid) {
-      throw Errors.validationError('UUID es requerido');
-    }
-
-    const status = await this.playersService.getVerificationStatus(uuid);
+    // Validar UUID en query
+    const validatedQuery = uuidQuerySchema.parse({ uuid: req.query['uuid'] });
+    const status = await this.playersService.getVerificationStatus(validatedQuery.uuid);
 
     res.json(status);
   });
@@ -116,13 +118,9 @@ export class PlayersController {
    * Obtiene el estado de ban de un jugador
    */
   getBanStatus = asyncHandler(async (req: Request, res: Response) => {
-    const uuid = req.query['uuid'] as string;
-
-    if (!uuid) {
-      throw Errors.validationError('UUID es requerido');
-    }
-
-    const status = await this.playersService.getBanStatus(uuid);
+    // Validar UUID en query
+    const validatedQuery = uuidQuerySchema.parse({ uuid: req.query['uuid'] });
+    const status = await this.playersService.getBanStatus(validatedQuery.uuid);
 
     res.json(status);
   });

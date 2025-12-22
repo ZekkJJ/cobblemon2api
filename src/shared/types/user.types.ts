@@ -33,6 +33,7 @@ export interface User {
   minecraftUsername?: string;
   minecraftOnline?: boolean;
   minecraftLastSeen?: string;
+  lastHeartbeat?: Date; // Last heartbeat from plugin for disconnect detection
   
   // Verificación
   verified: boolean;

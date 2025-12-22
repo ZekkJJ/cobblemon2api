@@ -39,10 +39,13 @@ function getKeyGenerator(req: Request): string {
  * Opciones base para rate limiters
  */
 const baseOptions: Partial<Options> = {
-  standardHeaders: true,
+  standardHeaders: true, // Incluye RateLimit-* headers
   legacyHeaders: false,
   keyGenerator: getKeyGenerator,
   handler: (req: Request, res: Response) => {
+    // Calcular Retry-After en segundos
+    const retryAfter = Math.ceil((req.rateLimit?.resetTime?.getTime() || Date.now()) / 1000 - Date.now() / 1000);
+    res.setHeader('Retry-After', Math.max(retryAfter, 1));
     res.status(429).json(rateLimitResponse);
   },
 };
