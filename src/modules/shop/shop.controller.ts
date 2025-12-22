@@ -18,6 +18,12 @@ const claimSchema = z.object({
   purchaseId: z.string().min(1),
 });
 
+const refundSchema = z.object({
+  uuid: z.string().uuid(),
+  purchaseId: z.string().min(1),
+  reason: z.string().min(1).max(500),
+});
+
 export class ShopController {
   constructor(private shopService: ShopService) {}
 
@@ -49,6 +55,16 @@ export class ShopController {
   claimPurchase = asyncHandler(async (req: Request, res: Response) => {
     const validatedData = claimSchema.parse(req.body);
     const result = await this.shopService.claimPurchase(validatedData.uuid, validatedData.purchaseId);
+    res.json(result);
+  });
+
+  refundPurchase = asyncHandler(async (req: Request, res: Response) => {
+    const validatedData = refundSchema.parse(req.body);
+    const result = await this.shopService.refundPurchase(
+      validatedData.uuid, 
+      validatedData.purchaseId, 
+      validatedData.reason
+    );
     res.json(result);
   });
 }

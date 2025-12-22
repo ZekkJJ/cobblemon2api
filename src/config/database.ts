@@ -20,13 +20,17 @@ let cachedDb: Db | null = null;
 
 /**
  * Opciones de conexión a MongoDB
+ * 
+ * IMPORTANTE: Las transacciones requieren MongoDB Replica Set.
+ * Para desarrollo local, ejecuta: mongod --replSet rs0
+ * Luego inicializa: rs.initiate()
  */
 const mongoOptions = {
   maxPoolSize: isProduction ? 50 : 10,
   minPoolSize: isProduction ? 10 : 2,
   serverSelectionTimeoutMS: 5000,
   socketTimeoutMS: 45000,
-  retryWrites: false, // Oracle MongoDB no soporta retryable writes
+  retryWrites: true, // Habilitado para transacciones
   retryReads: true,
 };
 

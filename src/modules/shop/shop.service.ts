@@ -3,11 +3,12 @@
  * Cobblemon Los Pitufos - Backend API
  */
 
-import { Collection } from 'mongodb';
+import { Collection, ClientSession } from 'mongodb';
 import { User } from '../../shared/types/user.types.js';
 import { ShopStock, ShopPurchase, BallStock, PurchaseItem } from '../../shared/types/shop.types.js';
 import { POKEBALLS, getRandomStock, getPriceWithStock } from '../../shared/data/pokeballs.data.js';
 import { AppError, Errors } from '../../shared/middleware/error-handler.js';
+import { TransactionManager } from '../../shared/utils/transaction-manager.js';
 
 const STOCK_REFRESH_INTERVAL = 3600000; // 1 hora
 
@@ -15,7 +16,8 @@ export class ShopService {
   constructor(
     private usersCollection: Collection<User>,
     private shopStockCollection: Collection<ShopStock>,
-    private shopPurchasesCollection: Collection<ShopPurchase>
+    private shopPurchasesCollection: Collection<ShopPurchase>,
+    private transactionManager: TransactionManager
   ) {}
 
   async getStock(): Promise<{ balls: any[]; nextRefresh: number }> {
@@ -123,78 +125,108 @@ export class ShopService {
         throw Errors.validationError('La cantidad debe ser mayor a 0');
       }
 
-      const stockData = await this.shopStockCollection.findOne({ id: 'current' });
-      if (!stockData || !stockData.stocks[ballId]) {
-        throw Errors.notFound('Pokéball');
-      }
+      // Execute purchase within atomic transaction
+      return await this.transactionManager.executeTransaction(async (session: ClientSession) => {
+        // 1. Check stock availability (with session for transaction)
+        const stockData = await this.shopStockCollection.findOne({ id: 'current' }, { session });
+        if (!stockData || !stockData.stocks[ballId]) {
+          throw Errors.notFound('Pokéball');
+        }
 
-      const ballStock = stockData.stocks[ballId];
+        const ballStock = stockData.stocks[ballId];
 
-      if (ballStock.stock < quantity) {
-        throw Errors.insufficientStock();
-      }
+        if (ballStock.stock < quantity) {
+          throw Errors.insufficientStock();
+        }
 
-      const user = await this.usersCollection.findOne({ minecraftUuid: uuid });
-      if (!user) {
-        throw Errors.playerNotFound();
-      }
+        // 2. Check user balance (with session for transaction)
+        const user = await this.usersCollection.findOne({ minecraftUuid: uuid }, { session });
+        if (!user) {
+          throw Errors.playerNotFound();
+        }
 
-      const totalCost = ballStock.price * quantity;
-      const currentBalance = user.cobbleDollarsBalance || 0;
+        const totalCost = ballStock.price * quantity;
+        const currentBalance = user.cobbleDollarsBalance || 0;
 
-      if (currentBalance < totalCost) {
-        throw Errors.insufficientBalance();
-      }
+        if (currentBalance < totalCost) {
+          throw Errors.insufficientBalance();
+        }
 
-      ballStock.stock -= quantity;
-      await this.shopStockCollection.updateOne(
-        { id: 'current' },
-        { $set: { [`stocks.${ballId}.stock`]: ballStock.stock } }
-      );
-
-      const newBalance = currentBalance - totalCost;
-      await this.usersCollection.updateOne(
-        { minecraftUuid: uuid },
-        { $set: { cobbleDollarsBalance: newBalance, updatedAt: new Date() } }
-      );
-
-      const purchases = await this.shopPurchasesCollection.findOne({ uuid });
-      const pending = purchases?.pending || [];
-
-      // Obtener información de la ball
-      const ball = POKEBALLS.find(b => b.id === ballId);
-      const ballName = ball?.name || ballId;
-
-      pending.push({
-        ballId,
-        ballName,
-        quantity,
-        pricePerUnit: ballStock.price,
-        totalPrice: totalCost,
-        purchasedAt: new Date().toISOString(),
-        claimed: false,
-      });
-
-      await this.shopPurchasesCollection.updateOne(
-        { uuid },
-        {
-          $set: {
-            uuid,
-            username: user.minecraftUsername || 'Unknown',
-            pending,
+        // 3. Atomically update stock (prevents race condition)
+        const newStock = ballStock.stock - quantity;
+        const stockUpdateResult = await this.shopStockCollection.updateOne(
+          { 
+            id: 'current',
+            [`stocks.${ballId}.stock`]: { $gte: quantity } // Ensure stock hasn't changed
           },
-        },
-        { upsert: true }
-      );
+          { 
+            $set: { [`stocks.${ballId}.stock`]: newStock },
+            $inc: { [`stocks.${ballId}.totalSold`]: quantity }
+          },
+          { session }
+        );
 
-      return {
-        success: true,
-        newBalance,
-        totalCost,
-        quantity,
-        ballId,
-        message: `Compra exitosa: ${quantity}x ${ballId}. Reclama en el juego con /claimshop`,
-      };
+        // If stock update failed, someone else bought it first
+        if (stockUpdateResult.matchedCount === 0) {
+          throw Errors.insufficientStock();
+        }
+
+        // 4. Atomically deduct balance
+        const newBalance = currentBalance - totalCost;
+        await this.usersCollection.updateOne(
+          { minecraftUuid: uuid },
+          { 
+            $set: { 
+              cobbleDollarsBalance: newBalance, 
+              updatedAt: new Date() 
+            } 
+          },
+          { session }
+        );
+
+        // 5. Create purchase record
+        const purchases = await this.shopPurchasesCollection.findOne({ uuid }, { session });
+        const pending = purchases?.pending || [];
+
+        const ball = POKEBALLS.find(b => b.id === ballId);
+        const ballName = ball?.name || ballId;
+
+        const purchaseItem: PurchaseItem = {
+          ballId,
+          ballName,
+          quantity,
+          pricePerUnit: ballStock.price,
+          totalPrice: totalCost,
+          purchasedAt: new Date().toISOString(),
+          claimed: false,
+          status: 'pending',
+          deliveryAttempts: 0,
+        };
+
+        pending.push(purchaseItem);
+
+        await this.shopPurchasesCollection.updateOne(
+          { uuid },
+          {
+            $set: {
+              uuid,
+              username: user.minecraftUsername || 'Unknown',
+              pending,
+            },
+          },
+          { upsert: true, session }
+        );
+
+        // Transaction will auto-commit if we reach here
+        return {
+          success: true,
+          newBalance,
+          totalCost,
+          quantity,
+          ballId,
+          message: `Compra exitosa: ${quantity}x ${ballId}. Reclama en el juego con /claimshop`,
+        };
+      });
     } catch (error) {
       if (error instanceof AppError) throw error;
       console.error('[SHOP SERVICE] Error en compra:', error);
@@ -232,7 +264,7 @@ export class ShopService {
 
       const updatedPending = purchaseData.pending.map(p => {
         if (p.purchasedAt === purchaseId) {
-          return { ...p, claimed: true, claimedAt: new Date().toISOString() };
+          return { ...p, claimed: true, claimedAt: new Date().toISOString(), status: 'completed' as const };
         }
         return p;
       });
@@ -246,6 +278,100 @@ export class ShopService {
     } catch (error) {
       if (error instanceof AppError) throw error;
       console.error('[SHOP SERVICE] Error reclamando compra:', error);
+      throw Errors.databaseError();
+    }
+  }
+
+  async refundPurchase(uuid: string, purchaseId: string, reason: string): Promise<{ success: boolean; refundAmount: number; message: string }> {
+    try {
+      // Execute refund within atomic transaction
+      return await this.transactionManager.executeTransaction(async (session) => {
+        // 1. Find the purchase
+        const purchaseData = await this.shopPurchasesCollection.findOne({ uuid }, { session });
+
+        if (!purchaseData) {
+          throw Errors.purchaseNotFound();
+        }
+
+        const purchase = purchaseData.pending.find(p => p.purchasedAt === purchaseId);
+
+        if (!purchase) {
+          throw Errors.purchaseNotFound();
+        }
+
+        // Check if already refunded
+        if (purchase.status === 'refunded') {
+          throw Errors.validationError('Esta compra ya fue reembolsada');
+        }
+
+        // 2. Refund the balance
+        const user = await this.usersCollection.findOne({ minecraftUuid: uuid }, { session });
+        if (!user) {
+          throw Errors.playerNotFound();
+        }
+
+        const refundAmount = purchase.totalPrice;
+        const newBalance = (user.cobbleDollarsBalance || 0) + refundAmount;
+
+        await this.usersCollection.updateOne(
+          { minecraftUuid: uuid },
+          { 
+            $set: { 
+              cobbleDollarsBalance: newBalance, 
+              updatedAt: new Date() 
+            } 
+          },
+          { session }
+        );
+
+        // 3. Restore stock
+        const stockData = await this.shopStockCollection.findOne({ id: 'current' }, { session });
+        if (stockData && stockData.stocks[purchase.ballId]) {
+          const ballStock = stockData.stocks[purchase.ballId];
+          if (ballStock) {
+            const currentStock = ballStock.stock;
+            const newStock = currentStock + purchase.quantity;
+
+            await this.shopStockCollection.updateOne(
+              { id: 'current' },
+              { 
+                $set: { [`stocks.${purchase.ballId}.stock`]: newStock } 
+              },
+              { session }
+            );
+          }
+        }
+
+        // 4. Mark purchase as refunded
+        const updatedPending = purchaseData.pending.map(p => {
+          if (p.purchasedAt === purchaseId) {
+            return { 
+              ...p, 
+              status: 'refunded' as const, 
+              refundReason: reason,
+              claimed: false 
+            };
+          }
+          return p;
+        });
+
+        await this.shopPurchasesCollection.updateOne(
+          { uuid },
+          { $set: { pending: updatedPending } },
+          { session }
+        );
+
+        console.log(`[SHOP SERVICE] Refund successful: ${uuid} - ${refundAmount} CobbleDollars - Reason: ${reason}`);
+
+        return {
+          success: true,
+          refundAmount,
+          message: `Reembolso exitoso: ${refundAmount} CobbleDollars devueltos`,
+        };
+      });
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      console.error('[SHOP SERVICE] Error en reembolso:', error);
       throw Errors.databaseError();
     }
   }

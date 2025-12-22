@@ -60,6 +60,10 @@ export interface PurchaseItem {
   purchasedAt: string;
   claimed: boolean;
   claimedAt?: string;
+  status?: 'pending' | 'completed' | 'refunded' | 'failed';
+  refundReason?: string;
+  deliveryAttempts?: number;
+  lastDeliveryAttempt?: string;
 }
 
 /**

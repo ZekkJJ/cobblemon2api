@@ -46,6 +46,9 @@ export interface User {
   starterGiven: boolean;
   starterGivenAt?: string;
   rolledAt: string | null;
+  starterDeliveryInProgress?: boolean;
+  starterDeliveryAttempts?: number;
+  lastDeliveryAttempt?: string;
   
   // Pokémon
   pokemonParty: Pokemon[];

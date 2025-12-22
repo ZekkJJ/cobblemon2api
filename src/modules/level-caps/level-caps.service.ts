@@ -6,6 +6,7 @@ import { Collection } from 'mongodb';
 import { User } from '../../shared/types/user.types.js';
 import { LevelCapsDocument, EffectiveCapsResponse, TimeBasedLevelCapRule } from '../../shared/types/level-caps.types.js';
 import { AppError, Errors } from '../../shared/middleware/error-handler.js';
+import { FormulaEvaluator } from '../../shared/utils/formula-evaluator.js';
 
 export class LevelCapsService {
   constructor(
@@ -101,14 +102,10 @@ export class LevelCapsService {
       const playtime = (player as any).playtime || 0;
       const level = (player as any).level || 1;
 
-      let evaluated = formula
-        .replace(/badges/g, String(badges))
-        .replace(/playtime/g, String(playtime))
-        .replace(/level/g, String(level));
-
-      const result = eval(evaluated);
-      return typeof result === 'number' && !isNaN(result) ? Math.floor(result) : Infinity;
-    } catch {
+      // Use safe FormulaEvaluator instead of eval()
+      return FormulaEvaluator.evaluateSafe(formula, { badges, playtime, level });
+    } catch (error) {
+      console.error('[LEVEL CAPS SERVICE] Formula evaluation error:', error);
       return Infinity;
     }
   }
@@ -183,6 +180,21 @@ export class LevelCapsService {
 
   async updateConfig(data: Partial<LevelCapsDocument>, adminName: string): Promise<LevelCapsDocument> {
     try {
+      // Validate formulas before saving
+      if (data.globalConfig?.defaultCaptureCapFormula) {
+        const validation = FormulaEvaluator.validate(data.globalConfig.defaultCaptureCapFormula);
+        if (!validation.valid) {
+          throw Errors.validationError(`Invalid capture cap formula: ${validation.error}`);
+        }
+      }
+
+      if (data.globalConfig?.defaultOwnershipCapFormula) {
+        const validation = FormulaEvaluator.validate(data.globalConfig.defaultOwnershipCapFormula);
+        if (!validation.valid) {
+          throw Errors.validationError(`Invalid ownership cap formula: ${validation.error}`);
+        }
+      }
+
       const existing = await this.levelCapsCollection.findOne({});
 
       if (existing) {
@@ -198,6 +210,7 @@ export class LevelCapsService {
 
       return updated;
     } catch (error) {
+      if (error instanceof AppError) throw error;
       console.error('[LEVEL CAPS SERVICE] Error actualizando config:', error);
       throw Errors.databaseError();
     }

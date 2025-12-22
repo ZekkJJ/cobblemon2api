@@ -102,3 +102,69 @@ export class GachaController {
     res.json(result);
   });
 }
+
+  /**
+   * POST /api/gacha/delivery/start
+   * Marca el inicio de la entrega del starter (idempotencia)
+   */
+  markDeliveryStart = asyncHandler(async (req: Request, res: Response) => {
+    const uuid = req.body.uuid as string;
+
+    if (!uuid) {
+      throw Errors.validationError('UUID es requerido');
+    }
+
+    const result = await this.gachaService.markDeliveryStart(uuid);
+    res.json(result);
+  });
+
+  /**
+   * POST /api/gacha/delivery/success
+   * Marca la entrega del starter como exitosa
+   */
+  markDeliverySuccess = asyncHandler(async (req: Request, res: Response) => {
+    const uuid = req.body.uuid as string;
+
+    if (!uuid) {
+      throw Errors.validationError('UUID es requerido');
+    }
+
+    const result = await this.gachaService.markDeliverySuccess(uuid);
+    res.json(result);
+  });
+
+  /**
+   * POST /api/gacha/delivery/failed
+   * Marca la entrega del starter como fallida
+   */
+  markDeliveryFailed = asyncHandler(async (req: Request, res: Response) => {
+    const uuid = req.body.uuid as string;
+    const reason = req.body.reason as string;
+
+    if (!uuid) {
+      throw Errors.validationError('UUID es requerido');
+    }
+
+    if (!reason) {
+      throw Errors.validationError('Razón es requerida');
+    }
+
+    const result = await this.gachaService.markDeliveryFailed(uuid, reason);
+    res.json(result);
+  });
+
+  /**
+   * GET /api/gacha/delivery/status
+   * Obtiene el estado de entrega del starter
+   */
+  getDeliveryStatus = asyncHandler(async (req: Request, res: Response) => {
+    const uuid = req.query['uuid'] as string;
+
+    if (!uuid) {
+      throw Errors.validationError('UUID es requerido');
+    }
+
+    const result = await this.gachaService.getDeliveryStatus(uuid);
+    res.json(result);
+  });
+}

@@ -5,18 +5,21 @@
 import { Router } from 'express';
 import { ShopController } from './shop.controller.js';
 import { ShopService } from './shop.service.js';
-import { getUsersCollection, getShopStockCollection, getShopPurchasesCollection } from '../../config/database.js';
+import { getUsersCollection, getShopStockCollection, getShopPurchasesCollection, connectToDatabase } from '../../config/database.js';
 import { createRateLimiter } from '../../shared/utils/rate-limiter.js';
 import { ipWhitelistMiddleware } from '../../shared/middleware/ip-whitelist.js';
+import { TransactionManager } from '../../shared/utils/transaction-manager.js';
 
 export async function createShopRouter(): Promise<Router> {
   const router = Router();
 
+  const { client } = await connectToDatabase();
   const usersCollection = await getUsersCollection();
   const shopStockCollection = await getShopStockCollection();
   const shopPurchasesCollection = await getShopPurchasesCollection();
 
-  const shopService = new ShopService(usersCollection, shopStockCollection, shopPurchasesCollection);
+  const transactionManager = new TransactionManager(client);
+  const shopService = new ShopService(usersCollection, shopStockCollection, shopPurchasesCollection, transactionManager);
   const shopController = new ShopController(shopService);
 
   const readLimiter = createRateLimiter({ windowMs: 60000, max: 100, message: 'Demasiadas solicitudes' });
@@ -27,6 +30,7 @@ export async function createShopRouter(): Promise<Router> {
   router.post('/purchase', writeLimiter, shopController.purchase);
   router.get('/purchases', ipWhitelistMiddleware, readLimiter, shopController.getPurchases);
   router.post('/claim', ipWhitelistMiddleware, writeLimiter, shopController.claimPurchase);
+  router.post('/refund', ipWhitelistMiddleware, writeLimiter, shopController.refundPurchase);
 
   return router;
 }

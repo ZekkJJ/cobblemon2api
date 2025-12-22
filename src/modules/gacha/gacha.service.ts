@@ -154,6 +154,8 @@ export class GachaService {
             starterId: selectedStarter.pokemonId,
             starterIsShiny: isShiny,
             rolledAt: new Date().toISOString(),
+            starterDeliveryInProgress: false,
+            starterDeliveryAttempts: 0,
             updatedAt: new Date(),
           },
         }
@@ -292,6 +294,136 @@ export class GachaService {
       };
     } catch (error) {
       console.error('[GACHA SERVICE] Error obteniendo starters:', error);
+      throw Errors.databaseError();
+    }
+  }
+
+  /**
+   * Marca el inicio de la entrega del starter (idempotencia)
+   */
+  async markDeliveryStart(uuid: string): Promise<{ success: boolean; canDeliver: boolean; reason?: string }> {
+    try {
+      const user = await this.usersCollection.findOne({ minecraftUuid: uuid });
+
+      if (!user) {
+        return { success: false, canDeliver: false, reason: 'Usuario no encontrado' };
+      }
+
+      if (user.starterGiven) {
+        return { success: false, canDeliver: false, reason: 'Starter ya fue entregado' };
+      }
+
+      if (!user.starterId) {
+        return { success: false, canDeliver: false, reason: 'Usuario no tiene starter asignado' };
+      }
+
+      if (user.starterDeliveryInProgress) {
+        return { success: false, canDeliver: false, reason: 'Entrega ya en progreso' };
+      }
+
+      // Marcar entrega en progreso
+      await this.usersCollection.updateOne(
+        { minecraftUuid: uuid },
+        {
+          $set: {
+            starterDeliveryInProgress: true,
+            lastDeliveryAttempt: new Date().toISOString(),
+            updatedAt: new Date(),
+          },
+          $inc: {
+            starterDeliveryAttempts: 1,
+          },
+        }
+      );
+
+      return { success: true, canDeliver: true };
+    } catch (error) {
+      console.error('[GACHA SERVICE] Error marcando inicio de entrega:', error);
+      throw Errors.databaseError();
+    }
+  }
+
+  /**
+   * Marca la entrega del starter como exitosa
+   */
+  async markDeliverySuccess(uuid: string): Promise<{ success: boolean }> {
+    try {
+      await this.usersCollection.updateOne(
+        { minecraftUuid: uuid },
+        {
+          $set: {
+            starterGiven: true,
+            starterGivenAt: new Date().toISOString(),
+            starterDeliveryInProgress: false,
+            updatedAt: new Date(),
+          },
+        }
+      );
+
+      console.log(`[GACHA SERVICE] Starter entregado exitosamente a ${uuid}`);
+      return { success: true };
+    } catch (error) {
+      console.error('[GACHA SERVICE] Error marcando entrega exitosa:', error);
+      throw Errors.databaseError();
+    }
+  }
+
+  /**
+   * Marca la entrega del starter como fallida (permite reintentar)
+   */
+  async markDeliveryFailed(uuid: string, reason: string): Promise<{ success: boolean }> {
+    try {
+      await this.usersCollection.updateOne(
+        { minecraftUuid: uuid },
+        {
+          $set: {
+            starterDeliveryInProgress: false,
+            updatedAt: new Date(),
+          },
+        }
+      );
+
+      console.warn(`[GACHA SERVICE] Entrega de starter fallida para ${uuid}: ${reason}`);
+      return { success: true };
+    } catch (error) {
+      console.error('[GACHA SERVICE] Error marcando entrega fallida:', error);
+      throw Errors.databaseError();
+    }
+  }
+
+  /**
+   * Obtiene el estado de entrega del starter
+   */
+  async getDeliveryStatus(uuid: string): Promise<{
+    hasStarter: boolean;
+    starterGiven: boolean;
+    deliveryInProgress: boolean;
+    deliveryAttempts: number;
+    starterId?: number;
+    isShiny?: boolean;
+  }> {
+    try {
+      const user = await this.usersCollection.findOne({ minecraftUuid: uuid });
+
+      if (!user) {
+        return {
+          hasStarter: false,
+          starterGiven: false,
+          deliveryInProgress: false,
+          deliveryAttempts: 0,
+        };
+      }
+
+      return {
+        hasStarter: user.starterId !== null,
+        starterGiven: user.starterGiven,
+        deliveryInProgress: user.starterDeliveryInProgress || false,
+        deliveryAttempts: user.starterDeliveryAttempts || 0,
+        starterId: user.starterId || undefined,
+        isShiny: user.starterIsShiny,
+      };
+    } catch (error) {
+      console.error('[GACHA SERVICE] Error obteniendo estado de entrega:', error);
       throw Errors.databaseError();
     }
   }

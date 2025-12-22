@@ -63,6 +63,30 @@ export async function createGachaRouter(): Promise<Router> {
    */
   router.post('/soul-driven', rollLimiter, gachaController.performSoulDrivenRoll);
 
+  /**
+   * POST /api/gacha/delivery/start
+   * Marca el inicio de la entrega del starter (idempotencia)
+   */
+  router.post('/delivery/start', rollLimiter, gachaController.markDeliveryStart);
+
+  /**
+   * POST /api/gacha/delivery/success
+   * Marca la entrega del starter como exitosa
+   */
+  router.post('/delivery/success', rollLimiter, gachaController.markDeliverySuccess);
+
+  /**
+   * POST /api/gacha/delivery/failed
+   * Marca la entrega del starter como fallida
+   */
+  router.post('/delivery/failed', rollLimiter, gachaController.markDeliveryFailed);
+
+  /**
+   * GET /api/gacha/delivery/status
+   * Obtiene el estado de entrega del starter
+   */
+  router.get('/delivery/status', readLimiter, gachaController.getDeliveryStatus);
+
   return router;
 }
 
