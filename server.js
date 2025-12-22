@@ -53,10 +53,66 @@ async function connectToDatabase() {
     const collections = await db.listCollections().toArray();
     console.log('📋 Colecciones disponibles:', collections.map(c => c.name).join(', '));
     
+    // Auto-fix sprites on startup
+    await fixSpritesOnStartup();
+    
     return db;
   } catch (error) {
     console.error('❌ Error conectando a MongoDB:', error);
     throw error;
+  }
+}
+
+/**
+ * Fix sprites automáticamente al iniciar el servidor
+ */
+async function fixSpritesOnStartup() {
+  try {
+    console.log('🔧 Verificando sprites en starters...');
+    
+    const starters = await db.collection('starters').find({}).toArray();
+    let updated = 0;
+    let skipped = 0;
+    
+    for (const starter of starters) {
+      // Si ya tiene sprites, skip
+      if (starter.sprites && starter.sprites.sprite) {
+        skipped++;
+        continue;
+      }
+      
+      const pokemonId = starter.pokemonId;
+      
+      // Crear objeto sprites
+      const sprites = {
+        sprite: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pokemonId}.png`,
+        spriteAnimated: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/${pokemonId}.gif`,
+        shiny: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${pokemonId}.png`,
+        shinyAnimated: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/shiny/${pokemonId}.gif`,
+        artwork: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${pokemonId}.png`,
+        cry: `https://raw.githubusercontent.com/PokeAPI/cries/main/cries/pokemon/latest/${pokemonId}.ogg`
+      };
+      
+      // Actualizar en MongoDB
+      await db.collection('starters').updateOne(
+        { _id: starter._id },
+        { $set: { sprites } }
+      );
+      
+      updated++;
+    }
+    
+    if (updated > 0) {
+      console.log(`✅ Sprites actualizados: ${updated} starters`);
+    }
+    if (skipped > 0) {
+      console.log(`⏭️  Sprites ya existentes: ${skipped} starters`);
+    }
+    console.log(`📦 Total starters: ${starters.length}`);
+    
+  } catch (error) {
+    console.error('❌ Error fixing sprites:', error);
+    // No throw - el servidor debe continuar aunque falle esto
   }
 }
 
