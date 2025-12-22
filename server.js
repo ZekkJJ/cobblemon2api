@@ -1762,13 +1762,22 @@ function createApp() {
       const query = discordId ? { discordId } : { minecraftUuid: uuid };
       const user = await db.collection('users').findOne(query);
 
-      console.log(`[SHOP BALANCE] Query: ${JSON.stringify(query)}, Found user: ${user ? 'yes' : 'no'}, minecraftUuid: ${user?.minecraftUuid || 'none'}`);
+      // DEBUG: Log completo del usuario
+      console.log(`[SHOP BALANCE] Query: ${JSON.stringify(query)}`);
+      console.log(`[SHOP BALANCE] User found:`, user ? JSON.stringify({
+        discordId: user.discordId,
+        minecraftUuid: user.minecraftUuid,
+        minecraftUsername: user.minecraftUsername,
+        verified: user.verified,
+        cobbleDollars: user.cobbleDollars
+      }) : 'null');
 
       res.json({
         success: true,
         balance: user?.cobbleDollars || 0,
         discordId: user?.discordId,
         minecraftUuid: user?.minecraftUuid,
+        verified: user?.verified || false,
       });
     } catch (error) {
       console.error('[SHOP BALANCE] Error:', error);
