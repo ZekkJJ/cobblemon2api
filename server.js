@@ -119,7 +119,7 @@ async function callGroqLLM(prompt) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama-3.1-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         messages: [
           {
             role: 'system',
@@ -142,7 +142,7 @@ IMPORTANT RULES:
           }
         ],
         temperature: 0.3,
-        max_tokens: 2000,
+        max_tokens: 4096,
       }),
     });
 
