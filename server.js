@@ -19,6 +19,7 @@ const MONGODB_URI = process.env.MONGODB_URI || '';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const isDevelopment = NODE_ENV === 'development';
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 
 // IP Whitelist for plugin
 const WHITELISTED_IPS = (process.env.WHITELISTED_IPS || '127.0.0.1,::1').split(',').map(ip => ip.trim());
@@ -59,97 +60,125 @@ function generateCode() {
 }
 
 // ============================================
-// ADVANCED ECONOMIC AI PRICING SYSTEM
-// Analyzes ALL economic aspects to prevent exploits
+// GROQ LLM ECONOMIC AI PRICING SYSTEM
+// Uses real AI to analyze economy and set prices
 // ============================================
 
-// Rarity configuration with economic multipliers
+// Base rarity configuration (AI will adjust these)
 const RARITY_CONFIG = {
-  'poke_ball': { rarity: 'common', multiplier: 0.15, minPrice: 50 },
-  'great_ball': { rarity: 'common', multiplier: 0.25, minPrice: 100 },
-  'ultra_ball': { rarity: 'uncommon', multiplier: 0.5, minPrice: 300 },
-  'premier_ball': { rarity: 'common', multiplier: 0.15, minPrice: 50 },
-  'luxury_ball': { rarity: 'uncommon', multiplier: 0.4, minPrice: 200 },
-  'heal_ball': { rarity: 'common', multiplier: 0.2, minPrice: 75 },
-  'net_ball': { rarity: 'uncommon', multiplier: 0.4, minPrice: 200 },
-  'dive_ball': { rarity: 'uncommon', multiplier: 0.4, minPrice: 200 },
-  'nest_ball': { rarity: 'uncommon', multiplier: 0.4, minPrice: 200 },
-  'repeat_ball': { rarity: 'uncommon', multiplier: 0.4, minPrice: 200 },
-  'timer_ball': { rarity: 'uncommon', multiplier: 0.4, minPrice: 200 },
-  'quick_ball': { rarity: 'rare', multiplier: 0.7, minPrice: 500 },
-  'dusk_ball': { rarity: 'uncommon', multiplier: 0.5, minPrice: 250 },
-  'level_ball': { rarity: 'rare', multiplier: 1.0, minPrice: 800 },
-  'lure_ball': { rarity: 'rare', multiplier: 1.0, minPrice: 800 },
-  'moon_ball': { rarity: 'rare', multiplier: 1.0, minPrice: 800 },
-  'friend_ball': { rarity: 'rare', multiplier: 1.0, minPrice: 800 },
-  'love_ball': { rarity: 'rare', multiplier: 1.2, minPrice: 1000 },
-  'heavy_ball': { rarity: 'rare', multiplier: 1.0, minPrice: 800 },
-  'fast_ball': { rarity: 'rare', multiplier: 1.0, minPrice: 800 },
-  'safari_ball': { rarity: 'rare', multiplier: 0.8, minPrice: 600 },
-  'sport_ball': { rarity: 'rare', multiplier: 0.8, minPrice: 600 },
-  'dream_ball': { rarity: 'epic', multiplier: 1.5, minPrice: 2000 },
-  'beast_ball': { rarity: 'epic', multiplier: 2.5, minPrice: 5000 },
-  'master_ball': { rarity: 'legendary', multiplier: 8.0, minPrice: 50000 },
+  'poke_ball': { rarity: 'common', baseMultiplier: 0.15 },
+  'great_ball': { rarity: 'common', baseMultiplier: 0.25 },
+  'ultra_ball': { rarity: 'uncommon', baseMultiplier: 0.5 },
+  'premier_ball': { rarity: 'common', baseMultiplier: 0.15 },
+  'luxury_ball': { rarity: 'uncommon', baseMultiplier: 0.4 },
+  'heal_ball': { rarity: 'common', baseMultiplier: 0.2 },
+  'net_ball': { rarity: 'uncommon', baseMultiplier: 0.4 },
+  'dive_ball': { rarity: 'uncommon', baseMultiplier: 0.4 },
+  'nest_ball': { rarity: 'uncommon', baseMultiplier: 0.4 },
+  'repeat_ball': { rarity: 'uncommon', baseMultiplier: 0.4 },
+  'timer_ball': { rarity: 'uncommon', baseMultiplier: 0.4 },
+  'quick_ball': { rarity: 'rare', baseMultiplier: 0.7 },
+  'dusk_ball': { rarity: 'uncommon', baseMultiplier: 0.5 },
+  'level_ball': { rarity: 'rare', baseMultiplier: 1.0 },
+  'lure_ball': { rarity: 'rare', baseMultiplier: 1.0 },
+  'moon_ball': { rarity: 'rare', baseMultiplier: 1.0 },
+  'friend_ball': { rarity: 'rare', baseMultiplier: 1.0 },
+  'love_ball': { rarity: 'rare', baseMultiplier: 1.2 },
+  'heavy_ball': { rarity: 'rare', baseMultiplier: 1.0 },
+  'fast_ball': { rarity: 'rare', baseMultiplier: 1.0 },
+  'safari_ball': { rarity: 'rare', baseMultiplier: 0.8 },
+  'sport_ball': { rarity: 'rare', baseMultiplier: 0.8 },
+  'dream_ball': { rarity: 'epic', baseMultiplier: 1.5 },
+  'beast_ball': { rarity: 'epic', baseMultiplier: 2.5 },
+  'master_ball': { rarity: 'legendary', baseMultiplier: 10.0 },
 };
 
-// Dynamic price limits based on economy health
-const PRICE_LIMITS = {
-  common: { min: 50, max: 5000 },
-  uncommon: { min: 150, max: 15000 },
-  rare: { min: 500, max: 50000 },
-  epic: { min: 2000, max: 200000 },
-  legendary: { min: 50000, max: 1000000 },
-};
-
-// Stock ranges - rarer items have less stock
+// Stock ranges by rarity
 const STOCK_RANGES = {
-  common: { min: 80, max: 200 },
-  uncommon: { min: 30, max: 80 },
-  rare: { min: 8, max: 25 },
-  epic: { min: 2, max: 6 },
-  legendary: { min: 0, max: 1 }, // Master ball very rare
+  common: { min: 50, max: 150 },
+  uncommon: { min: 20, max: 60 },
+  rare: { min: 5, max: 15 },
+  epic: { min: 1, max: 5 },
+  legendary: { min: 0, max: 1 },
 };
 
-// Statistical functions
-function getMedian(arr) {
-  if (arr.length === 0) return 0;
-  const sorted = [...arr].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 !== 0 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
-}
+/**
+ * Call Groq LLM API for economic analysis
+ */
+async function callGroqLLM(prompt) {
+  if (!GROQ_API_KEY) {
+    console.log('[GROQ] No API key configured, using fallback pricing');
+    return null;
+  }
 
-function getPercentile(arr, percentile) {
-  if (arr.length === 0) return 0;
-  const sorted = [...arr].sort((a, b) => a - b);
-  const index = Math.ceil((percentile / 100) * sorted.length) - 1;
-  return sorted[Math.max(0, index)];
-}
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-70b-versatile',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert game economist for a Pokémon Minecraft server. Your job is to analyze player economy data and set fair but challenging prices for Pokéballs. 
 
-function getStandardDeviation(arr) {
-  if (arr.length === 0) return 0;
-  const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
-  const squareDiffs = arr.map(value => Math.pow(value - mean, 2));
-  return Math.sqrt(squareDiffs.reduce((a, b) => a + b, 0) / arr.length);
+IMPORTANT RULES:
+- Prices should be HIGH enough that players need to work for them
+- Common balls should cost 5-15% of median player balance
+- Rare balls should cost 50-100% of median balance
+- Epic balls should cost 150-300% of median balance
+- Legendary (Master Ball) should cost 500-1000% of median balance
+- If economy is inflated (lots of money), prices should be HIGHER
+- If economy is deflated (little money), prices should be slightly lower but still challenging
+- NEVER make items too cheap - this ruins the game economy
+- Always respond with valid JSON only, no explanations`
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 2000,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('[GROQ] API error:', response.status, await response.text());
+      return null;
+    }
+
+    const data = await response.json();
+    const content = data.choices[0]?.message?.content;
+    
+    if (!content) return null;
+
+    // Parse JSON from response
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[GROQ] Error calling API:', error.message);
+    return null;
+  }
 }
 
 /**
- * ADVANCED ECONOMIC AI - Analyzes all aspects of the economy
- * - Player wealth distribution (Gini coefficient consideration)
- * - Inflation/deflation detection
- * - Purchase velocity
- * - Stock depletion rates
- * - Prevents economic exploits
+ * GROQ LLM-POWERED ECONOMIC ANALYSIS
+ * Sends economy data to AI and gets price recommendations
  */
-async function updateDynamicPrices() {
+async function updateDynamicPricesWithAI() {
   try {
     const database = getDb();
-    console.log('[ECONOMIC AI] Starting comprehensive economic analysis...');
+    console.log('[ECONOMIC AI] Starting LLM-powered economic analysis...');
     
-    // ========================================
-    // PHASE 1: Gather Economic Data
-    // ========================================
-    
-    // Get all player balances
+    // Gather economic data
     const users = await database.collection('users').find({
       cobbleDollars: { $exists: true }
     }).toArray();
@@ -157,184 +186,211 @@ async function updateDynamicPrices() {
     const balances = users.map(u => u.cobbleDollars || 0).filter(b => b >= 0);
     
     if (balances.length === 0) {
-      console.log('[ECONOMIC AI] No players with balance data, using minimum prices');
+      console.log('[ECONOMIC AI] No players with balance, using minimum prices');
+      await setFallbackPrices(database);
       return;
     }
 
-    // Get recent purchase history (last 24 hours)
+    // Calculate statistics
+    const sortedBalances = [...balances].sort((a, b) => a - b);
+    const totalPlayers = balances.length;
+    const totalWealth = balances.reduce((a, b) => a + b, 0);
+    const averageBalance = Math.round(totalWealth / totalPlayers);
+    const medianBalance = sortedBalances[Math.floor(sortedBalances.length / 2)];
+    const minBalance = sortedBalances[0];
+    const maxBalance = sortedBalances[sortedBalances.length - 1];
+    const p25 = sortedBalances[Math.floor(sortedBalances.length * 0.25)];
+    const p75 = sortedBalances[Math.floor(sortedBalances.length * 0.75)];
+
+    // Get recent purchase history
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const recentPurchases = await database.collection('shop_purchases').find({
       createdAt: { $gte: oneDayAgo }
     }).toArray();
 
-    // Get previous price history
-    const lastPriceUpdate = await database.collection('price_history').findOne(
-      {}, 
-      { sort: { timestamp: -1 } }
-    );
+    const totalSpent24h = recentPurchases.reduce((sum, p) => sum + (p.totalPrice || 0), 0);
+    const purchaseCount24h = recentPurchases.length;
 
-    // ========================================
-    // PHASE 2: Economic Analysis
-    // ========================================
-    
-    // Basic statistics
-    const totalPlayers = balances.length;
-    const totalWealth = balances.reduce((a, b) => a + b, 0);
-    const averageBalance = totalWealth / totalPlayers;
-    const medianBalance = getMedian(balances);
-    const stdDeviation = getStandardDeviation(balances);
-    
-    // Wealth distribution analysis
-    const p10 = getPercentile(balances, 10); // Poor players
-    const p25 = getPercentile(balances, 25); // Lower middle
-    const p50 = getPercentile(balances, 50); // Median
-    const p75 = getPercentile(balances, 75); // Upper middle
-    const p90 = getPercentile(balances, 90); // Rich players
-    
-    // Wealth inequality indicator (simplified Gini-like)
-    const wealthGap = p90 > 0 ? (p90 - p10) / p90 : 0;
-    
-    // Purchase velocity (transactions per hour)
-    const purchaseVelocity = recentPurchases.length / 24;
-    
-    // Total money spent in last 24h
-    const totalSpent = recentPurchases.reduce((sum, p) => sum + (p.totalPrice || 0), 0);
-    
-    // Inflation indicator: if average balance is growing too fast
-    const previousMedian = lastPriceUpdate?.medianBalance || medianBalance;
-    const inflationRate = previousMedian > 0 ? (medianBalance - previousMedian) / previousMedian : 0;
-
-    console.log(`[ECONOMIC AI] Analysis Results:`);
-    console.log(`  - Players: ${totalPlayers}`);
-    console.log(`  - Total Wealth: ${totalWealth.toLocaleString()}`);
-    console.log(`  - Average Balance: ${Math.round(averageBalance).toLocaleString()}`);
-    console.log(`  - Median Balance: ${medianBalance.toLocaleString()}`);
-    console.log(`  - Wealth Gap (P90/P10): ${(wealthGap * 100).toFixed(1)}%`);
-    console.log(`  - Purchase Velocity: ${purchaseVelocity.toFixed(2)}/hour`);
-    console.log(`  - 24h Spending: ${totalSpent.toLocaleString()}`);
-    console.log(`  - Inflation Rate: ${(inflationRate * 100).toFixed(2)}%`);
-
-    // ========================================
-    // PHASE 3: Calculate Base Price
-    // ========================================
-    
-    // Use P25 (lower-middle class) as base to ensure accessibility
-    // But adjust based on economic conditions
-    let basePrice = p25;
-    
-    // Adjust for inflation/deflation
-    if (inflationRate > 0.1) {
-      // High inflation - increase prices to absorb excess money
-      basePrice *= (1 + inflationRate * 0.5);
-      console.log(`[ECONOMIC AI] Inflation detected, adjusting prices up`);
-    } else if (inflationRate < -0.1) {
-      // Deflation - decrease prices to stimulate economy
-      basePrice *= (1 + inflationRate * 0.3);
-      console.log(`[ECONOMIC AI] Deflation detected, adjusting prices down`);
-    }
-    
-    // Adjust for wealth inequality
-    if (wealthGap > 0.8) {
-      // High inequality - use lower base to help poor players
-      basePrice = Math.min(basePrice, p25);
-      console.log(`[ECONOMIC AI] High inequality, using lower base price`);
-    }
-    
-    // Minimum base price to prevent items being too cheap
-    basePrice = Math.max(basePrice, 500);
-
-    // ========================================
-    // PHASE 4: Update Individual Item Prices
-    // ========================================
-    
+    // Get current shop items
     const shopItems = await database.collection('shop_items').find({}).toArray();
-    const priceChanges = [];
+    const itemNames = shopItems.map(i => ({ id: i.id, name: i.name, rarity: RARITY_CONFIG[i.id]?.rarity || 'uncommon' }));
 
-    for (const item of shopItems) {
-      const config = RARITY_CONFIG[item.id] || { rarity: 'uncommon', multiplier: 0.5, minPrice: 200 };
-      const limits = PRICE_LIMITS[config.rarity] || { min: 100, max: 10000 };
-      const stockRange = STOCK_RANGES[config.rarity] || { min: 10, max: 50 };
+    // Build prompt for Groq
+    const prompt = `Analyze this Pokémon server economy and set prices for Pokéballs.
 
-      // Calculate new price
-      let newPrice = Math.round(basePrice * config.multiplier);
-      
-      // Apply minimum price from config
-      newPrice = Math.max(newPrice, config.minPrice);
-      
-      // Apply rarity limits
-      newPrice = Math.max(limits.min, Math.min(limits.max, newPrice));
-      
-      // Round to nice numbers
-      if (newPrice < 500) newPrice = Math.round(newPrice / 25) * 25;
-      else if (newPrice < 2000) newPrice = Math.round(newPrice / 50) * 50;
-      else if (newPrice < 10000) newPrice = Math.round(newPrice / 100) * 100;
-      else if (newPrice < 50000) newPrice = Math.round(newPrice / 500) * 500;
-      else newPrice = Math.round(newPrice / 1000) * 1000;
+ECONOMY DATA:
+- Total Players: ${totalPlayers}
+- Total Wealth: ${totalWealth.toLocaleString()} CobbleDollars
+- Average Balance: ${averageBalance.toLocaleString()}
+- Median Balance: ${medianBalance.toLocaleString()}
+- Min Balance: ${minBalance.toLocaleString()}
+- Max Balance: ${maxBalance.toLocaleString()}
+- 25th Percentile: ${p25.toLocaleString()}
+- 75th Percentile: ${p75.toLocaleString()}
+- Purchases in last 24h: ${purchaseCount24h}
+- Money spent in 24h: ${totalSpent24h.toLocaleString()}
 
-      // Check item-specific purchase velocity
-      const itemPurchases = recentPurchases.filter(p => p.ballId === item.id || p.ballId === item.cobblemonId);
-      const itemVelocity = itemPurchases.length;
-      
-      // High demand = slightly higher price
-      if (itemVelocity > 10) {
-        newPrice = Math.round(newPrice * 1.1);
-        console.log(`[ECONOMIC AI] High demand for ${item.name}, price +10%`);
+ITEMS TO PRICE:
+${itemNames.map(i => `- ${i.id} (${i.rarity}): ${i.name}`).join('\n')}
+
+Based on this data, set prices that are CHALLENGING but FAIR. Players should need to work to afford items.
+
+Respond with ONLY a JSON object in this exact format:
+{
+  "analysis": "Brief 1-2 sentence analysis of the economy",
+  "economyHealth": "healthy|inflated|deflated",
+  "recommendedBasePrice": <number based on median>,
+  "prices": {
+    "poke_ball": <price>,
+    "great_ball": <price>,
+    "ultra_ball": <price>,
+    "premier_ball": <price>,
+    "luxury_ball": <price>,
+    "heal_ball": <price>,
+    "net_ball": <price>,
+    "dive_ball": <price>,
+    "nest_ball": <price>,
+    "repeat_ball": <price>,
+    "timer_ball": <price>,
+    "quick_ball": <price>,
+    "dusk_ball": <price>,
+    "level_ball": <price>,
+    "lure_ball": <price>,
+    "moon_ball": <price>,
+    "friend_ball": <price>,
+    "love_ball": <price>,
+    "heavy_ball": <price>,
+    "fast_ball": <price>,
+    "safari_ball": <price>,
+    "sport_ball": <price>,
+    "dream_ball": <price>,
+    "beast_ball": <price>,
+    "master_ball": <price>
+  }
+}`;
+
+    console.log('[ECONOMIC AI] Calling Groq LLM for price analysis...');
+    const aiResponse = await callGroqLLM(prompt);
+
+    if (aiResponse && aiResponse.prices) {
+      console.log(`[ECONOMIC AI] AI Analysis: ${aiResponse.analysis}`);
+      console.log(`[ECONOMIC AI] Economy Health: ${aiResponse.economyHealth}`);
+      console.log(`[ECONOMIC AI] Recommended Base: ${aiResponse.recommendedBasePrice}`);
+
+      // Apply AI-recommended prices
+      for (const item of shopItems) {
+        const aiPrice = aiResponse.prices[item.id];
+        if (aiPrice && typeof aiPrice === 'number' && aiPrice > 0) {
+          const config = RARITY_CONFIG[item.id] || { rarity: 'uncommon' };
+          const stockRange = STOCK_RANGES[config.rarity] || { min: 10, max: 50 };
+          
+          // Round to nice numbers
+          let finalPrice = Math.round(aiPrice);
+          if (finalPrice < 500) finalPrice = Math.round(finalPrice / 25) * 25;
+          else if (finalPrice < 2000) finalPrice = Math.round(finalPrice / 50) * 50;
+          else if (finalPrice < 10000) finalPrice = Math.round(finalPrice / 100) * 100;
+          else if (finalPrice < 50000) finalPrice = Math.round(finalPrice / 500) * 500;
+          else finalPrice = Math.round(finalPrice / 1000) * 1000;
+
+          // Calculate stock
+          let newStock = Math.floor(Math.random() * (stockRange.max - stockRange.min + 1)) + stockRange.min;
+          if (config.rarity === 'legendary') {
+            newStock = Math.random() < 0.15 ? 1 : 0; // 15% chance for Master Ball
+          }
+
+          await database.collection('shop_items').updateOne(
+            { id: item.id },
+            { 
+              $set: { 
+                currentPrice: finalPrice,
+                currentStock: newStock,
+                maxStock: stockRange.max,
+                lastPriceUpdate: new Date(),
+                aiAnalysis: aiResponse.analysis,
+              } 
+            }
+          );
+
+          console.log(`[ECONOMIC AI] ${item.name}: ${finalPrice.toLocaleString()} (stock: ${newStock})`);
+        }
       }
 
-      // Calculate new stock (randomized within range)
-      let newStock = Math.floor(Math.random() * (stockRange.max - stockRange.min + 1)) + stockRange.min;
-      
-      // Legendary items: only 1 if any, and only 20% chance
-      if (config.rarity === 'legendary') {
-        newStock = Math.random() < 0.2 ? 1 : 0;
-      }
-
-      const oldPrice = item.currentPrice || item.basePrice;
-      priceChanges.push({
-        item: item.name,
-        oldPrice,
-        newPrice,
-        change: ((newPrice - oldPrice) / oldPrice * 100).toFixed(1) + '%'
+      // Save analysis history
+      await database.collection('price_history').insertOne({
+        timestamp: new Date(),
+        source: 'groq-llm',
+        playersAnalyzed: totalPlayers,
+        totalWealth,
+        averageBalance,
+        medianBalance,
+        aiAnalysis: aiResponse.analysis,
+        economyHealth: aiResponse.economyHealth,
+        recommendedBasePrice: aiResponse.recommendedBasePrice,
+        prices: aiResponse.prices,
       });
 
-      await database.collection('shop_items').updateOne(
-        { id: item.id },
-        { 
-          $set: { 
-            currentPrice: newPrice,
-            currentStock: newStock,
-            maxStock: stockRange.max,
-            lastPriceUpdate: new Date(),
-          } 
-        }
-      );
+      console.log('[ECONOMIC AI] ✅ Prices updated using Groq LLM analysis');
+    } else {
+      console.log('[ECONOMIC AI] AI response invalid, using fallback pricing');
+      await setFallbackPrices(database, medianBalance);
     }
 
-    // ========================================
-    // PHASE 5: Save Economic Report
-    // ========================================
-    
-    await database.collection('price_history').insertOne({
-      timestamp: new Date(),
-      playersAnalyzed: totalPlayers,
-      totalWealth,
-      averageBalance: Math.round(averageBalance),
-      medianBalance,
-      p10, p25, p50, p75, p90,
-      wealthGap,
-      purchaseVelocity,
-      totalSpent24h: totalSpent,
-      inflationRate,
-      basePrice: Math.round(basePrice),
-      priceChanges,
-    });
-
-    console.log(`[ECONOMIC AI] ✅ Updated ${shopItems.length} items based on economic analysis`);
-    
   } catch (error) {
     console.error('[ECONOMIC AI] Error:', error);
   }
 }
+
+/**
+ * Fallback pricing when AI is unavailable
+ */
+async function setFallbackPrices(database, medianBalance = 10000) {
+  const shopItems = await database.collection('shop_items').find({}).toArray();
+  
+  // Use higher multipliers for fallback
+  const fallbackMultipliers = {
+    common: 0.1,      // 10% of median
+    uncommon: 0.3,    // 30% of median
+    rare: 0.7,        // 70% of median
+    epic: 2.0,        // 200% of median
+    legendary: 8.0,   // 800% of median
+  };
+
+  for (const item of shopItems) {
+    const config = RARITY_CONFIG[item.id] || { rarity: 'uncommon', baseMultiplier: 0.3 };
+    const stockRange = STOCK_RANGES[config.rarity] || { min: 10, max: 50 };
+    
+    let price = Math.round(medianBalance * fallbackMultipliers[config.rarity] * config.baseMultiplier);
+    price = Math.max(price, 100); // Minimum 100
+    
+    // Round to nice numbers
+    if (price < 500) price = Math.round(price / 25) * 25;
+    else if (price < 2000) price = Math.round(price / 50) * 50;
+    else if (price < 10000) price = Math.round(price / 100) * 100;
+    else price = Math.round(price / 500) * 500;
+
+    let newStock = Math.floor(Math.random() * (stockRange.max - stockRange.min + 1)) + stockRange.min;
+    if (config.rarity === 'legendary') {
+      newStock = Math.random() < 0.1 ? 1 : 0;
+    }
+
+    await database.collection('shop_items').updateOne(
+      { id: item.id },
+      { 
+        $set: { 
+          currentPrice: price,
+          currentStock: newStock,
+          maxStock: stockRange.max,
+          lastPriceUpdate: new Date(),
+        } 
+      }
+    );
+  }
+
+  console.log('[ECONOMIC AI] Fallback prices applied');
+}
+
+// Alias for backward compatibility
+const updateDynamicPrices = updateDynamicPricesWithAI;
 
 // Default Pokéballs for the shop - Using exact Cobblemon item IDs
 function getDefaultPokeballs() {
@@ -1973,6 +2029,33 @@ function createApp() {
       res.json({ success: true });
     } catch (error) {
       console.error('[ADMIN BAN] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/admin/update-prices - Manually trigger AI price update
+  app.post('/api/admin/update-prices', async (req, res) => {
+    try {
+      console.log('[ADMIN] Manual price update triggered');
+      await updateDynamicPricesWithAI();
+      
+      // Get updated prices
+      const db = getDb();
+      const items = await db.collection('shop_items').find({}).toArray();
+      const prices = items.map(i => ({
+        id: i.id,
+        name: i.name,
+        price: i.currentPrice,
+        stock: i.currentStock,
+      }));
+      
+      res.json({ 
+        success: true, 
+        message: 'Prices updated using Groq LLM',
+        prices,
+      });
+    } catch (error) {
+      console.error('[ADMIN UPDATE PRICES] Error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
