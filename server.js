@@ -38,10 +38,21 @@ let client = null;
 async function connectToDatabase() {
   try {
     console.log('🔌 Conectando a MongoDB...');
+    console.log('📝 MongoDB URI:', MONGODB_URI.replace(/:[^:@]+@/, ':****@')); // Log URI sin password
     client = new MongoClient(MONGODB_URI);
     await client.connect();
-    db = client.db();
+    
+    // Usar la base de datos especificada en el URI, o 'admin' por defecto
+    const dbName = process.env.MONGODB_DATABASE || 'admin';
+    db = client.db(dbName);
+    
     console.log('✅ Conectado a MongoDB exitosamente');
+    console.log('📊 Base de datos:', db.databaseName);
+    
+    // Listar colecciones para verificar
+    const collections = await db.listCollections().toArray();
+    console.log('📋 Colecciones disponibles:', collections.map(c => c.name).join(', '));
+    
     return db;
   } catch (error) {
     console.error('❌ Error conectando a MongoDB:', error);
@@ -157,6 +168,39 @@ function createApp() {
 
   // API Routes
   
+  // Debug endpoint para verificar datos
+  app.get('/api/debug/starters', async (req, res, next) => {
+    try {
+      const db = getDb();
+      const startersCount = await db.collection('starters').countDocuments();
+      const claimedCount = await db.collection('starters').countDocuments({ isClaimed: true });
+      const availableCount = await db.collection('starters').countDocuments({ isClaimed: false });
+      
+      // Get all starters with basic info
+      const allStarters = await db.collection('starters').find({}).project({
+        pokemonId: 1,
+        name: 1,
+        nameEs: 1,
+        isClaimed: 1,
+        claimedBy: 1,
+        claimedAt: 1
+      }).toArray();
+      
+      res.json({
+        database: db.databaseName,
+        counts: {
+          total: startersCount,
+          claimed: claimedCount,
+          available: availableCount
+        },
+        starters: allStarters
+      });
+    } catch (error) {
+      console.error('[DEBUG] Error:', error);
+      next(error);
+    }
+  });
+  
   // Auth routes
   app.get('/api/auth/discord', (req, res) => {
     const clientId = process.env.DISCORD_CLIENT_ID;
@@ -230,10 +274,25 @@ function createApp() {
 
   app.get('/api/starters', async (req, res, next) => {
     try {
+      console.log('[STARTERS API] Fetching starters from database...');
       const starters = await getDb().collection('starters').find({}).toArray();
+      console.log('[STARTERS API] Total starters found:', starters.length);
+      console.log('[STARTERS API] Claimed starters:', starters.filter(s => s.isClaimed).length);
+      console.log('[STARTERS API] Available starters:', starters.filter(s => !s.isClaimed).length);
+      
+      // Log first 3 starters for debugging
+      if (starters.length > 0) {
+        console.log('[STARTERS API] Sample starters:', starters.slice(0, 3).map(s => ({
+          id: s.pokemonId,
+          name: s.name,
+          isClaimed: s.isClaimed,
+          claimedBy: s.claimedBy
+        })));
+      }
+      
       res.json({ starters });
     } catch (error) {
-      console.error('Error fetching starters:', error);
+      console.error('[STARTERS API] Error fetching starters:', error);
       next(error);
     }
   });
