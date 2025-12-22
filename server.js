@@ -328,6 +328,101 @@ function createApp() {
     }
   });
 
+  // Gacha endpoints
+  app.get('/api/gacha/status/:discordId', async (req, res, next) => {
+    try {
+      const { discordId } = req.params;
+      const db = getDb();
+      
+      // Check if user has already rolled
+      const user = await db.collection('users').findOne({ discordId });
+      const hasRolled = user && user.starterClaimed === true;
+      
+      // Get total and available starters
+      const totalCount = await db.collection('starters').countDocuments();
+      const availableCount = await db.collection('starters').countDocuments({ isClaimed: false });
+      
+      // If user has rolled, get their starter
+      let starter = null;
+      let isShiny = false;
+      if (hasRolled && user.starterId) {
+        starter = await db.collection('starters').findOne({ pokemonId: user.starterId });
+        isShiny = user.starterIsShiny || false;
+      }
+      
+      res.json({
+        canRoll: !hasRolled && availableCount > 0,
+        hasRolled,
+        starter,
+        isShiny,
+        availableCount,
+        totalCount
+      });
+    } catch (error) {
+      console.error('Error fetching gacha status:', error);
+      next(error);
+    }
+  });
+
+  app.post('/api/gacha/roll', async (req, res, next) => {
+    try {
+      const { discordId, discordUsername } = req.body;
+      const db = getDb();
+      
+      // Check if user has already rolled
+      const user = await db.collection('users').findOne({ discordId });
+      if (user && user.starterClaimed) {
+        return res.status(400).json({ error: 'User has already claimed a starter' });
+      }
+      
+      // Get available starters
+      const availableStarters = await db.collection('starters').find({ isClaimed: false }).toArray();
+      if (availableStarters.length === 0) {
+        return res.status(400).json({ error: 'No starters available' });
+      }
+      
+      // Random starter
+      const randomIndex = Math.floor(Math.random() * availableStarters.length);
+      const starter = availableStarters[randomIndex];
+      
+      // Random shiny (1/4096 chance)
+      const isShiny = Math.random() < (1 / 4096);
+      
+      // Mark starter as claimed
+      await db.collection('starters').updateOne(
+        { _id: starter._id },
+        {
+          $set: {
+            isClaimed: true,
+            claimedBy: discordId,
+            claimedByNickname: discordUsername,
+            claimedAt: new Date(),
+            isShiny
+          }
+        }
+      );
+      
+      // Update user
+      await db.collection('users').updateOne(
+        { discordId },
+        {
+          $set: {
+            starterClaimed: true,
+            starterId: starter.pokemonId,
+            starterIsShiny: isShiny,
+            starterClaimedAt: new Date()
+          }
+        },
+        { upsert: true }
+      );
+      
+      res.json({ starter, isShiny });
+    } catch (error) {
+      console.error('Error rolling gacha:', error);
+      next(error);
+    }
+  });
+
   // Error handler
   app.use((err, req, res, next) => {
     console.error('❌ Error:', err);
