@@ -101,7 +101,6 @@ export class GachaController {
 
     res.json(result);
   });
-}
 
   /**
    * POST /api/gacha/delivery/start
