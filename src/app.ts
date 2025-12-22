@@ -174,6 +174,22 @@ export async function createApp(): Promise<Application> {
   app.use('/api/level-caps', levelCapsRouter);
   app.use('/api/admin', adminRouter);
 
+  // Alias para cuando el reverse proxy pasa el path completo
+  // Esto soluciona los 404 cuando la request llega como /port/25617/api/...
+  const apiRouter = express.Router();
+  apiRouter.use('/auth', authRouter);
+  apiRouter.use('/players', playersRouter);
+  apiRouter.use('/gacha', gachaRouter);
+  apiRouter.use('/starters', startersRouter);
+  apiRouter.use('/verification', verificationRouter);
+  apiRouter.use('/verify', verifyRouter);
+  apiRouter.use('/shop', shopRouter);
+  apiRouter.use('/tournaments', tournamentsRouter);
+  apiRouter.use('/level-caps', levelCapsRouter);
+  apiRouter.use('/admin', adminRouter);
+
+  app.use('/port/25617/api', apiRouter);
+
   // ============================================
   // MANEJO DE ERRORES
   // ============================================
