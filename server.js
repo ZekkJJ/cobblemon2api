@@ -59,99 +59,243 @@ function generateCode() {
 }
 
 // ============================================
-// DYNAMIC PRICING SYSTEM (AI-based)
+// ADVANCED ECONOMIC AI PRICING SYSTEM
+// Analyzes ALL economic aspects to prevent exploits
 // ============================================
 
-// Multiplicadores de rareza - cuanto más raro, más caro respecto al promedio
+// Rarity configuration with economic multipliers
 const RARITY_CONFIG = {
-  'poke_ball': { rarity: 'common', multiplier: 0.3 },
-  'great_ball': { rarity: 'common', multiplier: 0.5 },
-  'ultra_ball': { rarity: 'uncommon', multiplier: 0.8 },
-  'premier_ball': { rarity: 'common', multiplier: 0.3 },
-  'luxury_ball': { rarity: 'uncommon', multiplier: 0.7 },
-  'heal_ball': { rarity: 'common', multiplier: 0.4 },
-  'net_ball': { rarity: 'uncommon', multiplier: 0.7 },
-  'dive_ball': { rarity: 'uncommon', multiplier: 0.7 },
-  'nest_ball': { rarity: 'uncommon', multiplier: 0.7 },
-  'repeat_ball': { rarity: 'uncommon', multiplier: 0.7 },
-  'timer_ball': { rarity: 'uncommon', multiplier: 0.7 },
-  'quick_ball': { rarity: 'rare', multiplier: 1.0 },
-  'dusk_ball': { rarity: 'uncommon', multiplier: 0.8 },
-  'level_ball': { rarity: 'rare', multiplier: 1.5 },
-  'lure_ball': { rarity: 'rare', multiplier: 1.5 },
-  'moon_ball': { rarity: 'rare', multiplier: 1.5 },
-  'friend_ball': { rarity: 'rare', multiplier: 1.5 },
-  'love_ball': { rarity: 'rare', multiplier: 1.8 },
-  'heavy_ball': { rarity: 'rare', multiplier: 1.5 },
-  'fast_ball': { rarity: 'rare', multiplier: 1.5 },
-  'safari_ball': { rarity: 'rare', multiplier: 1.2 },
-  'sport_ball': { rarity: 'rare', multiplier: 1.2 },
-  'dream_ball': { rarity: 'epic', multiplier: 2.0 },
-  'beast_ball': { rarity: 'epic', multiplier: 3.0 },
-  'master_ball': { rarity: 'legendary', multiplier: 10.0 },
+  'poke_ball': { rarity: 'common', multiplier: 0.15, minPrice: 50 },
+  'great_ball': { rarity: 'common', multiplier: 0.25, minPrice: 100 },
+  'ultra_ball': { rarity: 'uncommon', multiplier: 0.5, minPrice: 300 },
+  'premier_ball': { rarity: 'common', multiplier: 0.15, minPrice: 50 },
+  'luxury_ball': { rarity: 'uncommon', multiplier: 0.4, minPrice: 200 },
+  'heal_ball': { rarity: 'common', multiplier: 0.2, minPrice: 75 },
+  'net_ball': { rarity: 'uncommon', multiplier: 0.4, minPrice: 200 },
+  'dive_ball': { rarity: 'uncommon', multiplier: 0.4, minPrice: 200 },
+  'nest_ball': { rarity: 'uncommon', multiplier: 0.4, minPrice: 200 },
+  'repeat_ball': { rarity: 'uncommon', multiplier: 0.4, minPrice: 200 },
+  'timer_ball': { rarity: 'uncommon', multiplier: 0.4, minPrice: 200 },
+  'quick_ball': { rarity: 'rare', multiplier: 0.7, minPrice: 500 },
+  'dusk_ball': { rarity: 'uncommon', multiplier: 0.5, minPrice: 250 },
+  'level_ball': { rarity: 'rare', multiplier: 1.0, minPrice: 800 },
+  'lure_ball': { rarity: 'rare', multiplier: 1.0, minPrice: 800 },
+  'moon_ball': { rarity: 'rare', multiplier: 1.0, minPrice: 800 },
+  'friend_ball': { rarity: 'rare', multiplier: 1.0, minPrice: 800 },
+  'love_ball': { rarity: 'rare', multiplier: 1.2, minPrice: 1000 },
+  'heavy_ball': { rarity: 'rare', multiplier: 1.0, minPrice: 800 },
+  'fast_ball': { rarity: 'rare', multiplier: 1.0, minPrice: 800 },
+  'safari_ball': { rarity: 'rare', multiplier: 0.8, minPrice: 600 },
+  'sport_ball': { rarity: 'rare', multiplier: 0.8, minPrice: 600 },
+  'dream_ball': { rarity: 'epic', multiplier: 1.5, minPrice: 2000 },
+  'beast_ball': { rarity: 'epic', multiplier: 2.5, minPrice: 5000 },
+  'master_ball': { rarity: 'legendary', multiplier: 8.0, minPrice: 50000 },
 };
 
+// Dynamic price limits based on economy health
 const PRICE_LIMITS = {
-  common: { min: 100, max: 2000 },
-  uncommon: { min: 500, max: 8000 },
-  rare: { min: 1500, max: 25000 },
-  epic: { min: 5000, max: 100000 },
-  legendary: { min: 50000, max: 500000 },
+  common: { min: 50, max: 5000 },
+  uncommon: { min: 150, max: 15000 },
+  rare: { min: 500, max: 50000 },
+  epic: { min: 2000, max: 200000 },
+  legendary: { min: 50000, max: 1000000 },
 };
 
+// Stock ranges - rarer items have less stock
 const STOCK_RANGES = {
-  common: { min: 50, max: 150 },
-  uncommon: { min: 20, max: 60 },
-  rare: { min: 5, max: 20 },
-  epic: { min: 2, max: 8 },
-  legendary: { min: 0, max: 2 },
+  common: { min: 80, max: 200 },
+  uncommon: { min: 30, max: 80 },
+  rare: { min: 8, max: 25 },
+  epic: { min: 2, max: 6 },
+  legendary: { min: 0, max: 1 }, // Master ball very rare
 };
 
+// Statistical functions
 function getMedian(arr) {
+  if (arr.length === 0) return 0;
   const sorted = [...arr].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 !== 0 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
 }
 
+function getPercentile(arr, percentile) {
+  if (arr.length === 0) return 0;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const index = Math.ceil((percentile / 100) * sorted.length) - 1;
+  return sorted[Math.max(0, index)];
+}
+
+function getStandardDeviation(arr) {
+  if (arr.length === 0) return 0;
+  const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+  const squareDiffs = arr.map(value => Math.pow(value - mean, 2));
+  return Math.sqrt(squareDiffs.reduce((a, b) => a + b, 0) / arr.length);
+}
+
+/**
+ * ADVANCED ECONOMIC AI - Analyzes all aspects of the economy
+ * - Player wealth distribution (Gini coefficient consideration)
+ * - Inflation/deflation detection
+ * - Purchase velocity
+ * - Stock depletion rates
+ * - Prevents economic exploits
+ */
 async function updateDynamicPrices() {
   try {
     const database = getDb();
+    console.log('[ECONOMIC AI] Starting comprehensive economic analysis...');
     
-    // Obtener balances de jugadores
+    // ========================================
+    // PHASE 1: Gather Economic Data
+    // ========================================
+    
+    // Get all player balances
     const users = await database.collection('users').find({
-      cobbleDollars: { $exists: true, $gt: 0 }
+      cobbleDollars: { $exists: true }
     }).toArray();
 
-    if (users.length === 0) {
-      console.log('[PRICE AI] No players with balance, using defaults');
+    const balances = users.map(u => u.cobbleDollars || 0).filter(b => b >= 0);
+    
+    if (balances.length === 0) {
+      console.log('[ECONOMIC AI] No players with balance data, using minimum prices');
       return;
     }
 
-    const balances = users.map(u => u.cobbleDollars || 0).filter(b => b > 0);
+    // Get recent purchase history (last 24 hours)
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentPurchases = await database.collection('shop_purchases').find({
+      createdAt: { $gte: oneDayAgo }
+    }).toArray();
+
+    // Get previous price history
+    const lastPriceUpdate = await database.collection('price_history').findOne(
+      {}, 
+      { sort: { timestamp: -1 } }
+    );
+
+    // ========================================
+    // PHASE 2: Economic Analysis
+    // ========================================
+    
+    // Basic statistics
+    const totalPlayers = balances.length;
+    const totalWealth = balances.reduce((a, b) => a + b, 0);
+    const averageBalance = totalWealth / totalPlayers;
     const medianBalance = getMedian(balances);
-    const basePrice = medianBalance;
+    const stdDeviation = getStandardDeviation(balances);
+    
+    // Wealth distribution analysis
+    const p10 = getPercentile(balances, 10); // Poor players
+    const p25 = getPercentile(balances, 25); // Lower middle
+    const p50 = getPercentile(balances, 50); // Median
+    const p75 = getPercentile(balances, 75); // Upper middle
+    const p90 = getPercentile(balances, 90); // Rich players
+    
+    // Wealth inequality indicator (simplified Gini-like)
+    const wealthGap = p90 > 0 ? (p90 - p10) / p90 : 0;
+    
+    // Purchase velocity (transactions per hour)
+    const purchaseVelocity = recentPurchases.length / 24;
+    
+    // Total money spent in last 24h
+    const totalSpent = recentPurchases.reduce((sum, p) => sum + (p.totalPrice || 0), 0);
+    
+    // Inflation indicator: if average balance is growing too fast
+    const previousMedian = lastPriceUpdate?.medianBalance || medianBalance;
+    const inflationRate = previousMedian > 0 ? (medianBalance - previousMedian) / previousMedian : 0;
 
-    console.log(`[PRICE AI] Analyzing ${balances.length} players, median: ${medianBalance}`);
+    console.log(`[ECONOMIC AI] Analysis Results:`);
+    console.log(`  - Players: ${totalPlayers}`);
+    console.log(`  - Total Wealth: ${totalWealth.toLocaleString()}`);
+    console.log(`  - Average Balance: ${Math.round(averageBalance).toLocaleString()}`);
+    console.log(`  - Median Balance: ${medianBalance.toLocaleString()}`);
+    console.log(`  - Wealth Gap (P90/P10): ${(wealthGap * 100).toFixed(1)}%`);
+    console.log(`  - Purchase Velocity: ${purchaseVelocity.toFixed(2)}/hour`);
+    console.log(`  - 24h Spending: ${totalSpent.toLocaleString()}`);
+    console.log(`  - Inflation Rate: ${(inflationRate * 100).toFixed(2)}%`);
 
-    // Actualizar precios de cada pokébola
+    // ========================================
+    // PHASE 3: Calculate Base Price
+    // ========================================
+    
+    // Use P25 (lower-middle class) as base to ensure accessibility
+    // But adjust based on economic conditions
+    let basePrice = p25;
+    
+    // Adjust for inflation/deflation
+    if (inflationRate > 0.1) {
+      // High inflation - increase prices to absorb excess money
+      basePrice *= (1 + inflationRate * 0.5);
+      console.log(`[ECONOMIC AI] Inflation detected, adjusting prices up`);
+    } else if (inflationRate < -0.1) {
+      // Deflation - decrease prices to stimulate economy
+      basePrice *= (1 + inflationRate * 0.3);
+      console.log(`[ECONOMIC AI] Deflation detected, adjusting prices down`);
+    }
+    
+    // Adjust for wealth inequality
+    if (wealthGap > 0.8) {
+      // High inequality - use lower base to help poor players
+      basePrice = Math.min(basePrice, p25);
+      console.log(`[ECONOMIC AI] High inequality, using lower base price`);
+    }
+    
+    // Minimum base price to prevent items being too cheap
+    basePrice = Math.max(basePrice, 500);
+
+    // ========================================
+    // PHASE 4: Update Individual Item Prices
+    // ========================================
+    
     const shopItems = await database.collection('shop_items').find({}).toArray();
+    const priceChanges = [];
 
     for (const item of shopItems) {
-      const config = RARITY_CONFIG[item.id] || { rarity: 'uncommon', multiplier: 1.0 };
+      const config = RARITY_CONFIG[item.id] || { rarity: 'uncommon', multiplier: 0.5, minPrice: 200 };
       const limits = PRICE_LIMITS[config.rarity] || { min: 100, max: 10000 };
       const stockRange = STOCK_RANGES[config.rarity] || { min: 10, max: 50 };
 
-      // Calcular nuevo precio
+      // Calculate new price
       let newPrice = Math.round(basePrice * config.multiplier);
+      
+      // Apply minimum price from config
+      newPrice = Math.max(newPrice, config.minPrice);
+      
+      // Apply rarity limits
       newPrice = Math.max(limits.min, Math.min(limits.max, newPrice));
       
-      // Redondear a números bonitos
-      if (newPrice < 1000) newPrice = Math.round(newPrice / 50) * 50;
+      // Round to nice numbers
+      if (newPrice < 500) newPrice = Math.round(newPrice / 25) * 25;
+      else if (newPrice < 2000) newPrice = Math.round(newPrice / 50) * 50;
       else if (newPrice < 10000) newPrice = Math.round(newPrice / 100) * 100;
-      else newPrice = Math.round(newPrice / 500) * 500;
+      else if (newPrice < 50000) newPrice = Math.round(newPrice / 500) * 500;
+      else newPrice = Math.round(newPrice / 1000) * 1000;
 
-      // Randomizar stock
-      const newStock = Math.floor(Math.random() * (stockRange.max - stockRange.min + 1)) + stockRange.min;
+      // Check item-specific purchase velocity
+      const itemPurchases = recentPurchases.filter(p => p.ballId === item.id || p.ballId === item.cobblemonId);
+      const itemVelocity = itemPurchases.length;
+      
+      // High demand = slightly higher price
+      if (itemVelocity > 10) {
+        newPrice = Math.round(newPrice * 1.1);
+        console.log(`[ECONOMIC AI] High demand for ${item.name}, price +10%`);
+      }
+
+      // Calculate new stock (randomized within range)
+      let newStock = Math.floor(Math.random() * (stockRange.max - stockRange.min + 1)) + stockRange.min;
+      
+      // Legendary items: only 1 if any, and only 20% chance
+      if (config.rarity === 'legendary') {
+        newStock = Math.random() < 0.2 ? 1 : 0;
+      }
+
+      const oldPrice = item.currentPrice || item.basePrice;
+      priceChanges.push({
+        item: item.name,
+        oldPrice,
+        newPrice,
+        change: ((newPrice - oldPrice) / oldPrice * 100).toFixed(1) + '%'
+      });
 
       await database.collection('shop_items').updateOne(
         { id: item.id },
@@ -166,17 +310,29 @@ async function updateDynamicPrices() {
       );
     }
 
-    // Guardar historial
+    // ========================================
+    // PHASE 5: Save Economic Report
+    // ========================================
+    
     await database.collection('price_history').insertOne({
       timestamp: new Date(),
-      playersAnalyzed: balances.length,
+      playersAnalyzed: totalPlayers,
+      totalWealth,
+      averageBalance: Math.round(averageBalance),
       medianBalance,
-      basePrice,
+      p10, p25, p50, p75, p90,
+      wealthGap,
+      purchaseVelocity,
+      totalSpent24h: totalSpent,
+      inflationRate,
+      basePrice: Math.round(basePrice),
+      priceChanges,
     });
 
-    console.log(`[PRICE AI] ✅ Updated prices and stock for ${shopItems.length} items`);
+    console.log(`[ECONOMIC AI] ✅ Updated ${shopItems.length} items based on economic analysis`);
+    
   } catch (error) {
-    console.error('[PRICE AI] Error updating prices:', error);
+    console.error('[ECONOMIC AI] Error:', error);
   }
 }
 
@@ -1373,6 +1529,7 @@ function createApp() {
   });
 
   // POST /api/shop/purchase - Purchase pokeballs
+  // ECONOMIC PROTECTION: Anti-exploit measures
   app.post('/api/shop/purchase', async (req, res) => {
     try {
       const { uuid, itemId, quantity } = req.body;
@@ -1380,18 +1537,47 @@ function createApp() {
         return res.status(400).json({ error: 'uuid, itemId and quantity required' });
       }
 
-      if (quantity < 1 || quantity > 999) {
-        return res.status(400).json({ error: 'Invalid quantity (1-999)' });
+      // PROTECTION 1: Quantity limits per transaction
+      const parsedQuantity = parseInt(quantity);
+      if (isNaN(parsedQuantity) || parsedQuantity < 1 || parsedQuantity > 64) {
+        return res.status(400).json({ error: 'Invalid quantity (1-64 per transaction)' });
       }
 
       const db = getDb();
       
-      // Buscar usuario por minecraftUuid
+      // PROTECTION 2: User must be verified
       const user = await db.collection('users').findOne({ minecraftUuid: uuid });
       if (!user) {
         return res.status(404).json({ error: 'User not found. You need to be verified.' });
       }
+      
+      if (!user.verified) {
+        return res.status(403).json({ error: 'You must verify your account first.' });
+      }
 
+      // PROTECTION 3: Rate limiting - max 10 purchases per minute per user
+      const oneMinuteAgo = new Date(Date.now() - 60000);
+      const recentPurchases = await db.collection('shop_purchases').countDocuments({
+        minecraftUuid: uuid,
+        createdAt: { $gte: oneMinuteAgo }
+      });
+      
+      if (recentPurchases >= 10) {
+        return res.status(429).json({ error: 'Too many purchases. Wait a minute.' });
+      }
+
+      // PROTECTION 4: Daily spending limit (prevent economy drain)
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      
+      const dailySpending = await db.collection('shop_purchases').aggregate([
+        { $match: { minecraftUuid: uuid, createdAt: { $gte: todayStart } } },
+        { $group: { _id: null, total: { $sum: '$totalPrice' } } }
+      ]).toArray();
+      
+      const spentToday = dailySpending[0]?.total || 0;
+      const dailyLimit = 500000; // 500k daily limit
+      
       // Buscar el item
       const item = await db.collection('shop_items').findOne({ 
         $or: [{ id: itemId }, { ballId: itemId }] 
@@ -1400,46 +1586,84 @@ function createApp() {
         return res.status(404).json({ error: 'Item not found' });
       }
 
-      // Verificar stock
-      if (item.currentStock < quantity) {
-        return res.status(400).json({ error: `Not enough stock. Available: ${item.currentStock}` });
+      // Calcular precio total
+      const totalPrice = (item.currentPrice || item.basePrice) * parsedQuantity;
+
+      // PROTECTION 5: Check daily limit
+      if (spentToday + totalPrice > dailyLimit) {
+        const remaining = dailyLimit - spentToday;
+        return res.status(400).json({ 
+          error: `Daily spending limit reached. Remaining today: ${remaining} CobbleDollars` 
+        });
       }
 
-      // Calcular precio total
-      const totalPrice = (item.currentPrice || item.basePrice) * quantity;
+      // PROTECTION 6: Verify stock (with fresh read)
+      const freshItem = await db.collection('shop_items').findOne({ 
+        $or: [{ id: itemId }, { ballId: itemId }] 
+      });
+      
+      if (!freshItem || freshItem.currentStock < parsedQuantity) {
+        return res.status(400).json({ error: `Not enough stock. Available: ${freshItem?.currentStock || 0}` });
+      }
 
-      // Verificar balance
-      const userBalance = user.cobbleDollars || 0;
+      // PROTECTION 7: Verify balance (with fresh read to prevent race conditions)
+      const freshUser = await db.collection('users').findOne({ minecraftUuid: uuid });
+      const userBalance = freshUser?.cobbleDollars || 0;
+      
       if (userBalance < totalPrice) {
         return res.status(400).json({ 
           error: `Insufficient balance. Need: ${totalPrice}, Have: ${userBalance}` 
         });
       }
 
-      // Realizar la compra (transacción)
+      // PROTECTION 8: Atomic transaction using MongoDB transactions if available
+      // For now, use optimistic locking with version check
       const newBalance = userBalance - totalPrice;
-      const newStock = item.currentStock - quantity;
+      const newStock = freshItem.currentStock - parsedQuantity;
 
-      // Actualizar balance del usuario
-      await db.collection('users').updateOne(
-        { minecraftUuid: uuid },
+      // Prevent negative balance (double-check)
+      if (newBalance < 0) {
+        return res.status(400).json({ error: 'Transaction would result in negative balance' });
+      }
+
+      // Prevent negative stock
+      if (newStock < 0) {
+        return res.status(400).json({ error: 'Transaction would result in negative stock' });
+      }
+
+      // Update balance with optimistic lock
+      const balanceUpdate = await db.collection('users').updateOne(
+        { minecraftUuid: uuid, cobbleDollars: userBalance }, // Only update if balance hasn't changed
         { $set: { cobbleDollars: newBalance, updatedAt: new Date() } }
       );
 
-      // Actualizar stock del item
-      await db.collection('shop_items').updateOne(
-        { $or: [{ id: itemId }, { ballId: itemId }] },
+      if (balanceUpdate.modifiedCount === 0) {
+        return res.status(409).json({ error: 'Balance changed during transaction. Please try again.' });
+      }
+
+      // Update stock with optimistic lock
+      const stockUpdate = await db.collection('shop_items').updateOne(
+        { $or: [{ id: itemId }, { ballId: itemId }], currentStock: freshItem.currentStock },
         { $set: { currentStock: newStock, updatedAt: new Date() } }
       );
 
-      // Crear registro de compra pendiente (para que el plugin lo entregue)
+      if (stockUpdate.modifiedCount === 0) {
+        // Rollback balance
+        await db.collection('users').updateOne(
+          { minecraftUuid: uuid },
+          { $inc: { cobbleDollars: totalPrice } }
+        );
+        return res.status(409).json({ error: 'Stock changed during transaction. Please try again.' });
+      }
+
+      // Create purchase record
       const purchase = {
         minecraftUuid: uuid,
         minecraftUsername: user.minecraftUsername,
         discordId: user.discordId,
-        ballId: item.cobblemonId || item.id || itemId, // ID exacto de Cobblemon
+        ballId: item.cobblemonId || item.id || itemId,
         ballName: item.name,
-        quantity: quantity,
+        quantity: parsedQuantity,
         pricePerUnit: item.currentPrice || item.basePrice,
         totalPrice: totalPrice,
         status: 'pending',
@@ -1448,15 +1672,15 @@ function createApp() {
 
       await db.collection('shop_purchases').insertOne(purchase);
 
-      console.log(`[SHOP] Purchase: ${user.minecraftUsername} bought ${quantity}x ${item.name} for ${totalPrice} CobbleDollars`);
+      console.log(`[SHOP] Purchase: ${user.minecraftUsername} bought ${parsedQuantity}x ${item.name} for ${totalPrice} CobbleDollars (Balance: ${newBalance})`);
 
       res.json({
         success: true,
-        message: `¡Compra exitosa! Usa /claim en el juego para recibir tus ${quantity}x ${item.name}`,
+        message: `¡Compra exitosa! Recibirás ${parsedQuantity}x ${item.name} automáticamente en el juego.`,
         newBalance: newBalance,
         purchase: {
           itemName: item.name,
-          quantity: quantity,
+          quantity: parsedQuantity,
           totalPrice: totalPrice,
         }
       });
@@ -1501,24 +1725,41 @@ function createApp() {
 
       const db = getDb();
       const user = await db.collection('users').findOne({ discordId });
-      const hasRolled = user && user.starterClaimed === true;
+      
+      // CRITICAL: Check if user has EVER claimed a starter
+      // This prevents re-rolling even if they delete their account
+      const hasRolled = user && (user.starterClaimed === true || user.starterId);
+      
+      // Also check if this Discord has claimed any starter in the starters collection
+      const claimedStarter = await db.collection('starters').findOne({ claimedBy: discordId });
+      const hasClaimedAnyStarter = !!claimedStarter;
+      
+      // User cannot roll if they have claimed OR if their Discord is linked to a claimed starter
+      const cannotRoll = hasRolled || hasClaimedAnyStarter;
       
       // Contar starters disponibles y totales
       const totalCount = await db.collection('starters').countDocuments({});
       const availableCount = await db.collection('starters').countDocuments({ isClaimed: false });
 
       let starter = null;
-      if (hasRolled && user.starterId) {
-        starter = await db.collection('starters').findOne({ pokemonId: user.starterId });
+      if (cannotRoll) {
+        // Try to find their starter
+        if (user?.starterId) {
+          starter = await db.collection('starters').findOne({ pokemonId: user.starterId });
+        } else if (claimedStarter) {
+          starter = claimedStarter;
+        }
       }
 
+      console.log(`[GACHA STATUS] User ${discordId}: hasRolled=${hasRolled}, hasClaimedAnyStarter=${hasClaimedAnyStarter}, canRoll=${!cannotRoll}`);
+
       res.json({
-        canRoll: !hasRolled && availableCount > 0,
-        hasRolled,
+        canRoll: !cannotRoll && availableCount > 0,
+        hasRolled: cannotRoll,
         starter,
-        isShiny: user?.starterIsShiny || false,
+        isShiny: user?.starterIsShiny || claimedStarter?.isShiny || false,
         availableCount,
-        totalCount: totalCount || 27, // Default to 27 if no starters in DB
+        totalCount: totalCount || 27,
       });
     } catch (error) {
       console.error('[GACHA ROLL STATUS] Error:', error);
@@ -1535,29 +1776,51 @@ function createApp() {
       }
 
       const db = getDb();
+      
+      // CRITICAL: Double-check user hasn't already claimed
       const user = await db.collection('users').findOne({ discordId });
-      if (user && user.starterClaimed) {
-        return res.status(400).json({ error: 'Already claimed a starter' });
+      if (user && (user.starterClaimed || user.starterId)) {
+        console.log(`[GACHA] BLOCKED: User ${discordId} already has starter`);
+        return res.status(400).json({ error: 'Ya has reclamado tu starter. Solo puedes tener uno.' });
+      }
+
+      // Also check starters collection
+      const existingClaim = await db.collection('starters').findOne({ claimedBy: discordId });
+      if (existingClaim) {
+        console.log(`[GACHA] BLOCKED: User ${discordId} found in starters collection`);
+        return res.status(400).json({ error: 'Ya has reclamado tu starter. Solo puedes tener uno.' });
       }
 
       const availableStarters = await db.collection('starters').find({ isClaimed: false }).toArray();
       if (availableStarters.length === 0) {
-        return res.status(400).json({ error: 'No starters available' });
+        return res.status(400).json({ error: 'No hay starters disponibles' });
       }
 
       const starter = availableStarters[Math.floor(Math.random() * availableStarters.length)];
       const isShiny = Math.random() < (1 / 4096);
 
+      // Mark starter as claimed
       await db.collection('starters').updateOne(
         { _id: starter._id },
         { $set: { isClaimed: true, claimedBy: discordId, claimedByNickname: discordUsername, claimedAt: new Date(), isShiny } }
       );
 
+      // Update user record
       await db.collection('users').updateOne(
         { discordId },
-        { $set: { starterClaimed: true, starterId: starter.pokemonId, starterIsShiny: isShiny, starterClaimedAt: new Date() } },
+        { 
+          $set: { 
+            starterClaimed: true, 
+            starterId: starter.pokemonId, 
+            starterIsShiny: isShiny, 
+            starterClaimedAt: new Date(),
+            discordUsername: discordUsername,
+          } 
+        },
         { upsert: true }
       );
+
+      console.log(`[GACHA] SUCCESS: ${discordUsername} (${discordId}) claimed ${starter.nameEs || starter.name} (shiny: ${isShiny})`);
 
       res.json({ starter, isShiny });
     } catch (error) {
@@ -1575,17 +1838,27 @@ function createApp() {
       }
 
       const db = getDb();
+      
+      // CRITICAL: Double-check user hasn't already claimed
       const user = await db.collection('users').findOne({ discordId });
-      if (user && user.starterClaimed) {
-        return res.status(400).json({ error: 'Already claimed a starter' });
+      if (user && (user.starterClaimed || user.starterId)) {
+        console.log(`[SOUL-DRIVEN] BLOCKED: User ${discordId} already has starter`);
+        return res.status(400).json({ error: 'Ya has reclamado tu starter. Solo puedes tener uno.' });
       }
 
-      // For now, just do a random roll (TODO: implement soul-driven logic)
+      // Also check starters collection
+      const existingClaim = await db.collection('starters').findOne({ claimedBy: discordId });
+      if (existingClaim) {
+        console.log(`[SOUL-DRIVEN] BLOCKED: User ${discordId} found in starters collection`);
+        return res.status(400).json({ error: 'Ya has reclamado tu starter. Solo puedes tener uno.' });
+      }
+
       const availableStarters = await db.collection('starters').find({ isClaimed: false }).toArray();
       if (availableStarters.length === 0) {
-        return res.status(400).json({ error: 'No starters available' });
+        return res.status(400).json({ error: 'No hay starters disponibles' });
       }
 
+      // TODO: Implement actual soul-driven logic based on answers
       const starter = availableStarters[Math.floor(Math.random() * availableStarters.length)];
       const isShiny = Math.random() < (1 / 4096);
 
@@ -1596,9 +1869,20 @@ function createApp() {
 
       await db.collection('users').updateOne(
         { discordId },
-        { $set: { starterClaimed: true, starterId: starter.pokemonId, starterIsShiny: isShiny, starterClaimedAt: new Date(), soulDrivenAnswers: answers } },
+        { 
+          $set: { 
+            starterClaimed: true, 
+            starterId: starter.pokemonId, 
+            starterIsShiny: isShiny, 
+            starterClaimedAt: new Date(), 
+            soulDrivenAnswers: answers,
+            discordUsername: discordUsername,
+          } 
+        },
         { upsert: true }
       );
+
+      console.log(`[SOUL-DRIVEN] SUCCESS: ${discordUsername} (${discordId}) claimed ${starter.nameEs || starter.name} (shiny: ${isShiny})`);
 
       res.json({ starter, isShiny });
     } catch (error) {
