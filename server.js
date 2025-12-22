@@ -701,6 +701,9 @@ function createApp() {
       const db = getDb();
       const user = await db.collection('users').findOne({ discordId });
       const hasRolled = user && user.starterClaimed === true;
+      
+      // Contar starters disponibles y totales
+      const totalCount = await db.collection('starters').countDocuments({});
       const availableCount = await db.collection('starters').countDocuments({ isClaimed: false });
 
       let starter = null;
@@ -714,6 +717,7 @@ function createApp() {
         starter,
         isShiny: user?.starterIsShiny || false,
         availableCount,
+        totalCount: totalCount || 27, // Default to 27 if no starters in DB
       });
     } catch (error) {
       console.error('[GACHA ROLL STATUS] Error:', error);
