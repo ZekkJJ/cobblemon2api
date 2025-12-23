@@ -19,14 +19,34 @@ if (!fs.existsSync(UPLOADS_DIR)) {
   console.log('[MODS] Created uploads directory:', UPLOADS_DIR);
 }
 
+// Función para sanitizar nombres de archivo de forma más permisiva
+const sanitizeFilename = (filename) => {
+  // Preservar la extensión
+  const ext = path.extname(filename).toLowerCase();
+  const name = path.basename(filename, ext);
+  
+  // Reemplazar caracteres problemáticos pero mantener más legibilidad
+  // Permitir: letras, números, guiones, puntos, guiones bajos
+  // Reemplazar: espacios con guiones bajos, paréntesis y otros con nada
+  const safeName = name
+    .replace(/\s+/g, '_')           // espacios -> guiones bajos
+    .replace(/[()[\]{}]/g, '')      // quitar paréntesis y corchetes
+    .replace(/[+]/g, '_plus_')      // + -> _plus_
+    .replace(/[^a-zA-Z0-9._-]/g, '_') // otros caracteres -> guiones bajos
+    .replace(/_+/g, '_')            // múltiples guiones bajos -> uno solo
+    .replace(/^_|_$/g, '');         // quitar guiones bajos al inicio/final
+  
+  return safeName + ext;
+};
+
 // Configurar multer para subida de archivos
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
     cb(null, UPLOADS_DIR);
   },
   filename: (_req, file, cb) => {
-    // Usar nombre original pero sanitizado
-    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const safeName = sanitizeFilename(file.originalname);
+    console.log(`[MODS] Sanitized filename: "${file.originalname}" -> "${safeName}"`);
     cb(null, safeName);
   }
 });
@@ -34,14 +54,16 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: {
-    fileSize: 100 * 1024 * 1024, // 100MB max
+    fileSize: 200 * 1024 * 1024, // 200MB max (aumentado para mods grandes)
   },
   fileFilter: (_req, file, cb) => {
-    // Solo permitir .jar y .zip
-    if (file.originalname.match(/\.(jar|zip)$/i)) {
+    // Solo permitir .jar y .zip (case insensitive)
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (ext === '.jar' || ext === '.zip') {
       cb(null, true);
     } else {
-      cb(new Error('Solo se permiten archivos .jar o .zip'));
+      console.warn(`[MODS] Rejected file: ${file.originalname} (extension: ${ext})`);
+      cb(new Error(`Solo se permiten archivos .jar o .zip. Recibido: ${ext}`));
     }
   }
 });
@@ -50,6 +72,28 @@ const upload = multer({
  * Initialize mods routes with database connection
  */
 function initModsRoutes(getDb) {
+  
+  // Middleware para manejar errores de multer
+  const handleMulterError = (err, req, res, next) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ 
+          error: 'Archivo demasiado grande',
+          message: 'El archivo excede el límite de 200MB'
+        });
+      }
+      return res.status(400).json({ 
+        error: 'Error de subida',
+        message: err.message 
+      });
+    } else if (err) {
+      return res.status(400).json({ 
+        error: 'Error de archivo',
+        message: err.message 
+      });
+    }
+    next();
+  };
   
   // Helper to get mods collection
   const getModsCollection = () => getDb().collection('mods');
@@ -184,6 +228,50 @@ function initModsRoutes(getDb) {
     } catch (error) {
       console.error('[MODS] Cleanup error:', error);
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================
+  // POST /api/mods/test-upload - Test file upload without saving to DB
+  // ============================================
+  router.post('/test-upload', upload.single('file'), handleMulterError, async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'No se recibió archivo',
+          tip: 'Asegúrate de que el archivo tenga extensión .jar o .zip'
+        });
+      }
+      
+      const result = {
+        success: true,
+        originalName: req.file.originalname,
+        savedAs: req.file.filename,
+        size: req.file.size,
+        sizeFormatted: `${(req.file.size / 1024 / 1024).toFixed(2)} MB`,
+        path: req.file.path,
+        mimetype: req.file.mimetype,
+      };
+      
+      // Eliminar el archivo de prueba
+      if (fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+        result.deleted = true;
+      }
+      
+      console.log('[MODS] Test upload successful:', result);
+      res.json(result);
+    } catch (error) {
+      // Limpiar archivo si existe
+      if (req.file && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      console.error('[MODS] Test upload error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      });
     }
   });
 
@@ -472,7 +560,7 @@ Visita https://modrinth.com para descargarlos.
   // ============================================
   // POST /api/mods - Create new mod (admin only)
   // ============================================
-  router.post('/', upload.single('file'), async (req, res) => {
+  router.post('/', upload.single('file'), handleMulterError, async (req, res) => {
     try {
       const { 
         name, 
@@ -585,7 +673,7 @@ Visita https://modrinth.com para descargarlos.
   // ============================================
   // PUT /api/mods/:id - Update mod (admin only)
   // ============================================
-  router.put('/:id', upload.single('file'), async (req, res) => {
+  router.put('/:id', upload.single('file'), handleMulterError, async (req, res) => {
     try {
       const { ObjectId } = require('mongodb');
       const modId = new ObjectId(req.params.id);
