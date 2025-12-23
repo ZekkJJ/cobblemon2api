@@ -92,6 +92,102 @@ function initModsRoutes(getDb) {
   });
 
   // ============================================
+  // GET /api/mods/debug - Debug endpoint to check mod files
+  // ============================================
+  router.get('/debug', async (_req, res) => {
+    try {
+      const mods = await getModsCollection().find({}).toArray();
+      
+      const analysis = {
+        total: mods.length,
+        withFiles: 0,
+        withoutFiles: 0,
+        withZeroSize: 0,
+        filesExist: 0,
+        filesMissing: 0,
+        uploadsDir: UPLOADS_DIR,
+        uploadsDirExists: fs.existsSync(UPLOADS_DIR),
+        mods: []
+      };
+      
+      for (const mod of mods) {
+        const hasFilePath = mod.filePath && mod.filePath.length > 0;
+        const hasSize = mod.originalSize && mod.originalSize > 0;
+        const fileExists = hasFilePath && fs.existsSync(mod.filePath);
+        
+        if (hasFilePath && hasSize) {
+          analysis.withFiles++;
+          if (fileExists) {
+            analysis.filesExist++;
+          } else {
+            analysis.filesMissing++;
+          }
+        } else if (hasFilePath && !hasSize) {
+          analysis.withZeroSize++;
+        } else {
+          analysis.withoutFiles++;
+        }
+        
+        analysis.mods.push({
+          name: mod.name,
+          filename: mod.filename,
+          filePath: mod.filePath || null,
+          originalSize: mod.originalSize || 0,
+          hasFilePath,
+          hasSize,
+          fileExists,
+          category: mod.category,
+          isActive: mod.isActive,
+        });
+      }
+      
+      // List files in uploads directory
+      if (analysis.uploadsDirExists) {
+        try {
+          analysis.filesInUploadsDir = fs.readdirSync(UPLOADS_DIR);
+        } catch (e) {
+          analysis.filesInUploadsDir = [];
+          analysis.uploadsDirError = e.message;
+        }
+      }
+      
+      console.log('[MODS] Debug info:', JSON.stringify(analysis, null, 2));
+      res.json(analysis);
+    } catch (error) {
+      console.error('[MODS] Debug error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================
+  // DELETE /api/mods/cleanup - Remove mods without valid files
+  // ============================================
+  router.delete('/cleanup', async (_req, res) => {
+    try {
+      const result = await getModsCollection().deleteMany({
+        $or: [
+          { filePath: null },
+          { filePath: '' },
+          { filePath: { $exists: false } },
+          { originalSize: 0 },
+          { originalSize: null },
+          { originalSize: { $exists: false } },
+        ]
+      });
+      
+      console.log(`[MODS] Cleanup: deleted ${result.deletedCount} mods without files`);
+      res.json({ 
+        success: true, 
+        deletedCount: result.deletedCount,
+        message: `Eliminados ${result.deletedCount} mods sin archivos`
+      });
+    } catch (error) {
+      console.error('[MODS] Cleanup error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================
   // GET /api/mods/versions - Get mod versions for update checking
   // ============================================
   router.get('/versions', async (req, res) => {
