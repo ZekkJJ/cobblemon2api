@@ -13,6 +13,9 @@ const cookieParser = require('cookie-parser');
 const { MongoClient, ObjectId } = require('mongodb');
 const crypto = require('crypto');
 
+// Modular routes
+const { initModsRoutes } = require('./routes/mods.routes');
+
 // Environment variables
 const PORT = process.env.PORT || 25617;
 const MONGODB_URI = process.env.MONGODB_URI || '';
@@ -2803,6 +2806,12 @@ function createApp() {
     }
   });
 
+  // ============================================
+  // MODULAR ROUTES - Mods API
+  // ============================================
+  app.use('/api/mods', initModsRoutes(getDb));
+  console.log('📦 [ROUTES] Mods routes loaded');
+
   // Error handler
   app.use((err, req, res, next) => {
     console.error('❌ Error:', err);
@@ -2841,7 +2850,16 @@ async function startServer() {
       console.log(`   GET  /api/level-caps/effective`);
       console.log(`   GET  /api/shop/purchases`);
       console.log(`   POST /api/shop/claim`);
-      console.log(`   POST /api/shop/purchase\n`);
+      console.log(`   POST /api/shop/purchase`);
+      console.log(`\n📦 Mods API:`);
+      console.log(`   GET  /api/mods`);
+      console.log(`   GET  /api/mods/versions`);
+      console.log(`   GET  /api/mods/:id`);
+      console.log(`   GET  /api/mods/:id/download`);
+      console.log(`   GET  /api/mods/package`);
+      console.log(`   POST /api/mods (admin)`);
+      console.log(`   PUT  /api/mods/:id (admin)`);
+      console.log(`   DELETE /api/mods/:id (admin)\n`);
 
       // Sistema de precios dinámicos - se ejecuta cada hora
       // SIEMPRE actualizar al iniciar para asegurar precios correctos
