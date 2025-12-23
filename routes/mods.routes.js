@@ -26,8 +26,6 @@ const sanitizeFilename = (filename) => {
   const name = path.basename(filename, ext);
   
   // Reemplazar caracteres problemáticos pero mantener más legibilidad
-  // Permitir: letras, números, guiones, puntos, guiones bajos
-  // Reemplazar: espacios con guiones bajos, paréntesis y otros con nada
   const safeName = name
     .replace(/\s+/g, '_')           // espacios -> guiones bajos
     .replace(/[()[\]{}]/g, '')      // quitar paréntesis y corchetes
@@ -54,7 +52,8 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: {
-    fileSize: 200 * 1024 * 1024, // 200MB max (aumentado para mods grandes)
+    fileSize: 200 * 1024 * 1024, // 200MB max
+    fieldSize: 10 * 1024 * 1024, // 10MB for text fields
   },
   fileFilter: (_req, file, cb) => {
     // Solo permitir .jar y .zip (case insensitive)
@@ -73,9 +72,20 @@ const upload = multer({
  */
 function initModsRoutes(getDb) {
   
+  // Add CORS headers specifically for file uploads
+  router.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+    next();
+  });
+
   // Middleware para manejar errores de multer
   const handleMulterError = (err, req, res, next) => {
     if (err instanceof multer.MulterError) {
+      console.error(`[MODS] Multer error: ${err.code} - ${err.message}`);
       if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(413).json({ 
           error: 'Archivo demasiado grande',
@@ -87,6 +97,7 @@ function initModsRoutes(getDb) {
         message: err.message 
       });
     } else if (err) {
+      console.error(`[MODS] Upload error: ${err.message}`);
       return res.status(400).json({ 
         error: 'Error de archivo',
         message: err.message 
