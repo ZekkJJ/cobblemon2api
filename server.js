@@ -771,6 +771,7 @@ function createApp() {
   const allowedOrigins = [
     FRONTEND_URL,
     'https://cobblemon-los-pitufos.vercel.app',
+    'https://cobblemon2.vercel.app',
     'http://localhost:3000',
   ].filter(Boolean);
 
