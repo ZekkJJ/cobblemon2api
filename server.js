@@ -1718,14 +1718,318 @@ function createApp() {
     }
   });
 
+  // ============================================
+  // TOURNAMENTS ENDPOINTS
+  // ============================================
+
   // GET /api/tournaments - Get all tournaments
   app.get('/api/tournaments', async (req, res) => {
     try {
       const tournaments = await getDb().collection('tournaments').find({}).toArray();
       tournaments.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
-      res.json({ tournaments });
+      res.json({ success: true, data: tournaments, count: tournaments.length });
     } catch (error) {
       console.error('[TOURNAMENTS] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // GET /api/tournaments/active - Get active tournaments
+  app.get('/api/tournaments/active', async (req, res) => {
+    try {
+      const tournaments = await getDb().collection('tournaments').find({
+        status: { $in: ['registration', 'active', 'in_progress'] }
+      }).toArray();
+      res.json({ success: true, data: tournaments, count: tournaments.length });
+    } catch (error) {
+      console.error('[TOURNAMENTS ACTIVE] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // GET /api/tournaments/:id - Get tournament by ID
+  app.get('/api/tournaments/:id', async (req, res) => {
+    try {
+      const tournament = await getDb().collection('tournaments').findOne({ 
+        _id: new ObjectId(req.params.id) 
+      });
+      if (!tournament) {
+        return res.status(404).json({ error: 'Tournament not found' });
+      }
+      res.json({ success: true, data: tournament });
+    } catch (error) {
+      console.error('[TOURNAMENTS GET] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // GET /api/tournaments/code/:code - Get tournament by code
+  app.get('/api/tournaments/code/:code', async (req, res) => {
+    try {
+      const tournament = await getDb().collection('tournaments').findOne({ 
+        code: req.params.code.toUpperCase() 
+      });
+      if (!tournament) {
+        return res.status(404).json({ error: 'Tournament not found' });
+      }
+      res.json({ success: true, data: tournament });
+    } catch (error) {
+      console.error('[TOURNAMENTS CODE] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/tournaments - Create tournament (admin)
+  app.post('/api/tournaments', async (req, res) => {
+    try {
+      const { name, description, startDate, maxParticipants, bracketType, prizes, rules, format } = req.body;
+      
+      if (!name || !description || !startDate || !maxParticipants || !prizes) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      // Generate unique code
+      const code = crypto.randomBytes(3).toString('hex').toUpperCase();
+
+      const tournament = {
+        name,
+        description,
+        startDate: new Date(startDate),
+        maxParticipants: parseInt(maxParticipants),
+        bracketType: bracketType || 'single',
+        prizes,
+        rules: rules || '',
+        format: format || '6v6 Singles',
+        code,
+        status: 'registration',
+        participants: [],
+        bracket: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        createdBy: 'Admin',
+      };
+
+      const result = await getDb().collection('tournaments').insertOne(tournament);
+      tournament._id = result.insertedId;
+
+      console.log(`[TOURNAMENTS] Created tournament: ${name} (${code})`);
+      res.status(201).json({ success: true, data: tournament, message: `Torneo creado con código: ${code}` });
+    } catch (error) {
+      console.error('[TOURNAMENTS CREATE] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // PUT /api/tournaments/:id - Update tournament (admin)
+  app.put('/api/tournaments/:id', async (req, res) => {
+    try {
+      const { name, description, startDate, maxParticipants, status, prizes, rules, format } = req.body;
+      
+      const updateData = { updatedAt: new Date() };
+      if (name) updateData.name = name;
+      if (description) updateData.description = description;
+      if (startDate) updateData.startDate = new Date(startDate);
+      if (maxParticipants) updateData.maxParticipants = parseInt(maxParticipants);
+      if (status) updateData.status = status;
+      if (prizes) updateData.prizes = prizes;
+      if (rules !== undefined) updateData.rules = rules;
+      if (format) updateData.format = format;
+
+      const result = await getDb().collection('tournaments').findOneAndUpdate(
+        { _id: new ObjectId(req.params.id) },
+        { $set: updateData },
+        { returnDocument: 'after' }
+      );
+
+      if (!result) {
+        return res.status(404).json({ error: 'Tournament not found' });
+      }
+
+      res.json({ success: true, data: result });
+    } catch (error) {
+      console.error('[TOURNAMENTS UPDATE] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // DELETE /api/tournaments/:id - Delete tournament (admin)
+  app.delete('/api/tournaments/:id', async (req, res) => {
+    try {
+      const result = await getDb().collection('tournaments').deleteOne({ 
+        _id: new ObjectId(req.params.id) 
+      });
+
+      if (result.deletedCount === 0) {
+        return res.status(404).json({ error: 'Tournament not found' });
+      }
+
+      res.json({ success: true, message: 'Tournament deleted' });
+    } catch (error) {
+      console.error('[TOURNAMENTS DELETE] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/tournaments/:id/start - Start tournament (admin)
+  app.post('/api/tournaments/:id/start', async (req, res) => {
+    try {
+      const tournament = await getDb().collection('tournaments').findOne({ 
+        _id: new ObjectId(req.params.id) 
+      });
+
+      if (!tournament) {
+        return res.status(404).json({ error: 'Tournament not found' });
+      }
+
+      if (tournament.participants.length < 2) {
+        return res.status(400).json({ error: 'Need at least 2 participants to start' });
+      }
+
+      // Generate simple bracket
+      const participants = [...tournament.participants];
+      const rounds = [];
+      let roundNumber = 1;
+      let currentParticipants = participants;
+
+      while (currentParticipants.length > 1) {
+        const matches = [];
+        for (let i = 0; i < currentParticipants.length; i += 2) {
+          const match = {
+            id: crypto.randomBytes(4).toString('hex'),
+            player1Id: currentParticipants[i]?.id || null,
+            player2Id: currentParticipants[i + 1]?.id || null,
+            winnerId: null,
+            status: 'pending',
+            roundNumber,
+          };
+          matches.push(match);
+        }
+        rounds.push({
+          roundNumber,
+          name: currentParticipants.length === 2 ? 'Final' : `Ronda ${roundNumber}`,
+          matches,
+        });
+        currentParticipants = matches.map(() => null); // Placeholder for next round
+        roundNumber++;
+      }
+
+      // Update first round matches to ready
+      if (rounds[0]) {
+        rounds[0].matches.forEach(m => {
+          if (m.player1Id && m.player2Id) {
+            m.status = 'ready';
+          }
+        });
+      }
+
+      await getDb().collection('tournaments').updateOne(
+        { _id: new ObjectId(req.params.id) },
+        { 
+          $set: { 
+            status: 'active',
+            bracket: { rounds },
+            startedAt: new Date(),
+            updatedAt: new Date(),
+          } 
+        }
+      );
+
+      console.log(`[TOURNAMENTS] Started tournament: ${tournament.name}`);
+      res.json({ success: true, message: 'Tournament started' });
+    } catch (error) {
+      console.error('[TOURNAMENTS START] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/tournaments/:id/cancel - Cancel tournament (admin)
+  app.post('/api/tournaments/:id/cancel', async (req, res) => {
+    try {
+      const result = await getDb().collection('tournaments').updateOne(
+        { _id: new ObjectId(req.params.id) },
+        { $set: { status: 'cancelled', updatedAt: new Date() } }
+      );
+
+      if (result.matchedCount === 0) {
+        return res.status(404).json({ error: 'Tournament not found' });
+      }
+
+      res.json({ success: true, message: 'Tournament cancelled' });
+    } catch (error) {
+      console.error('[TOURNAMENTS CANCEL] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // DELETE /api/tournaments/:id/participants/:participantId - Remove participant (admin)
+  app.delete('/api/tournaments/:id/participants/:participantId', async (req, res) => {
+    try {
+      const result = await getDb().collection('tournaments').updateOne(
+        { _id: new ObjectId(req.params.id) },
+        { 
+          $pull: { participants: { id: req.params.participantId } },
+          $set: { updatedAt: new Date() }
+        }
+      );
+
+      if (result.matchedCount === 0) {
+        return res.status(404).json({ error: 'Tournament not found' });
+      }
+
+      res.json({ success: true, message: 'Participant removed' });
+    } catch (error) {
+      console.error('[TOURNAMENTS REMOVE PARTICIPANT] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/tournaments/matches/:matchId/force - Force match result (admin)
+  app.post('/api/tournaments/matches/:matchId/force', async (req, res) => {
+    try {
+      const { winnerId, tournamentId } = req.body;
+      
+      if (!winnerId) {
+        return res.status(400).json({ error: 'winnerId required' });
+      }
+
+      // Find tournament with this match
+      const query = tournamentId 
+        ? { _id: new ObjectId(tournamentId) }
+        : { 'bracket.rounds.matches.id': req.params.matchId };
+
+      const tournament = await getDb().collection('tournaments').findOne(query);
+
+      if (!tournament || !tournament.bracket) {
+        return res.status(404).json({ error: 'Tournament or match not found' });
+      }
+
+      // Update match result
+      let matchFound = false;
+      for (const round of tournament.bracket.rounds) {
+        for (const match of round.matches) {
+          if (match.id === req.params.matchId) {
+            match.winnerId = winnerId;
+            match.status = 'completed';
+            match.victoryType = 'ADMIN_DECISION';
+            matchFound = true;
+            break;
+          }
+        }
+        if (matchFound) break;
+      }
+
+      if (!matchFound) {
+        return res.status(404).json({ error: 'Match not found' });
+      }
+
+      await getDb().collection('tournaments').updateOne(
+        { _id: tournament._id },
+        { $set: { bracket: tournament.bracket, updatedAt: new Date() } }
+      );
+
+      res.json({ success: true, message: 'Match result forced' });
+    } catch (error) {
+      console.error('[TOURNAMENTS FORCE RESULT] Error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
