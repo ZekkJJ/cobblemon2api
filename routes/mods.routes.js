@@ -8,8 +8,43 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const multer = require('multer');
 
-// Note: Caching can be implemented here if needed for performance
+// Configurar directorio de uploads
+const UPLOADS_DIR = path.join(__dirname, '..', 'uploads', 'mods');
+
+// Asegurar que el directorio existe
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  console.log('[MODS] Created uploads directory:', UPLOADS_DIR);
+}
+
+// Configurar multer para subida de archivos
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, UPLOADS_DIR);
+  },
+  filename: (_req, file, cb) => {
+    // Usar nombre original pero sanitizado
+    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    cb(null, safeName);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100MB max
+  },
+  fileFilter: (_req, file, cb) => {
+    // Solo permitir .jar y .zip
+    if (file.originalname.match(/\.(jar|zip)$/i)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Solo se permiten archivos .jar o .zip'));
+    }
+  }
+});
 
 /**
  * Initialize mods routes with database connection
@@ -169,16 +204,17 @@ function initModsRoutes(getDb) {
         return res.status(404).json({ error: 'Mod no encontrado' });
       }
       
-      // If mod has a downloadUrl, redirect to it
-      if (mod.downloadUrl) {
-        return res.redirect(mod.downloadUrl);
-      }
-      
-      // If mod has file stored locally
+      // Prioridad 1: Archivo local
       if (mod.filePath && fs.existsSync(mod.filePath)) {
         res.setHeader('Content-Disposition', `attachment; filename="${mod.filename}"`);
         res.setHeader('Content-Type', 'application/java-archive');
+        res.setHeader('Content-Length', mod.originalSize || fs.statSync(mod.filePath).size);
         return res.sendFile(path.resolve(mod.filePath));
+      }
+      
+      // Prioridad 2: URL externa
+      if (mod.downloadUrl) {
+        return res.redirect(mod.downloadUrl);
       }
       
       // Fallback: return mod info with download instructions
@@ -220,7 +256,7 @@ function initModsRoutes(getDb) {
       res.setHeader('Content-Disposition', `attachment; filename="LosPitufos-Mods-v${pkgVersion}.zip"`);
       
       // Create ZIP archive
-      const archive = archiver('zip', { zlib: { level: 9 } });
+      const archive = archiver('zip', { zlib: { level: 6 } }); // Level 6 for balance speed/compression
       
       archive.on('error', (err) => {
         console.error('[MODS] Archive error:', err);
@@ -235,10 +271,10 @@ function initModsRoutes(getDb) {
       // Add README
       const readme = `# Mods de Cobblemon Los Pitufos
       
-Versión del paquete: ${pkgVersion}
+Version del paquete: ${pkgVersion}
 Fecha: ${new Date().toISOString()}
 
-## Instrucciones de instalación:
+## Instrucciones de instalacion:
 1. Cierra Minecraft completamente
 2. Copia todos los archivos .jar a tu carpeta de mods:
    - Windows: %appdata%\\.minecraft\\mods
@@ -254,20 +290,24 @@ Discord: https://discord.gg/lospitufos
 `;
       archive.append(readme, { name: 'LEEME.txt' });
       
-      // Download and add each mod
+      // Add each mod
       let addedCount = 0;
+      let failedMods = [];
+      
       for (const mod of mods) {
         try {
-          // Check if mod has local file
+          // Prioridad 1: Archivo local
           if (mod.filePath && fs.existsSync(mod.filePath)) {
             archive.file(mod.filePath, { name: mod.filename });
             addedCount++;
             console.log(`[MODS] Added local file: ${mod.filename}`);
           }
-          // Check if mod has downloadUrl
+          // Prioridad 2: URL externa
           else if (mod.downloadUrl) {
             try {
-              const response = await fetch(mod.downloadUrl);
+              const response = await fetch(mod.downloadUrl, {
+                headers: { 'User-Agent': 'CobblemonLosPitufos/1.0' }
+              });
               if (response.ok) {
                 const buffer = await response.arrayBuffer();
                 archive.append(Buffer.from(buffer), { name: mod.filename });
@@ -275,25 +315,35 @@ Discord: https://discord.gg/lospitufos
                 console.log(`[MODS] Downloaded and added: ${mod.filename}`);
               } else {
                 console.warn(`[MODS] Failed to download ${mod.name}: ${response.status}`);
-                // Add a placeholder text file
-                archive.append(`No se pudo descargar ${mod.name}.\nDescarga manual: ${mod.website || mod.downloadUrl}`, 
-                  { name: `${mod.slug}-DESCARGAR-MANUAL.txt` });
+                failedMods.push(mod.name);
               }
             } catch (fetchErr) {
               console.warn(`[MODS] Fetch error for ${mod.name}:`, fetchErr.message);
-              archive.append(`No se pudo descargar ${mod.name}.\nDescarga manual: ${mod.website || mod.downloadUrl}`, 
-                { name: `${mod.slug}-DESCARGAR-MANUAL.txt` });
+              failedMods.push(mod.name);
             }
           }
           // No file available
           else {
             console.warn(`[MODS] No file source for ${mod.name}`);
-            archive.append(`Descarga ${mod.name} desde: ${mod.website || 'modrinth.com'}`, 
-              { name: `${mod.slug}-DESCARGAR-MANUAL.txt` });
+            failedMods.push(mod.name);
           }
         } catch (modErr) {
           console.error(`[MODS] Error processing mod ${mod.name}:`, modErr);
+          failedMods.push(mod.name);
         }
+      }
+      
+      // Add info about failed mods if any
+      if (failedMods.length > 0) {
+        const failedInfo = `# Mods que no se pudieron incluir
+
+Los siguientes mods no tienen archivo disponible y deben descargarse manualmente:
+
+${failedMods.map(name => `- ${name}`).join('\n')}
+
+Visita https://modrinth.com para descargarlos.
+`;
+        archive.append(failedInfo, { name: 'DESCARGAR_MANUAL.txt' });
       }
       
       console.log(`[MODS] Package generated with ${addedCount}/${mods.length} mods`);
@@ -312,7 +362,7 @@ Discord: https://discord.gg/lospitufos
   // ============================================
   // POST /api/mods - Create new mod (admin only)
   // ============================================
-  router.post('/', async (req, res) => {
+  router.post('/', upload.single('file'), async (req, res) => {
     try {
       const { 
         name, 
@@ -324,8 +374,8 @@ Discord: https://discord.gg/lospitufos
         author,
         website,
         downloadUrl,
-        filename,
-        originalSize,
+        filename: providedFilename,
+        originalSize: providedSize,
         changelog,
       } = req.body;
       
@@ -334,6 +384,24 @@ Discord: https://discord.gg/lospitufos
       }
       
       const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      
+      // Si se subió un archivo, usar su info
+      let filePath = null;
+      let filename = providedFilename || `${slug}.jar`;
+      let fileSize = parseInt(providedSize) || 0;
+      let checksum = '';
+      
+      if (req.file) {
+        filePath = req.file.path;
+        filename = req.file.originalname;
+        fileSize = req.file.size;
+        
+        // Calcular checksum del archivo
+        const fileBuffer = fs.readFileSync(filePath);
+        checksum = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+        
+        console.log(`[MODS] File uploaded: ${filename} (${fileSize} bytes)`);
+      }
       
       const newMod = {
         name,
@@ -346,10 +414,11 @@ Discord: https://discord.gg/lospitufos
         author: author || '',
         website: website || '',
         downloadUrl: downloadUrl || '',
-        filename: filename || `${slug}.jar`,
-        originalSize: originalSize || 0,
+        filePath: filePath, // Ruta local del archivo
+        filename: filename,
+        originalSize: fileSize,
         compressedSize: 0,
-        checksum: '',
+        checksum: checksum,
         changelog: changelog || '',
         isActive: true,
         createdAt: new Date(),
@@ -360,7 +429,7 @@ Discord: https://discord.gg/lospitufos
       const result = await getModsCollection().insertOne(newMod);
       newMod._id = result.insertedId;
       
-      console.log(`[MODS] Created mod: ${name}`);
+      console.log(`[MODS] Created mod: ${name}${filePath ? ' (with file)' : ''}`);
       res.status(201).json(newMod);
     } catch (error) {
       console.error('[MODS] Error creating mod:', error);
@@ -371,7 +440,7 @@ Discord: https://discord.gg/lospitufos
   // ============================================
   // PUT /api/mods/:id - Update mod (admin only)
   // ============================================
-  router.put('/:id', async (req, res) => {
+  router.put('/:id', upload.single('file'), async (req, res) => {
     try {
       const { ObjectId } = require('mongodb');
       const modId = new ObjectId(req.params.id);
@@ -383,6 +452,26 @@ Discord: https://discord.gg/lospitufos
       
       const updateData = { ...req.body, updatedAt: new Date() };
       delete updateData._id; // Don't update _id
+      delete updateData.file; // Remove file from body data
+      
+      // Si se subió un nuevo archivo
+      if (req.file) {
+        // Eliminar archivo anterior si existe
+        if (existingMod.filePath && fs.existsSync(existingMod.filePath)) {
+          fs.unlinkSync(existingMod.filePath);
+          console.log(`[MODS] Deleted old file: ${existingMod.filePath}`);
+        }
+        
+        updateData.filePath = req.file.path;
+        updateData.filename = req.file.originalname;
+        updateData.originalSize = req.file.size;
+        
+        // Calcular checksum
+        const fileBuffer = fs.readFileSync(req.file.path);
+        updateData.checksum = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+        
+        console.log(`[MODS] New file uploaded: ${req.file.originalname}`);
+      }
       
       // If version changed, archive old version
       if (updateData.version && updateData.version !== existingMod.version) {

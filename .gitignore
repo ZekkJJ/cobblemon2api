@@ -40,3 +40,6 @@ temp/
 
 # TypeScript
 *.tsbuildinfo
+
+# Uploaded files (mods JAR files)
+uploads/
