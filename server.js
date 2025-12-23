@@ -1741,6 +1741,8 @@ function createApp() {
 
   // ============================================
   // STRONGEST POKEMON RANKING
+  // Un Pokémon por jugador (el más fuerte)
+  // Stats REALES, no aproximaciones
   // ============================================
 
   // Cache for strongest pokemon ranking (updates every 2 hours)
@@ -1786,29 +1788,36 @@ function createApp() {
     return (basePower * shinyBonus * friendshipBonus) + ivPrecision;
   }
 
-  // Generate approximate stats for privacy
-  function generateApproximateStats(pokemon) {
+  // Generate REAL stats (not approximations)
+  function generateRealStats(pokemon) {
     const ivs = pokemon.ivs || { hp: 0, attack: 0, defense: 0, spAttack: 0, spDefense: 0, speed: 0 };
     const evs = pokemon.evs || { hp: 0, attack: 0, defense: 0, spAttack: 0, spDefense: 0, speed: 0 };
     
-    const levelMin = Math.floor((pokemon.level || 1) / 5) * 5;
-    const levelMax = levelMin + 5;
-    
-    const ivTotal = (ivs.hp || 0) + (ivs.attack || 0) + (ivs.defense || 0) + 
-                    (ivs.spAttack || 0) + (ivs.spDefense || 0) + (ivs.speed || 0);
-    const ivMin = Math.floor(ivTotal / 10) * 10;
-    const ivMax = ivMin + 10;
-    
-    const evTotal = (evs.hp || 0) + (evs.attack || 0) + (evs.defense || 0) + 
-                    (evs.spAttack || 0) + (evs.spDefense || 0) + (evs.speed || 0);
-    const evMin = Math.floor(evTotal / 50) * 50;
-    const evMax = evMin + 50;
-    
     return {
-      level: `~${levelMin}-${levelMax}`,
-      totalIVs: `~${ivMin}-${ivMax}`,
-      totalEVs: `~${evMin}-${evMax}`,
+      level: pokemon.level || 1,
+      ivs: {
+        hp: ivs.hp || 0,
+        attack: ivs.attack || 0,
+        defense: ivs.defense || 0,
+        spAttack: ivs.spAttack || 0,
+        spDefense: ivs.spDefense || 0,
+        speed: ivs.speed || 0,
+        total: (ivs.hp || 0) + (ivs.attack || 0) + (ivs.defense || 0) + 
+               (ivs.spAttack || 0) + (ivs.spDefense || 0) + (ivs.speed || 0),
+      },
+      evs: {
+        hp: evs.hp || 0,
+        attack: evs.attack || 0,
+        defense: evs.defense || 0,
+        spAttack: evs.spAttack || 0,
+        spDefense: evs.spDefense || 0,
+        speed: evs.speed || 0,
+        total: (evs.hp || 0) + (evs.attack || 0) + (evs.defense || 0) + 
+               (evs.spAttack || 0) + (evs.spDefense || 0) + (evs.speed || 0),
+      },
       nature: pokemon.nature || 'Unknown',
+      shiny: pokemon.shiny || false,
+      friendship: pokemon.friendship || 0,
     };
   }
 
@@ -1819,29 +1828,26 @@ function createApp() {
     }
     
     try {
-      const prompt = `Eres un analista experto de Pokémon competitivo. Analiza meticulosamente este ranking de los Pokémon más fuertes del servidor Cobblemon Los Pitufos.
+      const prompt = `Eres un analista experto de Pokémon competitivo. Analiza este ranking de los Pokémon más fuertes del servidor Cobblemon Los Pitufos.
 
-DATOS DEL RANKING (Top 10):
+DATOS DEL RANKING (Top 10 - Un Pokémon por jugador):
 ${topPokemon.slice(0, 10).map((p, i) => `
-#${i + 1}: 
-- Entrenador: ${p.ownerUsername}
-- Pokémon totales del entrenador: ${p.ownerTotalPokemon}
-- Puntaje de poder: ${p.powerScoreDisplay.toLocaleString()}
-- Nivel aproximado: ${p.approximateStats.level}
-- IVs totales aproximados: ${p.approximateStats.totalIVs}
-- EVs totales aproximados: ${p.approximateStats.totalEVs}
-- Naturaleza: ${p.approximateStats.nature}
+#${i + 1}: ${p.ownerUsername}
+- Puntaje: ${p.powerScoreDisplay.toLocaleString()}
+- Nivel: ${p.realStats.level}
+- IVs: ${p.realStats.ivs.total}/186 (HP:${p.realStats.ivs.hp} ATK:${p.realStats.ivs.attack} DEF:${p.realStats.ivs.defense} SPA:${p.realStats.ivs.spAttack} SPD:${p.realStats.ivs.spDefense} SPE:${p.realStats.ivs.speed})
+- EVs: ${p.realStats.evs.total}/510
+- Naturaleza: ${p.realStats.nature}
+- Shiny: ${p.realStats.shiny ? 'Sí' : 'No'}
 `).join('\n')}
 
 INSTRUCCIONES:
-1. Analiza la distribución de poder entre los top entrenadores
-2. Comenta sobre las naturalezas elegidas y su efectividad
-3. Evalúa el balance entre IVs y EVs
-4. Da una conclusión sobre quién tiene el Pokémon más optimizado
-5. Sé conciso pero perspicaz (máximo 200 palabras)
-6. Responde en español
-7. NO menciones nombres de especies de Pokémon (son privados)
-8. Usa un tono profesional pero accesible`;
+1. Analiza quién tiene el Pokémon mejor optimizado
+2. Comenta sobre la distribución de IVs y EVs
+3. Evalúa las naturalezas elegidas
+4. Máximo 150 palabras, en español
+5. NO menciones especies de Pokémon (son secretas)
+6. Tono profesional pero accesible`;
 
       const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
@@ -1850,18 +1856,19 @@ INSTRUCCIONES:
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'llama-3.1-70b-versatile',
+          model: 'moonshotai/kimi-k2-instruct-0905',
           messages: [
-            { role: 'system', content: 'Eres un analista experto de Pokémon competitivo.' },
+            { role: 'system', content: 'Eres un analista experto de Pokémon competitivo. Responde siempre en español.' },
             { role: 'user', content: prompt },
           ],
-          max_tokens: 500,
+          max_tokens: 400,
           temperature: 0.7,
         }),
       });
 
       if (!response.ok) {
-        console.error('[GROK] Error en API:', response.status);
+        const errorText = await response.text();
+        console.error('[GROK] Error en API:', response.status, errorText);
         return 'Análisis de IA temporalmente no disponible.';
       }
 
@@ -1897,53 +1904,52 @@ INSTRUCCIONES:
         minecraftUsername: { $exists: true, $ne: null },
       }).toArray();
 
-      // Collect all pokemon with owners
-      const allPokemonWithOwners = [];
-      
+      let totalPokemonAnalyzed = 0;
+      const strongestPerPlayer = [];
+
+      // For each player, find their strongest Pokemon
       for (const user of users) {
         const allUserPokemon = [
           ...(user.party || []),
           ...(user.pcStorage || []).flatMap(box => box?.pokemon || []),
         ].filter(p => p && p.level && p.ivs && p.evs);
 
+        totalPokemonAnalyzed += allUserPokemon.length;
+
+        if (allUserPokemon.length === 0) continue;
+
+        // Find strongest pokemon for this user
+        let strongestPokemon = null;
+        let highestPower = 0;
+
         for (const pokemon of allUserPokemon) {
-          if (pokemon) {
-            allPokemonWithOwners.push({
-              pokemon,
-              owner: user,
-              totalPokemon: allUserPokemon.length,
-            });
+          if (!pokemon) continue;
+          const power = calculatePokemonPower(pokemon);
+          if (power > highestPower) {
+            highestPower = power;
+            strongestPokemon = pokemon;
           }
+        }
+
+        if (strongestPokemon) {
+          strongestPerPlayer.push({
+            ownerUsername: user.minecraftUsername || user.nickname || 'Desconocido',
+            ownerTotalPokemon: allUserPokemon.length,
+            powerScoreDisplay: Math.round(highestPower),
+            realStats: generateRealStats(strongestPokemon),
+            calculatedAt: now,
+            rank: 0,
+          });
         }
       }
 
-      console.log(`[STRONGEST POKEMON] Analizando ${allPokemonWithOwners.length} Pokémon...`);
-
-      // Calculate power scores
-      const pokemonScores = allPokemonWithOwners.map(({ pokemon, owner, totalPokemon }) => {
-        const powerScore = calculatePokemonPower(pokemon);
-        
-        // Generate random sprite (NOT the real pokemon)
-        const allIds = Array.from({ length: 1010 }, (_, i) => i + 1);
-        const filtered = allIds.filter(id => id !== pokemon.speciesId);
-        const randomSpriteId = filtered[Math.floor(Math.random() * filtered.length)] || 25;
-        
-        return {
-          ownerUsername: owner.minecraftUsername || owner.nickname || 'Desconocido',
-          ownerTotalPokemon: totalPokemon,
-          powerScoreDisplay: Math.round(powerScore),
-          approximateStats: generateApproximateStats(pokemon),
-          randomSpriteId,
-          calculatedAt: now,
-          rank: 0,
-        };
-      });
+      console.log(`[STRONGEST POKEMON] ${strongestPerPlayer.length} jugadores con Pokémon, ${totalPokemonAnalyzed} total analizados`);
 
       // Sort by power (highest first)
-      pokemonScores.sort((a, b) => b.powerScoreDisplay - a.powerScoreDisplay);
+      strongestPerPlayer.sort((a, b) => b.powerScoreDisplay - a.powerScoreDisplay);
 
       // Assign ranks and take top 20
-      const topPokemon = pokemonScores.slice(0, 20).map((p, index) => ({
+      const topPokemon = strongestPerPlayer.slice(0, 20).map((p, index) => ({
         ...p,
         rank: index + 1,
       }));
@@ -1961,7 +1967,8 @@ INSTRUCCIONES:
       // Create result
       const result = {
         rankings: topPokemon,
-        totalAnalyzed: allPokemonWithOwners.length,
+        totalAnalyzed: totalPokemonAnalyzed,
+        totalPlayers: strongestPerPlayer.length,
         lastCalculated: now,
         nextUpdate,
         grokAnalysis,

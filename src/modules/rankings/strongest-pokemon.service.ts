@@ -237,7 +237,7 @@ INSTRUCCIONES:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama3-70b-8192',
+        model: 'moonshotai/kimi-k2-instruct-0905',
         messages: [
           { role: 'system', content: 'Eres un analista experto de Pokémon competitivo. Responde siempre en español.' },
           { role: 'user', content: prompt },
