@@ -44,8 +44,7 @@ export async function createRankingsRouter(): Promise<Router> {
         ownerUsername: r.ownerUsername,
         ownerTotalPokemon: r.ownerTotalPokemon,
         powerScoreDisplay: r.powerScoreDisplay,
-        approximateStats: r.approximateStats,
-        randomSpriteId: r.randomSpriteId,
+        realStats: r.realStats,
         calculatedAt: r.calculatedAt,
       }));
 
@@ -54,6 +53,7 @@ export async function createRankingsRouter(): Promise<Router> {
         data: {
           rankings: sanitizedRankings,
           totalAnalyzed: ranking.totalAnalyzed,
+          totalPlayers: ranking.totalPlayers,
           lastCalculated: ranking.lastCalculated,
           nextUpdate: ranking.nextUpdate,
           grokAnalysis: ranking.grokMasterAnalysis,
