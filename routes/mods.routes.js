@@ -9,10 +9,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
-// In-memory cache for mods (will be populated from DB)
-let modsCache = [];
-let packageCache = null;
-let packageVersion = '1.0.0';
+// Note: Caching can be implemented here if needed for performance
 
 /**
  * Initialize mods routes with database connection
@@ -203,8 +200,10 @@ function initModsRoutes(getDb) {
   // ============================================
   // GET /api/mods/package - Download all required mods as ZIP
   // ============================================
-  router.get('/package', async (req, res) => {
+  router.get('/package', async (_req, res) => {
     try {
+      const archiver = require('archiver');
+      
       const mods = await getModsCollection().find({ 
         isActive: true, 
         category: 'required' 
@@ -214,23 +213,99 @@ function initModsRoutes(getDb) {
         return res.status(404).json({ error: 'No hay mods requeridos' });
       }
       
-      // For now, return a JSON with download links
-      // In production, this would generate a ZIP file
       const pkgVersion = calculatePackageVersion(mods);
       
-      res.json({
-        message: 'Package download not yet implemented - use individual downloads',
-        version: pkgVersion,
-        mods: mods.map(m => ({
-          name: m.name,
-          version: m.version,
-          downloadUrl: m.downloadUrl || `/api/mods/${m._id}/download`,
-          website: m.website,
-        })),
+      // Set headers for ZIP download
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="LosPitufos-Mods-v${pkgVersion}.zip"`);
+      
+      // Create ZIP archive
+      const archive = archiver('zip', { zlib: { level: 9 } });
+      
+      archive.on('error', (err) => {
+        console.error('[MODS] Archive error:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Error al generar ZIP' });
+        }
       });
+      
+      // Pipe archive to response
+      archive.pipe(res);
+      
+      // Add README
+      const readme = `# Mods de Cobblemon Los Pitufos
+      
+Versión del paquete: ${pkgVersion}
+Fecha: ${new Date().toISOString()}
+
+## Instrucciones de instalación:
+1. Cierra Minecraft completamente
+2. Copia todos los archivos .jar a tu carpeta de mods:
+   - Windows: %appdata%\\.minecraft\\mods
+   - Mac: ~/Library/Application Support/minecraft/mods
+   - Linux: ~/.minecraft/mods
+3. Inicia Minecraft con Fabric Loader 1.20.1
+
+## Mods incluidos:
+${mods.map(m => `- ${m.name} v${m.version}`).join('\n')}
+
+## Soporte:
+Discord: https://discord.gg/lospitufos
+`;
+      archive.append(readme, { name: 'LEEME.txt' });
+      
+      // Download and add each mod
+      let addedCount = 0;
+      for (const mod of mods) {
+        try {
+          // Check if mod has local file
+          if (mod.filePath && fs.existsSync(mod.filePath)) {
+            archive.file(mod.filePath, { name: mod.filename });
+            addedCount++;
+            console.log(`[MODS] Added local file: ${mod.filename}`);
+          }
+          // Check if mod has downloadUrl
+          else if (mod.downloadUrl) {
+            try {
+              const response = await fetch(mod.downloadUrl);
+              if (response.ok) {
+                const buffer = await response.arrayBuffer();
+                archive.append(Buffer.from(buffer), { name: mod.filename });
+                addedCount++;
+                console.log(`[MODS] Downloaded and added: ${mod.filename}`);
+              } else {
+                console.warn(`[MODS] Failed to download ${mod.name}: ${response.status}`);
+                // Add a placeholder text file
+                archive.append(`No se pudo descargar ${mod.name}.\nDescarga manual: ${mod.website || mod.downloadUrl}`, 
+                  { name: `${mod.slug}-DESCARGAR-MANUAL.txt` });
+              }
+            } catch (fetchErr) {
+              console.warn(`[MODS] Fetch error for ${mod.name}:`, fetchErr.message);
+              archive.append(`No se pudo descargar ${mod.name}.\nDescarga manual: ${mod.website || mod.downloadUrl}`, 
+                { name: `${mod.slug}-DESCARGAR-MANUAL.txt` });
+            }
+          }
+          // No file available
+          else {
+            console.warn(`[MODS] No file source for ${mod.name}`);
+            archive.append(`Descarga ${mod.name} desde: ${mod.website || 'modrinth.com'}`, 
+              { name: `${mod.slug}-DESCARGAR-MANUAL.txt` });
+          }
+        } catch (modErr) {
+          console.error(`[MODS] Error processing mod ${mod.name}:`, modErr);
+        }
+      }
+      
+      console.log(`[MODS] Package generated with ${addedCount}/${mods.length} mods`);
+      
+      // Finalize archive
+      await archive.finalize();
+      
     } catch (error) {
       console.error('[MODS] Error generating package:', error);
-      res.status(500).json({ error: 'Error al generar paquete' });
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Error al generar paquete' });
+      }
     }
   });
 
