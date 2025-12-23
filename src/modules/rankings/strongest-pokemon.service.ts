@@ -81,7 +81,7 @@ export interface StrongestPokemonRanking {
 // Cache del ranking
 let cachedRanking: StrongestPokemonRanking | null = null;
 let lastCalculation: Date | null = null;
-const CACHE_DURATION_MS = 2 * 60 * 60 * 1000; // 2 horas
+const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutos
 
 // ============================================
 // FUNCIONES DE CÁLCULO CON DECIMAL128

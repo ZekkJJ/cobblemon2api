@@ -1748,7 +1748,7 @@ function createApp() {
   // Cache for strongest pokemon ranking (updates every 2 hours)
   let strongestPokemonCache = null;
   let lastStrongestCalculation = null;
-  const STRONGEST_CACHE_DURATION = 2 * 60 * 60 * 1000; // 2 hours
+  const STRONGEST_CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
 
   // Calculate pokemon power with high precision
   function calculatePokemonPower(pokemon) {
