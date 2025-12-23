@@ -1782,7 +1782,7 @@ function createApp() {
   // POST /api/tournaments - Create tournament (admin)
   app.post('/api/tournaments', async (req, res) => {
     try {
-      const { name, description, startDate, maxParticipants, bracketType, prizes, rules, format } = req.body;
+      const { name, description, startDate, maxParticipants, bracketType, prizes, rules, format, registrationSeconds } = req.body;
       
       if (!name || !description || !startDate || !maxParticipants || !prizes) {
         return res.status(400).json({ error: 'Missing required fields' });
@@ -1802,6 +1802,7 @@ function createApp() {
         format: format || '6v6 Singles',
         code,
         status: 'registration',
+        registrationSeconds: parseInt(registrationSeconds) || 30, // Default 30 seconds for in-game registration
         participants: [],
         bracket: null,
         createdAt: new Date(),
@@ -1812,7 +1813,7 @@ function createApp() {
       const result = await getDb().collection('tournaments').insertOne(tournament);
       tournament._id = result.insertedId;
 
-      console.log(`[TOURNAMENTS] Created tournament: ${name} (${code})`);
+      console.log(`[TOURNAMENTS] Created tournament: ${name} (${code}) - ${tournament.registrationSeconds}s registration`);
       res.status(201).json({ success: true, data: tournament, message: `Torneo creado con código: ${code}` });
     } catch (error) {
       console.error('[TOURNAMENTS CREATE] Error:', error);
@@ -1867,6 +1868,242 @@ function createApp() {
     } catch (error) {
       console.error('[TOURNAMENTS DELETE] Error:', error);
       res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/tournaments/register - Register player to tournament (from plugin)
+  app.post('/api/tournaments/register', async (req, res) => {
+    try {
+      const { code, minecraftUuid, username } = req.body;
+      
+      if (!code || !minecraftUuid || !username) {
+        return res.status(400).json({ success: false, message: 'code, minecraftUuid and username required' });
+      }
+
+      const db = getDb();
+      const tournament = await db.collection('tournaments').findOne({ 
+        code: code.toUpperCase() 
+      });
+
+      if (!tournament) {
+        return res.status(404).json({ success: false, message: 'INVALID_CODE: Código de torneo inválido' });
+      }
+
+      if (tournament.status !== 'registration') {
+        return res.status(400).json({ success: false, message: 'REGISTRATION_CLOSED: Las inscripciones están cerradas' });
+      }
+
+      if (tournament.participants.length >= tournament.maxParticipants) {
+        return res.status(400).json({ success: false, message: 'TOURNAMENT_FULL: El torneo está lleno' });
+      }
+
+      // Check if already registered
+      const alreadyRegistered = tournament.participants.some(p => p.minecraftUuid === minecraftUuid);
+      if (alreadyRegistered) {
+        return res.status(400).json({ success: false, message: 'ALREADY_REGISTERED: Ya estás inscrito en este torneo' });
+      }
+
+      // Create participant
+      const participant = {
+        id: crypto.randomBytes(4).toString('hex'),
+        minecraftUuid,
+        username,
+        seed: tournament.participants.length + 1,
+        registeredAt: new Date(),
+      };
+
+      // Add to tournament
+      await db.collection('tournaments').updateOne(
+        { _id: tournament._id },
+        { 
+          $push: { participants: participant },
+          $set: { updatedAt: new Date() }
+        }
+      );
+
+      // Get updated tournament
+      const updatedTournament = await db.collection('tournaments').findOne({ _id: tournament._id });
+
+      console.log(`[TOURNAMENTS] Player ${username} (${minecraftUuid}) registered to ${tournament.name}`);
+      
+      res.json({ 
+        success: true, 
+        data: {
+          tournament: updatedTournament,
+          participant
+        },
+        message: `Inscrito en ${tournament.name}`
+      });
+    } catch (error) {
+      console.error('[TOURNAMENTS REGISTER] Error:', error);
+      res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+  });
+
+  // POST /api/tournaments/:id/leave - Leave tournament (from plugin)
+  app.post('/api/tournaments/:id/leave', async (req, res) => {
+    try {
+      const { minecraftUuid } = req.body;
+      
+      if (!minecraftUuid) {
+        return res.status(400).json({ success: false, message: 'minecraftUuid required' });
+      }
+
+      const db = getDb();
+      const tournament = await db.collection('tournaments').findOne({ 
+        _id: new ObjectId(req.params.id) 
+      });
+
+      if (!tournament) {
+        return res.status(404).json({ success: false, message: 'Tournament not found' });
+      }
+
+      if (tournament.status === 'active') {
+        return res.status(400).json({ success: false, message: 'Cannot leave an active tournament' });
+      }
+
+      // Remove participant
+      await db.collection('tournaments').updateOne(
+        { _id: tournament._id },
+        { 
+          $pull: { participants: { minecraftUuid } },
+          $set: { updatedAt: new Date() }
+        }
+      );
+
+      console.log(`[TOURNAMENTS] Player ${minecraftUuid} left ${tournament.name}`);
+      res.json({ success: true, message: 'Left tournament' });
+    } catch (error) {
+      console.error('[TOURNAMENTS LEAVE] Error:', error);
+      res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+  });
+
+  // GET /api/tournaments/player/:uuid - Get tournament for a player
+  app.get('/api/tournaments/player/:uuid', async (req, res) => {
+    try {
+      const tournament = await getDb().collection('tournaments').findOne({
+        'participants.minecraftUuid': req.params.uuid,
+        status: { $in: ['registration', 'active'] }
+      });
+
+      if (!tournament) {
+        return res.json({ success: true, data: null });
+      }
+
+      res.json({ success: true, data: tournament });
+    } catch (error) {
+      console.error('[TOURNAMENTS PLAYER] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/tournaments/find-match - Find match between two players
+  app.post('/api/tournaments/find-match', async (req, res) => {
+    try {
+      const { player1Uuid, player2Uuid } = req.body;
+      
+      if (!player1Uuid || !player2Uuid) {
+        return res.status(400).json({ success: false, message: 'player1Uuid and player2Uuid required' });
+      }
+
+      const db = getDb();
+      
+      // Find tournament where both players are participants
+      const tournament = await db.collection('tournaments').findOne({
+        status: 'active',
+        'participants.minecraftUuid': { $all: [player1Uuid, player2Uuid] }
+      });
+
+      if (!tournament || !tournament.bracket) {
+        return res.json({ success: true, data: null });
+      }
+
+      // Find participant IDs
+      const p1 = tournament.participants.find(p => p.minecraftUuid === player1Uuid);
+      const p2 = tournament.participants.find(p => p.minecraftUuid === player2Uuid);
+
+      if (!p1 || !p2) {
+        return res.json({ success: true, data: null });
+      }
+
+      // Find active match between these players
+      for (const round of tournament.bracket.rounds || []) {
+        for (const match of round.matches || []) {
+          if (match.status === 'ready' || match.status === 'active') {
+            const matchPlayers = [match.player1Id, match.player2Id];
+            if (matchPlayers.includes(p1.id) && matchPlayers.includes(p2.id)) {
+              return res.json({ 
+                success: true, 
+                data: { match, tournament }
+              });
+            }
+          }
+        }
+      }
+
+      res.json({ success: true, data: null });
+    } catch (error) {
+      console.error('[TOURNAMENTS FIND-MATCH] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/tournaments/matches/:matchId/result - Report match result
+  app.post('/api/tournaments/matches/:matchId/result', async (req, res) => {
+    try {
+      const { winnerId, loserId, victoryType, tournamentId } = req.body;
+      
+      if (!winnerId || !tournamentId) {
+        return res.status(400).json({ success: false, message: 'winnerId and tournamentId required' });
+      }
+
+      const db = getDb();
+      const tournament = await db.collection('tournaments').findOne({ 
+        _id: new ObjectId(tournamentId) 
+      });
+
+      if (!tournament || !tournament.bracket) {
+        return res.status(404).json({ success: false, message: 'Tournament or bracket not found' });
+      }
+
+      // Find and update the match
+      let matchFound = false;
+      for (const round of tournament.bracket.rounds) {
+        for (const match of round.matches) {
+          if (match.id === req.params.matchId) {
+            match.winnerId = winnerId;
+            match.loserId = loserId;
+            match.status = 'completed';
+            match.victoryType = victoryType || 'KO';
+            match.completedAt = new Date();
+            matchFound = true;
+            break;
+          }
+        }
+        if (matchFound) break;
+      }
+
+      if (!matchFound) {
+        return res.status(404).json({ success: false, message: 'Match not found' });
+      }
+
+      // Update tournament
+      await db.collection('tournaments').updateOne(
+        { _id: tournament._id },
+        { 
+          $set: { 
+            bracket: tournament.bracket,
+            updatedAt: new Date()
+          }
+        }
+      );
+
+      console.log(`[TOURNAMENTS] Match ${req.params.matchId} result: ${winnerId} won (${victoryType})`);
+      res.json({ success: true, message: 'Match result recorded' });
+    } catch (error) {
+      console.error('[TOURNAMENTS MATCH RESULT] Error:', error);
+      res.status(500).json({ success: false, message: 'Internal server error' });
     }
   });
 
