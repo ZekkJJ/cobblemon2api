@@ -168,73 +168,8 @@ function initModsRoutes(getDb) {
   });
 
   // ============================================
-  // GET /api/mods/:id - Get single mod
-  // ============================================
-  router.get('/:id', async (req, res) => {
-    try {
-      const { ObjectId } = require('mongodb');
-      const mod = await getModsCollection().findOne({ 
-        _id: new ObjectId(req.params.id),
-        isActive: true 
-      });
-      
-      if (!mod) {
-        return res.status(404).json({ error: 'Mod no encontrado' });
-      }
-      
-      res.json(mod);
-    } catch (error) {
-      console.error('[MODS] Error getting mod:', error);
-      res.status(500).json({ error: 'Error al obtener mod' });
-    }
-  });
-
-  // ============================================
-  // GET /api/mods/:id/download - Download mod file
-  // ============================================
-  router.get('/:id/download', async (req, res) => {
-    try {
-      const { ObjectId } = require('mongodb');
-      const mod = await getModsCollection().findOne({ 
-        _id: new ObjectId(req.params.id),
-        isActive: true 
-      });
-      
-      if (!mod) {
-        return res.status(404).json({ error: 'Mod no encontrado' });
-      }
-      
-      // Prioridad 1: Archivo local
-      if (mod.filePath && fs.existsSync(mod.filePath)) {
-        res.setHeader('Content-Disposition', `attachment; filename="${mod.filename}"`);
-        res.setHeader('Content-Type', 'application/java-archive');
-        res.setHeader('Content-Length', mod.originalSize || fs.statSync(mod.filePath).size);
-        return res.sendFile(path.resolve(mod.filePath));
-      }
-      
-      // Prioridad 2: URL externa
-      if (mod.downloadUrl) {
-        return res.redirect(mod.downloadUrl);
-      }
-      
-      // Fallback: return mod info with download instructions
-      res.status(404).json({ 
-        error: 'Archivo no disponible',
-        mod: {
-          name: mod.name,
-          version: mod.version,
-          website: mod.website,
-        },
-        message: 'El archivo debe descargarse desde la fuente original'
-      });
-    } catch (error) {
-      console.error('[MODS] Error downloading mod:', error);
-      res.status(500).json({ error: 'Error al descargar mod' });
-    }
-  });
-
-  // ============================================
   // GET /api/mods/package - Download all required mods as ZIP
+  // IMPORTANTE: Esta ruta debe estar ANTES de /:id
   // ============================================
   router.get('/package', async (_req, res) => {
     try {
@@ -356,6 +291,85 @@ Visita https://modrinth.com para descargarlos.
       if (!res.headersSent) {
         res.status(500).json({ error: 'Error al generar paquete' });
       }
+    }
+  });
+
+  // ============================================
+  // GET /api/mods/:id - Get single mod
+  // IMPORTANTE: Esta ruta debe estar DESPUÉS de las rutas específicas
+  // ============================================
+  router.get('/:id', async (req, res) => {
+    try {
+      const { ObjectId } = require('mongodb');
+      
+      // Validar que el ID sea un ObjectId válido
+      if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+        return res.status(400).json({ error: 'ID de mod inválido' });
+      }
+      
+      const mod = await getModsCollection().findOne({ 
+        _id: new ObjectId(req.params.id),
+        isActive: true 
+      });
+      
+      if (!mod) {
+        return res.status(404).json({ error: 'Mod no encontrado' });
+      }
+      
+      res.json(mod);
+    } catch (error) {
+      console.error('[MODS] Error getting mod:', error);
+      res.status(500).json({ error: 'Error al obtener mod' });
+    }
+  });
+
+  // ============================================
+  // GET /api/mods/:id/download - Download mod file
+  // ============================================
+  router.get('/:id/download', async (req, res) => {
+    try {
+      const { ObjectId } = require('mongodb');
+      
+      // Validar que el ID sea un ObjectId válido
+      if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+        return res.status(400).json({ error: 'ID de mod inválido' });
+      }
+      
+      const mod = await getModsCollection().findOne({ 
+        _id: new ObjectId(req.params.id),
+        isActive: true 
+      });
+      
+      if (!mod) {
+        return res.status(404).json({ error: 'Mod no encontrado' });
+      }
+      
+      // Prioridad 1: Archivo local
+      if (mod.filePath && fs.existsSync(mod.filePath)) {
+        res.setHeader('Content-Disposition', `attachment; filename="${mod.filename}"`);
+        res.setHeader('Content-Type', 'application/java-archive');
+        res.setHeader('Content-Length', mod.originalSize || fs.statSync(mod.filePath).size);
+        return res.sendFile(path.resolve(mod.filePath));
+      }
+      
+      // Prioridad 2: URL externa
+      if (mod.downloadUrl) {
+        return res.redirect(mod.downloadUrl);
+      }
+      
+      // Fallback: return mod info with download instructions
+      res.status(404).json({ 
+        error: 'Archivo no disponible',
+        mod: {
+          name: mod.name,
+          version: mod.version,
+          website: mod.website,
+        },
+        message: 'El archivo debe descargarse desde la fuente original'
+      });
+    } catch (error) {
+      console.error('[MODS] Error downloading mod:', error);
+      res.status(500).json({ error: 'Error al descargar mod' });
     }
   });
 
