@@ -1910,7 +1910,7 @@ INSTRUCCIONES:
       // For each player, find their strongest Pokemon
       for (const user of users) {
         const allUserPokemon = [
-          ...(user.party || []),
+          ...(user.pokemonParty || user.party || []),
           ...(user.pcStorage || []).flatMap(box => box?.pokemon || []),
         ].filter(p => p && p.level && p.ivs && p.evs);
 
