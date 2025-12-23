@@ -26,6 +26,7 @@ import { createTournamentsRouter } from './modules/tournaments/tournaments.route
 import { createLevelCapsRouter } from './modules/level-caps/level-caps.routes.js';
 import { createAdminRouter } from './modules/admin/admin.routes.js';
 import { createModsRouter } from './modules/mods/mods.routes.js';
+import { createRankingsRouter } from './modules/rankings/rankings.routes.js';
 
 /**
  * Crea y configura la aplicación Express
@@ -228,6 +229,7 @@ export async function createApp(): Promise<Application> {
   const levelCapsRouter = await createLevelCapsRouter();
   const adminRouter = await createAdminRouter();
   const modsRouter = await createModsRouter();
+  const rankingsRouter = await createRankingsRouter();
 
   // Registrar rutas
   app.use('/api/auth', authRouter);
@@ -241,6 +243,7 @@ export async function createApp(): Promise<Application> {
   app.use('/api/level-caps', levelCapsRouter);
   app.use('/api/admin', adminRouter);
   app.use('/api/mods', modsRouter);
+  app.use('/api/rankings', rankingsRouter);
 
   // Alias para cuando el reverse proxy pasa el path completo
   // Esto soluciona los 404 cuando la request llega como /port/25617/api/...
@@ -256,6 +259,7 @@ export async function createApp(): Promise<Application> {
   apiRouter.use('/level-caps', levelCapsRouter);
   apiRouter.use('/admin', adminRouter);
   apiRouter.use('/mods', modsRouter);
+  apiRouter.use('/rankings', rankingsRouter);
 
   app.use('/port/25617/api', apiRouter);
 
