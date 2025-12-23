@@ -9,6 +9,30 @@ import { ObjectId } from 'mongodb';
 import { z } from 'zod';
 
 // ============================================
+// TIPOS DE VICTORIA Y ESTADOS
+// ============================================
+
+/**
+ * Tipos de victoria en un match
+ */
+export type VictoryType = 'KO' | 'FORFEIT' | 'TIMEOUT' | 'DRAW' | 'ADMIN_DECISION' | 'BYE';
+
+/**
+ * Estados de un match
+ */
+export type MatchStatus = 'pending' | 'ready' | 'active' | 'completed' | 'requires_admin';
+
+/**
+ * Estados de un participante
+ */
+export type ParticipantStatus = 'registered' | 'active' | 'eliminated' | 'winner';
+
+/**
+ * Estados de un torneo
+ */
+export type TournamentStatus = 'draft' | 'registration' | 'upcoming' | 'active' | 'completed' | 'cancelled';
+
+// ============================================
 // INTERFACES PRINCIPALES
 // ============================================
 
@@ -16,33 +40,64 @@ import { z } from 'zod';
  * Participante de un torneo
  */
 export interface TournamentParticipant {
-  visitorId: string;
-  username: string;
-  discordId?: string;
-  minecraftUuid?: string;
-  seed: number;
-  eliminated: boolean;
-  eliminatedAt?: string;
-  eliminatedBy?: string;
+  id: string;                    // ID interno único
+  visitorId?: string;            // ID de visitante (legacy)
+  username: string;              // Nombre de usuario de Minecraft
+  discordId?: string;            // ID de Discord si está vinculado
+  minecraftUuid: string;         // UUID de Minecraft (requerido)
+  
+  seed: number;                  // Posición de seeding
+  status: ParticipantStatus;     // Estado del participante
+  
+  eliminated: boolean;           // Si está eliminado (legacy, usar status)
+  eliminatedAt?: string;         // Fecha de eliminación
+  eliminatedBy?: string;         // UUID del oponente que lo eliminó
+  finalPlacement?: number;       // Posición final (1ro, 2do, etc.)
+  
+  registeredAt: string;          // Fecha de registro
 }
 
 /**
  * Match de un torneo
  */
 export interface TournamentMatch {
-  matchId: string;
-  roundNumber: number;
-  position: { x: number; y: number };
-  player1Id: string | null;
+  id: string;                    // ID único del match
+  matchId?: string;              // Alias para compatibilidad
+  tournamentId: string;          // ID del torneo
+  
+  // Posición en el bracket
+  roundNumber: number;           // Número de ronda (1, 2, 3...)
+  matchNumber: number;           // Posición dentro de la ronda
+  bracketSide?: 'winners' | 'losers';  // Para eliminación doble
+  position?: { x: number; y: number }; // Posición visual (legacy)
+  
+  // Participantes
+  player1Id: string | null;      // null = bye o TBD
   player2Id: string | null;
-  player1Score: number;
-  player2Score: number;
+  player1Score?: number;         // Puntuación (opcional)
+  player2Score?: number;
+  
+  // Resultado
   winnerId: string | null;
-  isBye: boolean;
-  status: 'pending' | 'active' | 'completed';
-  nextMatchId: string | null;
+  loserId: string | null;
+  victoryType?: VictoryType;
+  
+  // Estado
+  status: MatchStatus;
+  isBye: boolean;                // Si es un bye automático
+  
+  // Tiempos
   scheduledAt?: string;
+  startedAt?: string;
   completedAt?: string;
+  
+  // Navegación del bracket
+  nextMatchId: string | null;         // El ganador va aquí
+  nextLoserMatchId?: string | null;   // Para eliminación doble
+  
+  // Metadatos
+  adminOverride: boolean;        // Si el resultado fue forzado por admin
+  adminId?: string;              // Admin que forzó el resultado
 }
 
 /**
@@ -50,8 +105,21 @@ export interface TournamentMatch {
  */
 export interface TournamentRound {
   roundNumber: number;
-  name: string;
+  name: string;                  // "Ronda 1", "Cuartos", "Semifinal", "Final"
   matches: TournamentMatch[];
+  isComplete: boolean;           // Si todos los matches están completados
+}
+
+/**
+ * Estructura del bracket
+ */
+export interface BracketStructure {
+  type: 'single' | 'double';
+  rounds: TournamentRound[];
+  currentRound: number;
+  totalRounds: number;
+  winnerId: string | null;
+  losersRounds?: TournamentRound[];  // Para eliminación doble
 }
 
 /**
@@ -69,8 +137,11 @@ export interface TournamentPrize {
  */
 export interface Tournament {
   _id?: ObjectId;
+  
+  // Identificación
+  code: string;                  // Código único de 6 caracteres (ej: "AX7F9B")
   name: string;
-  title?: string; // Alias para compatibilidad
+  title?: string;                // Alias para compatibilidad
   description: string;
   rules?: string;
   
@@ -83,14 +154,16 @@ export interface Tournament {
   maxParticipants: number;
   minParticipants?: number;
   bracketType: 'single' | 'double';
-  format?: string; // ej: "6v6 Singles", "3v3 Doubles"
+  format?: string;               // ej: "6v6 Singles", "3v3 Doubles"
   
   // Estado
-  status: 'draft' | 'upcoming' | 'active' | 'completed' | 'cancelled';
+  status: TournamentStatus;
+  currentRound: number;
   
   // Participantes y brackets
   participants: TournamentParticipant[];
-  rounds: TournamentRound[];
+  bracket: BracketStructure | null;
+  rounds?: TournamentRound[];    // Legacy - usar bracket.rounds
   
   // Resultados
   winnerId?: string;
@@ -101,6 +174,7 @@ export interface Tournament {
   createdBy: string;
   createdAt: Date;
   updatedAt?: Date;
+  version: number;               // Para optimistic locking
   
   // Imagen/banner opcional
   imageUrl?: string;
@@ -111,6 +185,7 @@ export interface Tournament {
  */
 export interface PublicTournament {
   _id?: ObjectId;
+  code: string;                  // Código para inscripción
   name: string;
   description: string;
   startDate: string;
@@ -121,6 +196,8 @@ export interface PublicTournament {
   winnerId?: string;
   winnerUsername?: string;
   imageUrl?: string;
+  bracketType: 'single' | 'double';
+  format?: string;
 }
 
 /**
@@ -131,6 +208,7 @@ export interface CreateTournamentData {
   description: string;
   startDate: string;
   endDate?: string;
+  registrationDeadline?: string;
   maxParticipants: number;
   minParticipants?: number;
   bracketType?: 'single' | 'double';
@@ -148,6 +226,7 @@ export interface UpdateTournamentData {
   description?: string;
   startDate?: string;
   endDate?: string;
+  registrationDeadline?: string;
   maxParticipants?: number;
   status?: Tournament['status'];
   prizes?: string;
@@ -155,6 +234,25 @@ export interface UpdateTournamentData {
   winnerId?: string;
   winnerUsername?: string;
   imageUrl?: string;
+  currentRound?: number;
+}
+
+/**
+ * Datos para registrar un participante
+ */
+export interface RegisterParticipantData {
+  minecraftUuid: string;
+  username: string;
+  discordId?: string;
+}
+
+/**
+ * Datos para resultado de match
+ */
+export interface MatchResultData {
+  winnerId: string;
+  loserId: string;
+  victoryType: VictoryType;
 }
 
 /**
@@ -182,6 +280,7 @@ export const CreateTournamentSchema = z.object({
     'La fecha de inicio debe ser en el futuro'
   ),
   endDate: z.string().optional(),
+  registrationDeadline: z.string().optional(),
   maxParticipants: z.number().int().min(2, 'Mínimo 2 participantes').max(256, 'Máximo 256 participantes'),
   minParticipants: z.number().int().min(2).optional(),
   bracketType: z.enum(['single', 'double']).default('single'),
@@ -199,13 +298,33 @@ export const UpdateTournamentSchema = z.object({
   description: z.string().min(10).max(2000).optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
+  registrationDeadline: z.string().optional(),
   maxParticipants: z.number().int().min(2).max(256).optional(),
-  status: z.enum(['draft', 'upcoming', 'active', 'completed', 'cancelled']).optional(),
+  status: z.enum(['draft', 'registration', 'upcoming', 'active', 'completed', 'cancelled']).optional(),
   prizes: z.string().max(1000).optional(),
   rules: z.string().max(5000).optional(),
   winnerId: z.string().optional(),
   winnerUsername: z.string().optional(),
   imageUrl: z.string().url().optional(),
+  currentRound: z.number().int().min(0).optional(),
+});
+
+/**
+ * Esquema para registrar participante
+ */
+export const RegisterParticipantSchema = z.object({
+  minecraftUuid: z.string().min(1, 'UUID de Minecraft es requerido'),
+  username: z.string().min(1, 'Nombre de usuario es requerido').max(16),
+  discordId: z.string().optional(),
+});
+
+/**
+ * Esquema para resultado de match
+ */
+export const MatchResultSchema = z.object({
+  winnerId: z.string().min(1, 'ID del ganador es requerido'),
+  loserId: z.string().min(1, 'ID del perdedor es requerido'),
+  victoryType: z.enum(['KO', 'FORFEIT', 'TIMEOUT', 'DRAW', 'ADMIN_DECISION', 'BYE']),
 });
 
 /**
@@ -237,7 +356,7 @@ export function determineTournamentStatus(
   const end = endDate ? new Date(endDate) : null;
   
   if (now < start) {
-    return 'upcoming';
+    return currentStatus === 'registration' ? 'registration' : 'upcoming';
   }
   
   if (end && now > end) {
@@ -253,6 +372,7 @@ export function determineTournamentStatus(
 export function toPublicTournament(tournament: Tournament): PublicTournament {
   return {
     _id: tournament._id,
+    code: tournament.code,
     name: tournament.name,
     description: tournament.description,
     startDate: tournament.startDate,
@@ -263,6 +383,8 @@ export function toPublicTournament(tournament: Tournament): PublicTournament {
     winnerId: tournament.winnerId,
     winnerUsername: tournament.winnerUsername,
     imageUrl: tournament.imageUrl,
+    bracketType: tournament.bracketType,
+    format: tournament.format,
   };
 }
 
@@ -284,46 +406,97 @@ export function groupTournamentsByStatus(tournaments: Tournament[]): {
 /**
  * Verifica si un torneo acepta inscripciones
  */
-export function canRegister(tournament: Tournament): boolean {
-  if (tournament.status !== 'upcoming' && tournament.status !== 'draft') {
-    return false;
+export function canRegister(tournament: Tournament): { canRegister: boolean; reason?: string } {
+  if (tournament.status !== 'registration' && tournament.status !== 'upcoming' && tournament.status !== 'draft') {
+    return { canRegister: false, reason: 'REGISTRATION_CLOSED' };
   }
   
   if (tournament.participants.length >= tournament.maxParticipants) {
-    return false;
+    return { canRegister: false, reason: 'TOURNAMENT_FULL' };
   }
   
   if (tournament.registrationDeadline) {
     const deadline = new Date(tournament.registrationDeadline);
     if (new Date() > deadline) {
-      return false;
+      return { canRegister: false, reason: 'DEADLINE_PASSED' };
     }
   }
   
-  return true;
+  return { canRegister: true };
+}
+
+/**
+ * Verifica si un jugador ya está registrado en un torneo
+ */
+export function isPlayerRegistered(tournament: Tournament, minecraftUuid: string): boolean {
+  return tournament.participants.some(p => p.minecraftUuid === minecraftUuid);
 }
 
 /**
  * Crea un torneo por defecto
  */
-export function createDefaultTournament(data: CreateTournamentData, createdBy: string): Omit<Tournament, '_id'> {
+export function createDefaultTournament(data: CreateTournamentData, createdBy: string, code: string): Omit<Tournament, '_id'> {
   return {
+    code,
     name: data.name,
     title: data.name,
     description: data.description,
     startDate: data.startDate,
     endDate: data.endDate,
+    registrationDeadline: data.registrationDeadline,
     maxParticipants: data.maxParticipants,
     minParticipants: data.minParticipants,
     bracketType: data.bracketType || 'single',
     format: data.format,
-    status: 'upcoming',
+    status: 'registration',
+    currentRound: 0,
     participants: [],
+    bracket: null,
     rounds: [],
     prizes: data.prizes,
     rules: data.rules,
     imageUrl: data.imageUrl,
     createdBy,
     createdAt: new Date(),
+    version: 1,
   };
+}
+
+/**
+ * Crea un participante por defecto
+ */
+export function createDefaultParticipant(
+  data: RegisterParticipantData, 
+  seed: number
+): TournamentParticipant {
+  return {
+    id: `${data.minecraftUuid}-${Date.now()}`,
+    minecraftUuid: data.minecraftUuid,
+    username: data.username,
+    discordId: data.discordId,
+    seed,
+    status: 'registered',
+    eliminated: false,
+    registeredAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Obtiene el nombre de una ronda basado en el número total de rondas
+ */
+export function getRoundName(roundNumber: number, totalRounds: number): string {
+  const roundsFromEnd = totalRounds - roundNumber;
+  
+  switch (roundsFromEnd) {
+    case 0:
+      return 'Final';
+    case 1:
+      return 'Semifinales';
+    case 2:
+      return 'Cuartos de Final';
+    case 3:
+      return 'Octavos de Final';
+    default:
+      return `Ronda ${roundNumber}`;
+  }
 }

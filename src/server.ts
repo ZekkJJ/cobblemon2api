@@ -9,6 +9,7 @@
 import { createApp } from './app.js';
 import { connectToDatabase, closeDatabase } from './config/database.js';
 import { env, isDevelopment } from './config/env.js';
+import { initializeWebSocket, getWebSocketService } from './modules/tournaments/index.js';
 
 /**
  * Inicia el servidor
@@ -40,13 +41,29 @@ async function startServer() {
         console.log(`   GET  /api/shop/stock`);
         console.log(`   GET  /api/tournaments`);
         console.log(`   GET  /api/level-caps/effective`);
+        console.log(`   WS   /ws (WebSocket para torneos)`);
         console.log(`   ... y más\n`);
       }
     });
 
+    // Inicializar WebSocket para torneos
+    const corsOrigins = [
+      env.FRONTEND_URL,
+      'https://cobblemon-los-pitufos.vercel.app',
+      'http://localhost:3000',
+    ].filter(Boolean) as string[];
+    
+    initializeWebSocket(server, corsOrigins);
+    console.log('🔌 WebSocket inicializado para torneos');
+
     // Manejo de señales de terminación
     const gracefulShutdown = async (signal: string) => {
       console.log(`\n⚠️  Señal ${signal} recibida, cerrando servidor...`);
+      
+      // Cerrar WebSocket
+      const wsService = getWebSocketService();
+      wsService.close();
+      console.log('🔌 WebSocket cerrado');
       
       server.close(async () => {
         console.log('🔌 Servidor HTTP cerrado');
