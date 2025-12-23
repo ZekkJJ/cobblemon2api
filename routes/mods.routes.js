@@ -380,20 +380,51 @@ Visita https://modrinth.com para descargarlos.
       } = req.body;
       
       if (!name || !description || !category) {
+        // Si se subió archivo, eliminarlo
+        if (req.file && fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
         return res.status(400).json({ error: 'name, description, and category are required' });
       }
       
       const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
       
+      // Determinar filename para verificar duplicados
+      let filename = providedFilename || `${slug}.jar`;
+      if (req.file) {
+        filename = req.file.originalname;
+      }
+      
+      // Verificar si ya existe un mod con el mismo filename (activo)
+      const existingMod = await getModsCollection().findOne({ 
+        filename: filename,
+        isActive: true 
+      });
+      
+      if (existingMod) {
+        // Si se subió archivo, eliminarlo ya que es duplicado
+        if (req.file && fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
+        console.log(`[MODS] Duplicate detected: ${filename} (existing: ${existingMod.name})`);
+        return res.status(409).json({ 
+          error: 'duplicate',
+          message: `El mod "${existingMod.name}" ya existe con este archivo`,
+          existingMod: {
+            _id: existingMod._id,
+            name: existingMod.name,
+            version: existingMod.version,
+          }
+        });
+      }
+      
       // Si se subió un archivo, usar su info
       let filePath = null;
-      let filename = providedFilename || `${slug}.jar`;
       let fileSize = parseInt(providedSize) || 0;
       let checksum = '';
       
       if (req.file) {
         filePath = req.file.path;
-        filename = req.file.originalname;
         fileSize = req.file.size;
         
         // Calcular checksum del archivo
@@ -432,6 +463,10 @@ Visita https://modrinth.com para descargarlos.
       console.log(`[MODS] Created mod: ${name}${filePath ? ' (with file)' : ''}`);
       res.status(201).json(newMod);
     } catch (error) {
+      // Si hay error y se subió archivo, eliminarlo
+      if (req.file && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
       console.error('[MODS] Error creating mod:', error);
       res.status(500).json({ error: 'Error al crear mod' });
     }
