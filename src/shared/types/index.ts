@@ -8,6 +8,7 @@ export * from './pokemon.types.js';
 export * from './shop.types.js';
 export * from './tournament.types.js';
 export * from './level-caps.types.js';
+export * from './mod.types.js';
 
 // ============================================
 // TIPOS COMUNES DE API
