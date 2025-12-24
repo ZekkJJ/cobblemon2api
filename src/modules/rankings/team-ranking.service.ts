@@ -503,9 +503,9 @@ export class TeamRankingService {
     const currentLevelCap = await this.getCurrentLevelCap();
     const MINIMUM_TEAM_SIZE = 3;
 
+    // Get ALL users with minecraftUsername (not just verified)
     const users = await this.usersCollection
       .find({
-        verified: true,
         minecraftUsername: { $exists: true, $ne: '' },
       })
       .toArray();

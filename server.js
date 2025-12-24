@@ -2116,9 +2116,8 @@ INSTRUCCIONES:
         }
       } catch (e) { console.log('[TEAM RANKING] Level cap error:', e.message); }
 
-      // Get verified users
+      // Get ALL users with minecraftUsername (not just verified)
       const users = await db.collection('users').find({
-        verified: true,
         minecraftUsername: { $exists: true, $ne: '' },
       }).toArray();
 
