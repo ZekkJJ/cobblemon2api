@@ -2023,6 +2023,55 @@ INSTRUCCIONES:
   let lastTeamCalculation = null;
   const TEAM_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
+  // GET /api/rankings/team/debug - Debug endpoint to check party data
+  app.get('/api/rankings/team/debug', async (req, res) => {
+    try {
+      const db = getDb();
+      const users = await db.collection('users').find({
+        minecraftUsername: { $exists: true, $ne: '' }
+      }).toArray();
+
+      const stats = {
+        totalUsers: users.length,
+        usersWithParty: 0,
+        usersWithPokemonParty: 0,
+        usersWithValidTeam: 0,
+        sampleUsers: []
+      };
+
+      for (const user of users) {
+        const hasParty = user.party && Array.isArray(user.party) && user.party.length > 0;
+        const hasPokemonParty = user.pokemonParty && Array.isArray(user.pokemonParty) && user.pokemonParty.length > 0;
+        
+        if (hasParty) stats.usersWithParty++;
+        if (hasPokemonParty) stats.usersWithPokemonParty++;
+
+        const partyData = user.party || user.pokemonParty || [];
+        const validPokemon = partyData.filter(p => p && typeof p.level === 'number' && p.level > 0);
+        if (validPokemon.length >= 3) stats.usersWithValidTeam++;
+
+        // Add sample data for first 5 users
+        if (stats.sampleUsers.length < 5) {
+          stats.sampleUsers.push({
+            username: user.minecraftUsername,
+            hasParty,
+            hasPokemonParty,
+            partySize: hasParty ? user.party.length : (hasPokemonParty ? user.pokemonParty.length : 0),
+            validPokemonCount: validPokemon.length,
+            pokemonLevels: partyData.slice(0, 6).map(p => p?.level || 0),
+            verified: user.verified,
+            online: user.online
+          });
+        }
+      }
+
+      res.json({ success: true, data: stats });
+    } catch (error) {
+      console.error('[TEAM DEBUG] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Type chart for synergy calculations
   const TYPE_CHART = {
     normal: { weakTo: ['fighting'], resistsTo: [], immuneTo: ['ghost'] },
@@ -2124,8 +2173,16 @@ INSTRUCCIONES:
       const teamScores = [];
       let totalPlayersChecked = 0;
 
+      let usersWithPartyField = 0;
+      let usersWithPokemonPartyField = 0;
+
       for (const user of users) {
         totalPlayersChecked++;
+        
+        // Track which field has data
+        if (user.party && Array.isArray(user.party) && user.party.length > 0) usersWithPartyField++;
+        if (user.pokemonParty && Array.isArray(user.pokemonParty) && user.pokemonParty.length > 0) usersWithPokemonPartyField++;
+        
         // FIXED: Use user.party (from plugin sync) OR user.pokemonParty (legacy)
         const party = (user.party || user.pokemonParty || []).filter(
           p => p && typeof p.level === 'number' && p.level > 0 && p.level <= currentLevelCap
@@ -2338,12 +2395,18 @@ Analiza: 1) Mejor equipo y por qué, 2) Matchups clave, 3) Equipos sorpresa, 4) 
         currentLevelCap,
         minimumTeamSize: MINIMUM_TEAM_SIZE,
         timeUntilNextUpdate: { minutes: 5, seconds: 0 },
+        // Debug info
+        debug: {
+          usersWithPartyField,
+          usersWithPokemonPartyField,
+          teamsFiltered: totalPlayersChecked - teamScores.length,
+        }
       };
 
       cachedTeamRanking = result;
       lastTeamCalculation = now;
 
-      console.log(`[TEAM RANKING] ${teamScores.length} teams analyzed from ${totalPlayersChecked} players`);
+      console.log(`[TEAM RANKING] ${teamScores.length} teams analyzed from ${totalPlayersChecked} players (party: ${usersWithPartyField}, pokemonParty: ${usersWithPokemonPartyField})`);
       res.json({ success: true, data: result });
 
     } catch (error) {

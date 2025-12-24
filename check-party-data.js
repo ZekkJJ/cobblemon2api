@@ -1,74 +1,90 @@
 /**
- * Script para verificar datos de party en MongoDB
+ * Script de diagnóstico para verificar datos de party en MongoDB
+ * Ejecutar: node check-party-data.js
  */
+
 require('dotenv').config();
 const { MongoClient } = require('mongodb');
 
-async function check() {
-  const client = new MongoClient(process.env.MONGODB_URI);
-  await client.connect();
-  const db = client.db(process.env.MONGODB_DATABASE || 'admin');
+async function checkPartyData() {
+  const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/cobblemon';
+  const client = new MongoClient(uri);
 
-  console.log('\n=== VERIFICACIÓN DE DATOS DE PARTY ===\n');
+  try {
+    await client.connect();
+    console.log('✓ Conectado a MongoDB\n');
 
-  // Get all users with minecraftUsername
-  const users = await db.collection('users').find({
-    minecraftUsername: { $exists: true, $ne: '' }
-  }).toArray();
-
-  console.log(`Total usuarios con minecraftUsername: ${users.length}\n`);
-
-  let usersWithParty = 0;
-  let usersWithValidParty = 0;
-  let usersWithParty3Plus = 0;
-
-  for (const user of users) {
-    const party = user.pokemonParty || [];
-    const hasParty = party.length > 0;
+    const db = client.db();
     
-    // Check if party has valid pokemon
-    const validPokemon = party.filter(p => p && typeof p.level === 'number' && p.level > 0);
-    const hasValidParty = validPokemon.length > 0;
-    const has3Plus = validPokemon.length >= 3;
+    // Get all users with minecraftUsername
+    const users = await db.collection('users').find({
+      minecraftUsername: { $exists: true, $ne: '' }
+    }).toArray();
 
-    if (hasParty) usersWithParty++;
-    if (hasValidParty) usersWithValidParty++;
-    if (has3Plus) usersWithParty3Plus++;
+    console.log(`Total usuarios con minecraftUsername: ${users.length}\n`);
+    console.log('='.repeat(60));
 
-    console.log(`👤 ${user.minecraftUsername}`);
-    console.log(`   Party array length: ${party.length}`);
-    console.log(`   Valid pokemon (level > 0): ${validPokemon.length}`);
-    
-    if (party.length > 0) {
-      console.log(`   Party contents:`);
-      party.forEach((p, i) => {
-        if (p) {
-          console.log(`     [${i}] ${p.species || 'Unknown'} Lv.${p.level || 0} (uuid: ${p.uuid ? 'yes' : 'no'})`);
-        } else {
-          console.log(`     [${i}] null/empty slot`);
+    let usersWithParty = 0;
+    let usersWithPokemonParty = 0;
+    let usersWithBoth = 0;
+    let usersWithNeither = 0;
+    let usersWithValidTeam = 0;
+
+    for (const user of users) {
+      const hasParty = user.party && Array.isArray(user.party) && user.party.length > 0;
+      const hasPokemonParty = user.pokemonParty && Array.isArray(user.pokemonParty) && user.pokemonParty.length > 0;
+      
+      if (hasParty) usersWithParty++;
+      if (hasPokemonParty) usersWithPokemonParty++;
+      if (hasParty && hasPokemonParty) usersWithBoth++;
+      if (!hasParty && !hasPokemonParty) usersWithNeither++;
+
+      // Check for valid team (3+ pokemon with level > 0)
+      const partyData = user.party || user.pokemonParty || [];
+      const validPokemon = partyData.filter(p => p && typeof p.level === 'number' && p.level > 0);
+      if (validPokemon.length >= 3) {
+        usersWithValidTeam++;
+      }
+
+      // Show details for first 10 users
+      if (users.indexOf(user) < 10) {
+        console.log(`\n${user.minecraftUsername}:`);
+        console.log(`  - party: ${hasParty ? user.party.length + ' pokemon' : 'NO'}`);
+        console.log(`  - pokemonParty: ${hasPokemonParty ? user.pokemonParty.length + ' pokemon' : 'NO'}`);
+        console.log(`  - verified: ${user.verified}`);
+        console.log(`  - online: ${user.online}`);
+        
+        if (hasParty && user.party.length > 0) {
+          console.log(`  - Party pokemon levels: ${user.party.map(p => p?.level || 0).join(', ')}`);
         }
-      });
-    } else {
-      console.log(`   Party: EMPTY or not synced`);
+      }
     }
-    
-    // Check last sync time
-    if (user.updatedAt) {
-      const lastSync = new Date(user.updatedAt);
-      const minutesAgo = Math.round((Date.now() - lastSync.getTime()) / 60000);
-      console.log(`   Last updated: ${minutesAgo} minutes ago`);
+
+    console.log('\n' + '='.repeat(60));
+    console.log('\nRESUMEN:');
+    console.log(`  - Usuarios con campo 'party': ${usersWithParty}`);
+    console.log(`  - Usuarios con campo 'pokemonParty': ${usersWithPokemonParty}`);
+    console.log(`  - Usuarios con ambos campos: ${usersWithBoth}`);
+    console.log(`  - Usuarios SIN ningún campo de party: ${usersWithNeither}`);
+    console.log(`  - Usuarios con equipo válido (3+ pokemon): ${usersWithValidTeam}`);
+    console.log('\n' + '='.repeat(60));
+
+    // Check if the issue is the field name
+    if (usersWithParty > 0 && usersWithPokemonParty === 0) {
+      console.log('\n⚠️  DIAGNÓSTICO: Los datos están en "party", no en "pokemonParty"');
+      console.log('   El team ranking debe usar user.party en lugar de user.pokemonParty');
+    } else if (usersWithPokemonParty > 0 && usersWithParty === 0) {
+      console.log('\n⚠️  DIAGNÓSTICO: Los datos están en "pokemonParty", no en "party"');
+    } else if (usersWithNeither === users.length) {
+      console.log('\n❌ DIAGNÓSTICO: NINGÚN usuario tiene datos de party!');
+      console.log('   El plugin no está sincronizando los datos correctamente.');
     }
-    
-    console.log('');
+
+  } catch (error) {
+    console.error('Error:', error);
+  } finally {
+    await client.close();
   }
-
-  console.log('\n=== RESUMEN ===');
-  console.log(`Total usuarios: ${users.length}`);
-  console.log(`Con party (array > 0): ${usersWithParty}`);
-  console.log(`Con party válido (pokemon con level > 0): ${usersWithValidParty}`);
-  console.log(`Con 3+ pokemon válidos: ${usersWithParty3Plus}`);
-
-  await client.close();
 }
 
-check().catch(console.error);
+checkPartyData();
