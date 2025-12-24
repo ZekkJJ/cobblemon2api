@@ -7,7 +7,8 @@
 
 import { Router, Request, Response } from 'express';
 import { StrongestPokemonService } from './strongest-pokemon.service.js';
-import { getUsersCollection } from '../../config/database.js';
+import { TeamRankingService } from './team-ranking.service.js';
+import { getUsersCollection, getLevelCapsCollection } from '../../config/database.js';
 import { createRateLimiter } from '../../shared/utils/rate-limiter.js';
 
 /**
@@ -16,11 +17,13 @@ import { createRateLimiter } from '../../shared/utils/rate-limiter.js';
 export async function createRankingsRouter(): Promise<Router> {
   const router = Router();
 
-  // Obtener colección
+  // Obtener colecciones
   const usersCollection = await getUsersCollection();
+  const levelCapsCollection = await getLevelCapsCollection();
 
-  // Crear servicio
-  const strongestPokemonService = new StrongestPokemonService(usersCollection);
+  // Crear servicios con ambas colecciones
+  const strongestPokemonService = new StrongestPokemonService(usersCollection, levelCapsCollection);
+  const teamRankingService = new TeamRankingService(usersCollection, levelCapsCollection);
 
   // Rate limiter para rankings
   const rankingLimiter = createRateLimiter({
@@ -58,6 +61,7 @@ export async function createRankingsRouter(): Promise<Router> {
           nextUpdate: ranking.nextUpdate,
           grokAnalysis: ranking.grokMasterAnalysis,
           calculationPrecision: ranking.calculationPrecision,
+          currentLevelCap: ranking.currentLevelCap,
           timeUntilNextUpdate: strongestPokemonService.getTimeUntilNextUpdate(),
         },
       });
@@ -83,6 +87,58 @@ export async function createRankingsRouter(): Promise<Router> {
       });
     } catch (error) {
       res.status(500).json({ success: false, error: 'Error al obtener tiempo de actualización' });
+    }
+  });
+
+  /**
+   * GET /api/rankings/team
+   * Obtiene el ranking de equipos (mínimo 3 Pokémon en party)
+   */
+  router.get('/team', rankingLimiter, async (req: Request, res: Response) => {
+    try {
+      const forceRefresh = req.query['refresh'] === 'true';
+      const ranking = await teamRankingService.getTeamRanking(forceRefresh);
+
+      // Sanitizar datos antes de enviar
+      const sanitizedRankings = ranking.rankings.map(r => ({
+        rank: r.rank,
+        ownerUsername: r.ownerUsername,
+        teamSize: r.teamSize,
+        totalScoreDisplay: r.totalScoreDisplay,
+        scoreBreakdown: r.scoreBreakdown,
+        teamAnalysis: {
+          members: r.teamAnalysis.members,
+          typeCoverage: r.teamAnalysis.typeCoverage,
+          roleDistribution: r.teamAnalysis.roleDistribution,
+          avgLevel: r.teamAnalysis.avgLevel,
+          avgIvs: r.teamAnalysis.avgIvs,
+          avgEvs: r.teamAnalysis.avgEvs,
+          shinyCount: r.teamAnalysis.shinyCount,
+        },
+        synergyMetrics: r.synergyMetrics,
+        calculatedAt: r.calculatedAt,
+      }));
+
+      res.json({
+        success: true,
+        data: {
+          rankings: sanitizedRankings,
+          totalTeamsAnalyzed: ranking.totalTeamsAnalyzed,
+          totalPlayersChecked: ranking.totalPlayersChecked,
+          lastCalculated: ranking.lastCalculated,
+          nextUpdate: ranking.nextUpdate,
+          grokAnalysis: ranking.grokMasterAnalysis,
+          currentLevelCap: ranking.currentLevelCap,
+          minimumTeamSize: ranking.minimumTeamSize,
+          timeUntilNextUpdate: teamRankingService.getTimeUntilNextUpdate(),
+        },
+      });
+    } catch (error) {
+      console.error('[RANKINGS] Error obteniendo team ranking:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Error al obtener ranking de equipos',
+      });
     }
   });
 

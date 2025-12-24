@@ -13,6 +13,7 @@
 
 import { Collection, Decimal128 } from 'mongodb';
 import { User, Pokemon } from '../../shared/types/user.types.js';
+import { LevelCapsDocument } from '../../shared/types/level-caps.types.js';
 import { env } from '../../config/env.js';
 
 // ============================================
@@ -76,6 +77,7 @@ export interface StrongestPokemonRanking {
   nextUpdate: Date;
   grokMasterAnalysis?: string;
   calculationPrecision: string;
+  currentLevelCap: number; // Level cap actual usado para filtrar
 }
 
 // Cache del ranking
@@ -291,11 +293,84 @@ REGLAS:
 // ============================================
 
 export class StrongestPokemonService {
-  constructor(private usersCollection: Collection<User>) {}
+  constructor(
+    private usersCollection: Collection<User>,
+    private levelCapsCollection: Collection<LevelCapsDocument>
+  ) {}
+
+  /**
+   * Obtiene el level cap de ownership actual del servidor
+   */
+  private async getCurrentLevelCap(): Promise<number> {
+    try {
+      const config = await this.levelCapsCollection.findOne({});
+      if (!config) return 100; // Default si no hay config
+
+      let ownershipCap = 100;
+
+      // Evaluar reglas temporales activas
+      const now = new Date();
+      const timeRules = (config.timeBasedRules || []).filter(
+        r => r.active && new Date(r.startDate) <= now && (!r.endDate || new Date(r.endDate) >= now)
+      );
+
+      for (const rule of timeRules) {
+        if (rule.targetCap === 'ownership' || rule.targetCap === 'both') {
+          const currentCap = this.calculateTimeBasedCap(rule);
+          ownershipCap = Math.min(ownershipCap, currentCap);
+        }
+      }
+
+      // Evaluar reglas estáticas globales
+      const staticRules = (config.staticRules || []).filter(r => r.active);
+      for (const rule of staticRules) {
+        if (rule.ownershipCap !== null && rule.ownershipCap !== undefined) {
+          ownershipCap = Math.min(ownershipCap, rule.ownershipCap);
+        }
+      }
+
+      return ownershipCap;
+    } catch (error) {
+      console.error('[STRONGEST POKEMON] Error obteniendo level cap:', error);
+      return 100;
+    }
+  }
+
+  /**
+   * Calcula el cap basado en reglas temporales
+   */
+  private calculateTimeBasedCap(rule: any): number {
+    const now = new Date();
+    const daysPassed = Math.floor((now.getTime() - new Date(rule.startDate).getTime()) / (1000 * 60 * 60 * 24));
+
+    let cap = rule.startCap || 100;
+
+    if (rule.progression?.type === 'daily') {
+      cap += daysPassed * (rule.progression.dailyIncrease || 0);
+    } else if (rule.progression?.type === 'interval') {
+      const intervals = Math.floor(daysPassed / (rule.progression.intervalDays || 1));
+      cap += intervals * (rule.progression.intervalIncrease || 0);
+    } else if (rule.progression?.type === 'schedule') {
+      const applicableSchedules = (rule.progression.schedule || [])
+        .filter((s: any) => new Date(s.date) <= now)
+        .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      if (applicableSchedules.length > 0 && applicableSchedules[0]) {
+        cap = applicableSchedules[0].setCap;
+      }
+    }
+
+    if (rule.maxCap) {
+      cap = Math.min(cap, rule.maxCap);
+    }
+
+    return cap;
+  }
 
   /**
    * Calcula el ranking de Pokémon más fuertes
    * UN POKÉMON POR JUGADOR (el más fuerte de cada uno)
+   * SOLO POKÉMON POR DEBAJO O IGUAL AL LEVEL CAP ACTUAL
    */
   async getStrongestPokemonRanking(forceRefresh: boolean = false): Promise<StrongestPokemonRanking> {
     const now = new Date();
@@ -310,6 +385,10 @@ export class StrongestPokemonService {
 
     console.log('[STRONGEST POKEMON] Calculando nuevo ranking...');
 
+    // Obtener el level cap actual
+    const currentLevelCap = await this.getCurrentLevelCap();
+    console.log(`[STRONGEST POKEMON] Level cap actual: ${currentLevelCap}`);
+
     // Obtener todos los usuarios verificados
     const users = await this.usersCollection
       .find({
@@ -319,8 +398,9 @@ export class StrongestPokemonService {
       .toArray();
 
     let totalPokemonAnalyzed = 0;
+    let totalPokemonFiltered = 0;
 
-    // Para cada jugador, encontrar su Pokémon más fuerte
+    // Para cada jugador, encontrar su Pokémon más fuerte (dentro del level cap)
     const strongestPerPlayer: PokemonPowerScore[] = [];
 
     for (const user of users) {
@@ -331,18 +411,20 @@ export class StrongestPokemonService {
       ];
       
       // Filtrar Pokémon válidos - solo requerir que exista y tenga nivel
-      // IVs y EVs pueden estar vacíos (se usarán valores por defecto)
-      const allUserPokemon = rawPokemon.filter((p) => p && typeof p.level === 'number' && p.level > 0);
+      const validPokemon = rawPokemon.filter((p) => p && typeof p.level === 'number' && p.level > 0);
+      totalPokemonAnalyzed += validPokemon.length;
 
-      totalPokemonAnalyzed += allUserPokemon.length;
+      // FILTRAR POR LEVEL CAP - Solo Pokémon con nivel <= level cap
+      const eligiblePokemon = validPokemon.filter((p): p is Pokemon => p !== null && p.level <= currentLevelCap);
+      totalPokemonFiltered += (validPokemon.length - eligiblePokemon.length);
 
-      if (allUserPokemon.length === 0) continue;
+      if (eligiblePokemon.length === 0) continue;
 
-      // Calcular poder de cada Pokémon del usuario
+      // Calcular poder de cada Pokémon elegible del usuario
       let strongestPokemon: Pokemon | null = null;
       let highestPower = 0;
 
-      for (const pokemon of allUserPokemon) {
+      for (const pokemon of eligiblePokemon) {
         if (!pokemon) continue;
         const power = parseFloat(calculatePokemonPower(pokemon).toString());
         if (power > highestPower) {
@@ -360,7 +442,7 @@ export class StrongestPokemonService {
           _species: strongestPokemon.species,
           _speciesId: strongestPokemon.speciesId,
           ownerUsername: user.minecraftUsername || user.nickname || 'Desconocido',
-          ownerTotalPokemon: allUserPokemon.length,
+          ownerTotalPokemon: eligiblePokemon.length,
           powerScore,
           powerScoreDisplay: Math.round(parseFloat(powerScore.toString())),
           realStats: generateRealStats(strongestPokemon),
@@ -370,7 +452,8 @@ export class StrongestPokemonService {
       }
     }
 
-    console.log(`[STRONGEST POKEMON] ${strongestPerPlayer.length} jugadores con Pokémon, ${totalPokemonAnalyzed} total analizados`);
+    console.log(`[STRONGEST POKEMON] ${strongestPerPlayer.length} jugadores con Pokémon elegibles`);
+    console.log(`[STRONGEST POKEMON] ${totalPokemonAnalyzed} total analizados, ${totalPokemonFiltered} filtrados por level cap`);
 
     // Ordenar por poder (mayor a menor)
     strongestPerPlayer.sort((a, b) => {
@@ -397,6 +480,7 @@ export class StrongestPokemonService {
       nextUpdate: new Date(now.getTime() + CACHE_DURATION_MS),
       grokMasterAnalysis: grokAnalysis,
       calculationPrecision: 'Decimal128 (18 decimales de precisión)',
+      currentLevelCap,
     };
 
     // Guardar en cache
