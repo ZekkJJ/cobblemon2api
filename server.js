@@ -2126,7 +2126,8 @@ INSTRUCCIONES:
 
       for (const user of users) {
         totalPlayersChecked++;
-        const party = (user.pokemonParty || []).filter(
+        // FIXED: Use user.party (from plugin sync) OR user.pokemonParty (legacy)
+        const party = (user.party || user.pokemonParty || []).filter(
           p => p && typeof p.level === 'number' && p.level > 0 && p.level <= currentLevelCap
         );
 
