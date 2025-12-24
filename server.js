@@ -2145,6 +2145,24 @@ INSTRUCCIONES:
             level: p.level,
             ivTotal,
             evTotal,
+            // Detailed IVs
+            ivs: {
+              hp: ivs.hp || 0,
+              attack: ivs.attack || 0,
+              defense: ivs.defense || 0,
+              spAttack: ivs.spAttack || 0,
+              spDefense: ivs.spDefense || 0,
+              speed: ivs.speed || 0,
+            },
+            // Detailed EVs
+            evs: {
+              hp: evs.hp || 0,
+              attack: evs.attack || 0,
+              defense: evs.defense || 0,
+              spAttack: evs.spAttack || 0,
+              spDefense: evs.spDefense || 0,
+              speed: evs.speed || 0,
+            },
             nature: p.nature || 'Unknown',
             shiny: p.shiny || false,
             estimatedRole: estimateRole(p),
