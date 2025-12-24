@@ -199,7 +199,7 @@ function generateRealStats(pokemon: Pokemon): PokemonPowerScore['realStats'] {
 // ============================================
 
 /**
- * Obtiene análisis de Grok AI sobre el ranking
+ * Obtiene análisis épico de Grok AI sobre el ranking - estilo Battle Royale
  */
 async function getGrokAnalysis(topPokemon: PokemonPowerScore[]): Promise<string> {
   const groqApiKey = env.GROQ_API_KEY;
@@ -209,26 +209,48 @@ async function getGrokAnalysis(topPokemon: PokemonPowerScore[]): Promise<string>
   }
 
   try {
-    const prompt = `Eres un analista experto de Pokémon competitivo. Analiza este ranking de los Pokémon más fuertes del servidor Cobblemon Los Pitufos.
+    const prompt = `Eres el COMENTARISTA LEGENDARIO del servidor Cobblemon Los Pitufos. Tu trabajo es analizar el ranking de los Pokémon más fuertes y predecir quién ganaría en un BATTLE ROYALE ÉPICO donde todos pelean contra todos hasta que solo quede uno.
 
-DATOS DEL RANKING (Top 10 - Un Pokémon por jugador):
+🏆 DATOS DEL RANKING - TOP 10 CONTENDIENTES:
 ${topPokemon.slice(0, 10).map((p, i) => `
-#${i + 1}: ${p.ownerUsername}
-- Puntaje: ${p.powerScoreDisplay.toLocaleString()}
-- Nivel: ${p.realStats.level}
-- IVs: ${p.realStats.ivs.total}/186 (HP:${p.realStats.ivs.hp} ATK:${p.realStats.ivs.attack} DEF:${p.realStats.ivs.defense} SPA:${p.realStats.ivs.spAttack} SPD:${p.realStats.ivs.spDefense} SPE:${p.realStats.ivs.speed})
-- EVs: ${p.realStats.evs.total}/510
-- Naturaleza: ${p.realStats.nature}
-- Shiny: ${p.realStats.shiny ? 'Sí' : 'No'}
+🥊 #${i + 1}: "${p.ownerUsername}"
+   └─ Poder Total: ${p.powerScoreDisplay.toLocaleString()} pts
+   └─ Nivel: ${p.realStats.level}
+   └─ IVs Totales: ${p.realStats.ivs.total}/186
+      • HP: ${p.realStats.ivs.hp}/31 | ATK: ${p.realStats.ivs.attack}/31 | DEF: ${p.realStats.ivs.defense}/31
+      • SpA: ${p.realStats.ivs.spAttack}/31 | SpD: ${p.realStats.ivs.spDefense}/31 | SPE: ${p.realStats.ivs.speed}/31
+   └─ EVs Entrenados: ${p.realStats.evs.total}/510
+   └─ Naturaleza: ${p.realStats.nature}
+   └─ ✨ Shiny: ${p.realStats.shiny ? '¡SÍ!' : 'No'}
+   └─ Amistad: ${p.realStats.friendship}/255
 `).join('\n')}
 
-INSTRUCCIONES:
-1. Analiza quién tiene el Pokémon mejor optimizado
-2. Comenta sobre la distribución de IVs y EVs
-3. Evalúa las naturalezas elegidas
-4. Máximo 150 palabras, en español
-5. NO menciones especies de Pokémon (son secretas)
-6. Tono profesional pero accesible`;
+📊 TU ANÁLISIS DEBE INCLUIR:
+
+1. 🏆 **EL CAMPEÓN PREDICHO**: ¿Quién ganaría el Battle Royale y por qué? Analiza sus stats, naturaleza, y potencial.
+
+2. ⚔️ **MATCHUPS CLAVE**: ¿Qué enfrentamientos serían los más épicos? ¿Quién tiene ventaja sobre quién?
+
+3. 🎯 **ANÁLISIS DE BUILDS**: 
+   - ¿Quién tiene la mejor distribución de IVs?
+   - ¿Quién ha entrenado mejor sus EVs?
+   - ¿Las naturalezas elegidas son óptimas?
+
+4. 🌟 **DARK HORSES**: ¿Hay algún contendiente subestimado que podría dar la sorpresa?
+
+5. 💀 **PRIMERAS BAJAS**: ¿Quiénes caerían primero y por qué?
+
+6. 🔥 **MOMENTO ÉPICO**: Describe cómo sería el enfrentamiento final entre los 2-3 últimos supervivientes.
+
+7. 📈 **CONSEJOS**: ¿Qué deberían mejorar los entrenadores para subir en el ranking?
+
+REGLAS:
+- NO menciones nombres de especies de Pokémon (son secretos, usa "el Pokémon de [usuario]")
+- Sé DRAMÁTICO y EMOCIONANTE como un comentarista de WWE
+- Usa emojis para hacer el análisis más visual
+- Mínimo 400 palabras, máximo 600
+- Español latino, tono épico pero accesible
+- Incluye predicciones porcentuales de victoria`;
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -237,13 +259,16 @@ INSTRUCCIONES:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'moonshotai/kimi-k2-instruct-0905',
+        model: 'llama-3.3-70b-versatile',
         messages: [
-          { role: 'system', content: 'Eres un analista experto de Pokémon competitivo. Responde siempre en español.' },
+          { 
+            role: 'system', 
+            content: 'Eres el comentarista más épico y dramático del mundo Pokémon competitivo. Tu estilo es como un comentarista de WWE mezclado con un analista deportivo experto. Siempre respondes en español latino con mucha energía y emoción. Usas emojis estratégicamente para hacer el contenido más visual y emocionante.' 
+          },
           { role: 'user', content: prompt },
         ],
-        max_tokens: 400,
-        temperature: 0.7,
+        max_tokens: 1500,
+        temperature: 0.85,
       }),
     });
 
@@ -299,10 +324,15 @@ export class StrongestPokemonService {
     const strongestPerPlayer: PokemonPowerScore[] = [];
 
     for (const user of users) {
-      const allUserPokemon = [
+      // Obtener todos los Pokémon del usuario (party + PC)
+      const rawPokemon = [
         ...(user.pokemonParty || []),
         ...(user.pcStorage || []).flatMap((box) => box.pokemon || []),
-      ].filter((p) => p && p.level && p.ivs && p.evs);
+      ];
+      
+      // Filtrar Pokémon válidos - solo requerir que exista y tenga nivel
+      // IVs y EVs pueden estar vacíos (se usarán valores por defecto)
+      const allUserPokemon = rawPokemon.filter((p) => p && typeof p.level === 'number' && p.level > 0);
 
       totalPokemonAnalyzed += allUserPokemon.length;
 

@@ -74,7 +74,7 @@ export async function createRankingsRouter(): Promise<Router> {
    * GET /api/rankings/next-update
    * Obtiene el tiempo hasta la próxima actualización
    */
-  router.get('/next-update', rankingLimiter, async (req: Request, res: Response) => {
+  router.get('/next-update', rankingLimiter, async (_req: Request, res: Response) => {
     try {
       const timeUntilUpdate = strongestPokemonService.getTimeUntilNextUpdate();
       res.json({
@@ -83,6 +83,63 @@ export async function createRankingsRouter(): Promise<Router> {
       });
     } catch (error) {
       res.status(500).json({ success: false, error: 'Error al obtener tiempo de actualización' });
+    }
+  });
+
+  /**
+   * GET /api/rankings/debug/:username
+   * Debug: Muestra los datos de un usuario específico para verificar sincronización
+   */
+  router.get('/debug/:username', rankingLimiter, async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { username } = req.params;
+      
+      // Buscar usuario por username (case insensitive)
+      const user = await usersCollection.findOne({
+        minecraftUsername: { $regex: new RegExp(`^${username}$`, 'i') }
+      });
+
+      if (!user) {
+        res.status(404).json({
+          success: false,
+          error: `Usuario "${username}" no encontrado`,
+          hint: 'Verifica que el nombre de usuario sea exacto'
+        });
+        return;
+      }
+
+      const party = user.pokemonParty || [];
+      const pc = user.pcStorage || [];
+      const pcPokemon = pc.flatMap(box => box.pokemon || []);
+
+      res.json({
+        success: true,
+        data: {
+          username: user.minecraftUsername,
+          uuid: user.minecraftUuid,
+          verified: user.verified,
+          lastSync: user.syncedAt || user.minecraftLastSeen,
+          pokemonCount: {
+            party: party.length,
+            pc: pcPokemon.length,
+            total: party.length + pcPokemon.length
+          },
+          party: party.map(p => ({
+            species: p?.species || 'Unknown',
+            level: p?.level || 0,
+            hasIvs: !!p?.ivs,
+            hasEvs: !!p?.evs,
+            shiny: p?.shiny || false
+          })),
+          pcBoxes: pc.map((box, i) => ({
+            boxNumber: i,
+            pokemonCount: box.pokemon?.length || 0
+          }))
+        }
+      });
+    } catch (error) {
+      console.error('[RANKINGS DEBUG] Error:', error);
+      res.status(500).json({ success: false, error: 'Error al obtener datos de debug' });
     }
   });
 
