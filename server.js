@@ -2198,8 +2198,27 @@ INSTRUCCIONES:
           const evTotal = (evs.hp || 0) + (evs.attack || 0) + (evs.defense || 0) + (evs.spAttack || 0) + (evs.spDefense || 0) + (evs.speed || 0);
           const powerContribution = (p.level * 100) + (ivTotal * 30) + (evTotal * 10);
 
+          // Get species name and sprite URL
+          const speciesName = p.species || `Pokemon #${p.speciesId || i + 1}`;
+          const speciesId = p.speciesId || 1;
+          const isShiny = p.shiny || false;
+          
+          // Animated sprite URL from PokeAPI (showdown format)
+          const spriteUrl = isShiny
+            ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/shiny/${speciesId}.gif`
+            : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/${speciesId}.gif`;
+          
+          // Fallback static sprite
+          const staticSpriteUrl = isShiny
+            ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${speciesId}.png`
+            : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${speciesId}.png`;
+
           return {
             slot: i + 1,
+            speciesName,
+            speciesId,
+            spriteUrl,
+            staticSpriteUrl,
             level: p.level,
             ivTotal,
             evTotal,
@@ -2222,7 +2241,9 @@ INSTRUCCIONES:
               speed: evs.speed || 0,
             },
             nature: p.nature || 'Unknown',
-            shiny: p.shiny || false,
+            shiny: isShiny,
+            gender: p.gender || 'Unknown',
+            ability: p.ability || 'Unknown',
             estimatedRole: estimateRole(p),
             powerContribution,
           };
