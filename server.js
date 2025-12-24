@@ -2280,51 +2280,113 @@ INSTRUCCIONES:
           pivots: roles.filter(r => r === 'Pivot').length,
         };
 
-        // Synergy metrics
-        const typeBalance = Math.max(0, 100 - (sharedWeaknesses.length * 15));
-        const offensiveCoverage = Math.min(100, (offensive.size / ALL_TYPES.length) * 120);
-        const defensiveCoverage = Math.min(100, (defensive.size / ALL_TYPES.length) * 100);
+        // ============================================
+        // ADVANCED SYNERGY CALCULATIONS
+        // A well-built team beats raw power!
+        // ============================================
+
+        // 1. TYPE SYNERGY - How well types cover each other's weaknesses
+        const typeBalance = Math.max(0, 100 - (sharedWeaknesses.length * 20)); // Penalize shared weaknesses HARD
+        const offensiveCoverage = Math.min(100, (offensive.size / ALL_TYPES.length) * 130);
+        const defensiveCoverage = Math.min(100, (defensive.size / ALL_TYPES.length) * 110);
+        
+        // 2. ROLE SYNERGY - Does the team have a complete strategy?
         const hasOffense = roleDistribution.sweepers + roleDistribution.wallBreakers > 0;
         const hasDefense = roleDistribution.tanks > 0;
         const hasSupport = roleDistribution.supports + roleDistribution.pivots > 0;
         const roleBalance = (hasOffense ? 35 : 0) + (hasDefense ? 35 : 0) + (hasSupport ? 30 : 0);
-        const overallSynergy = Math.round((typeBalance * 0.25) + (offensiveCoverage * 0.25) + (defensiveCoverage * 0.25) + (roleBalance * 0.25));
+        
+        // 3. SPEED TIERS - Does the team have speed control?
+        const speeds = members.map(m => (m.ivs.speed || 0) + (m.evs.speed || 0) / 4);
+        const hasFastMon = speeds.some(s => s > 25);
+        const hasSlowMon = speeds.some(s => s < 15);
+        const speedControl = (hasFastMon && hasSlowMon) ? 100 : (hasFastMon || hasSlowMon ? 50 : 20);
+        
+        // 4. OFFENSIVE/DEFENSIVE BALANCE - Not all glass cannons or all walls
+        const offensiveMembers = roleDistribution.sweepers + roleDistribution.wallBreakers;
+        const defensiveMembers = roleDistribution.tanks;
+        const teamComposition = (offensiveMembers > 0 && defensiveMembers > 0) ? 100 : 
+                               (offensiveMembers > 0 || defensiveMembers > 0) ? 60 : 30;
+        
+        // 5. IMMUNITY COVERAGE - Does the team have key immunities?
+        const immunities = new Set();
+        for (const types of teamTypes) {
+          for (const type of types) {
+            const typeData = TYPE_CHART[type.toLowerCase()];
+            if (typeData) typeData.immuneTo.forEach(t => immunities.add(t));
+          }
+        }
+        const immunityBonus = Math.min(100, immunities.size * 25);
+        
+        // 6. WEAKNESS STACKING PENALTY - Multiple mons weak to same type is BAD
+        const maxWeaknessStack = Math.max(...Object.values(weaknessCount), 0);
+        const weaknessStackPenalty = maxWeaknessStack >= 3 ? -30 : maxWeaknessStack >= 2 ? -15 : 0;
+        
+        // 7. TEAM SIZE BONUS - Full team of 6 is better
+        const teamSizeBonus = party.length === 6 ? 100 : party.length === 5 ? 70 : party.length === 4 ? 40 : 20;
+        
+        // OVERALL SYNERGY - Weighted average of all factors
+        const overallSynergy = Math.round(
+          (typeBalance * 0.20) + 
+          (offensiveCoverage * 0.15) + 
+          (defensiveCoverage * 0.15) + 
+          (roleBalance * 0.15) +
+          (speedControl * 0.10) +
+          (teamComposition * 0.10) +
+          (immunityBonus * 0.10) +
+          (teamSizeBonus * 0.05) +
+          weaknessStackPenalty
+        );
 
         const synergyMetrics = {
           typeBalance: Math.round(typeBalance),
           offensiveCoverage: Math.round(offensiveCoverage),
           defensiveCoverage: Math.round(defensiveCoverage),
           roleBalance: Math.round(roleBalance),
-          overallSynergy,
+          speedControl: Math.round(speedControl),
+          teamComposition: Math.round(teamComposition),
+          immunityBonus: Math.round(immunityBonus),
+          teamSizeBonus: Math.round(teamSizeBonus),
+          weaknessStackPenalty,
+          overallSynergy: Math.max(0, Math.min(100, overallSynergy)),
         };
 
-        // Calculate scores
+        // Calculate scores - SYNERGY IS KING!
         const avgLevel = Math.round(members.reduce((s, m) => s + m.level, 0) / members.length);
         const avgIvs = Math.round(members.reduce((s, m) => s + m.ivTotal, 0) / members.length);
         const avgEvs = Math.round(members.reduce((s, m) => s + m.evTotal, 0) / members.length);
         const shinyCount = members.filter(m => m.shiny).length;
 
+        // NEW SCORING FORMULA - Synergy multiplies everything!
         const rawPower = members.reduce((sum, m) => sum + m.powerContribution, 0);
-        const synergyBonus = overallSynergy * 50;
-        const coverageBonus = ((offensiveCoverage + defensiveCoverage) / 2) * 30;
-        const balanceBonus = roleBalance * 20;
-        const ivQuality = avgIvs * 10;
-        const evTraining = avgEvs * 5;
-        const shinyBonusValue = shinyCount * 500;
-        const totalScore = rawPower + synergyBonus + coverageBonus + balanceBonus + ivQuality + evTraining + shinyBonusValue;
+        const synergyMultiplier = 1 + (overallSynergy / 100); // 1.0 to 2.0x multiplier
+        
+        // Base score components
+        const baseScore = rawPower * 0.3; // Raw power is only 30% of base
+        const synergyScore = overallSynergy * 150; // Synergy is worth A LOT
+        const coverageScore = ((offensiveCoverage + defensiveCoverage) / 2) * 50;
+        const balanceScore = roleBalance * 30;
+        const ivQuality = avgIvs * 8;
+        const evTraining = avgEvs * 4;
+        const shinyBonusValue = shinyCount * 300;
+        
+        // Final score with synergy multiplier
+        const totalScore = Math.round((baseScore + synergyScore + coverageScore + balanceScore + ivQuality + evTraining + shinyBonusValue) * synergyMultiplier);
 
         teamScores.push({
           ownerUsername: user.minecraftUsername || user.nickname || 'Desconocido',
           teamSize: party.length,
           totalScoreDisplay: Math.round(totalScore),
+          synergyMultiplier: Math.round(synergyMultiplier * 100) / 100,
           scoreBreakdown: {
-            rawPower: Math.round(rawPower),
-            synergyBonus: Math.round(synergyBonus),
-            coverageBonus: Math.round(coverageBonus),
-            balanceBonus: Math.round(balanceBonus),
+            baseScore: Math.round(baseScore),
+            synergyScore: Math.round(synergyScore),
+            coverageScore: Math.round(coverageScore),
+            balanceScore: Math.round(balanceScore),
             ivQuality: Math.round(ivQuality),
             evTraining: Math.round(evTraining),
             shinyBonus: shinyBonusValue,
+            multiplierEffect: Math.round(totalScore - (baseScore + synergyScore + coverageScore + balanceScore + ivQuality + evTraining + shinyBonusValue)),
           },
           teamAnalysis: {
             members,
@@ -2350,19 +2412,37 @@ INSTRUCCIONES:
       let grokAnalysis = 'Análisis de IA no disponible.';
       if (GROQ_API_KEY && topTeams.length > 0) {
         try {
-          const prompt = `Eres el ANALISTA ESTRATÉGICO del servidor Cobblemon Los Pitufos. Analiza estos TOP 10 EQUIPOS:
+          const prompt = `Eres el ANALISTA ESTRATÉGICO SUPREMO del servidor Cobblemon Los Pitufos. 
+
+IMPORTANTE: En este servidor, LA SINERGIA ES REY. Un equipo bien construido DESTRUYE a uno con stats altos pero mal armado.
+
+Analiza estos TOP 10 EQUIPOS:
 
 ${topTeams.slice(0, 10).map((t, i) => `
-#${i + 1}: "${t.ownerUsername}" - ${t.totalScoreDisplay.toLocaleString()} pts
-- Equipo: ${t.teamSize} Pokémon, Nivel Prom: ${t.teamAnalysis.avgLevel}
+#${i + 1}: "${t.ownerUsername}" - ${t.totalScoreDisplay.toLocaleString()} pts (x${t.synergyMultiplier} multiplicador)
+- Equipo: ${t.teamSize}/6 Pokémon, Nivel Prom: ${t.teamAnalysis.avgLevel}
+- SINERGIA TOTAL: ${t.synergyMetrics.overallSynergy}%
+  • Balance de Tipos: ${t.synergyMetrics.typeBalance}%
+  • Cobertura Ofensiva: ${t.synergyMetrics.offensiveCoverage}%
+  • Cobertura Defensiva: ${t.synergyMetrics.defensiveCoverage}%
+  • Balance de Roles: ${t.synergyMetrics.roleBalance}%
+  • Control de Velocidad: ${t.synergyMetrics.speedControl}%
+  • Composición: ${t.synergyMetrics.teamComposition}%
+  • Inmunidades: ${t.synergyMetrics.immunityBonus}%
+- Roles: ${t.teamAnalysis.roleDistribution.sweepers} Sweepers, ${t.teamAnalysis.roleDistribution.tanks} Tanks, ${t.teamAnalysis.roleDistribution.wallBreakers} Wallbreakers, ${t.teamAnalysis.roleDistribution.pivots} Pivots
+- Debilidades Compartidas: ${t.teamAnalysis.typeCoverage.weaknesses.join(', ') || 'NINGUNA - Equipo sólido!'}
 - IVs: ${t.teamAnalysis.avgIvs}/186, EVs: ${t.teamAnalysis.avgEvs}/510
-- Sinergia: ${t.synergyMetrics.overallSynergy}% (Tipos: ${t.synergyMetrics.typeBalance}%, Ofensiva: ${t.synergyMetrics.offensiveCoverage}%, Defensiva: ${t.synergyMetrics.defensiveCoverage}%)
-- Roles: ${t.teamAnalysis.roleDistribution.sweepers} Sweepers, ${t.teamAnalysis.roleDistribution.tanks} Tanks, ${t.teamAnalysis.roleDistribution.wallBreakers} Wallbreakers
-- Debilidades: ${t.teamAnalysis.typeCoverage.weaknesses.join(', ') || 'Ninguna crítica'}
 - Shinies: ${t.teamAnalysis.shinyCount}
 `).join('\n')}
 
-Analiza: 1) Mejor equipo y por qué, 2) Matchups clave, 3) Equipos sorpresa, 4) Predicción de torneo. NO menciones especies. Sé ÉPICO y DRAMÁTICO. Español latino. 400-600 palabras.`;
+ANALIZA CON ÉPICA:
+1) ¿Quién tiene el MEJOR equipo construido (no el más fuerte individualmente)?
+2) ¿Qué equipo con BAJA sinergia podría ser DESTRUIDO por uno con alta sinergia?
+3) ¿Qué matchups serían ÉPICOS basados en las debilidades compartidas?
+4) ¿Quién es el "Dark Horse" - equipo subestimado que podría sorprender?
+5) Predicción del torneo considerando que LA ESTRATEGIA VENCE AL PODER BRUTO
+
+NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Español latino. 500-700 palabras.`;
 
           const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
@@ -2370,11 +2450,11 @@ Analiza: 1) Mejor equipo y por qué, 2) Matchups clave, 3) Equipos sorpresa, 4) 
             body: JSON.stringify({
               model: 'llama-3.3-70b-versatile',
               messages: [
-                { role: 'system', content: 'Eres un analista estratégico épico de Pokémon competitivo. Español latino, dramático como WWE.' },
+                { role: 'system', content: 'Eres un analista estratégico LEGENDARIO de Pokémon competitivo. Valoras la SINERGIA y ESTRATEGIA sobre el poder bruto. Español latino, dramático como WWE, apasionado como comentarista de fútbol.' },
                 { role: 'user', content: prompt }
               ],
-              max_tokens: 2000,
-              temperature: 0.85,
+              max_tokens: 2500,
+              temperature: 0.9,
             }),
           });
 
