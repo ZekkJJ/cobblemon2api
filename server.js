@@ -2015,6 +2015,326 @@ INSTRUCCIONES:
   });
 
   // ============================================
+  // TEAM RANKING ENDPOINT
+  // ============================================
+
+  // Cache for team ranking
+  let cachedTeamRanking = null;
+  let lastTeamCalculation = null;
+  const TEAM_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+  // Type chart for synergy calculations
+  const TYPE_CHART = {
+    normal: { weakTo: ['fighting'], resistsTo: [], immuneTo: ['ghost'] },
+    fire: { weakTo: ['water', 'ground', 'rock'], resistsTo: ['fire', 'grass', 'ice', 'bug', 'steel', 'fairy'], immuneTo: [] },
+    water: { weakTo: ['electric', 'grass'], resistsTo: ['fire', 'water', 'ice', 'steel'], immuneTo: [] },
+    electric: { weakTo: ['ground'], resistsTo: ['electric', 'flying', 'steel'], immuneTo: [] },
+    grass: { weakTo: ['fire', 'ice', 'poison', 'flying', 'bug'], resistsTo: ['water', 'electric', 'grass', 'ground'], immuneTo: [] },
+    ice: { weakTo: ['fire', 'fighting', 'rock', 'steel'], resistsTo: ['ice'], immuneTo: [] },
+    fighting: { weakTo: ['flying', 'psychic', 'fairy'], resistsTo: ['bug', 'rock', 'dark'], immuneTo: [] },
+    poison: { weakTo: ['ground', 'psychic'], resistsTo: ['grass', 'fighting', 'poison', 'bug', 'fairy'], immuneTo: [] },
+    ground: { weakTo: ['water', 'grass', 'ice'], resistsTo: ['poison', 'rock'], immuneTo: ['electric'] },
+    flying: { weakTo: ['electric', 'ice', 'rock'], resistsTo: ['grass', 'fighting', 'bug'], immuneTo: ['ground'] },
+    psychic: { weakTo: ['bug', 'ghost', 'dark'], resistsTo: ['fighting', 'psychic'], immuneTo: [] },
+    bug: { weakTo: ['fire', 'flying', 'rock'], resistsTo: ['grass', 'fighting', 'ground'], immuneTo: [] },
+    rock: { weakTo: ['water', 'grass', 'fighting', 'ground', 'steel'], resistsTo: ['normal', 'fire', 'poison', 'flying'], immuneTo: [] },
+    ghost: { weakTo: ['ghost', 'dark'], resistsTo: ['poison', 'bug'], immuneTo: ['normal', 'fighting'] },
+    dragon: { weakTo: ['ice', 'dragon', 'fairy'], resistsTo: ['fire', 'water', 'electric', 'grass'], immuneTo: [] },
+    dark: { weakTo: ['fighting', 'bug', 'fairy'], resistsTo: ['ghost', 'dark'], immuneTo: ['psychic'] },
+    steel: { weakTo: ['fire', 'fighting', 'ground'], resistsTo: ['normal', 'grass', 'ice', 'flying', 'psychic', 'bug', 'rock', 'dragon', 'steel', 'fairy'], immuneTo: ['poison'] },
+    fairy: { weakTo: ['poison', 'steel'], resistsTo: ['fighting', 'bug', 'dark'], immuneTo: ['dragon'] },
+  };
+  const ALL_TYPES = Object.keys(TYPE_CHART);
+
+  // Estimate Pokemon role based on stats
+  function estimateRole(pokemon) {
+    const ivs = pokemon.ivs || { hp: 0, attack: 0, defense: 0, spAttack: 0, spDefense: 0, speed: 0 };
+    const evs = pokemon.evs || { hp: 0, attack: 0, defense: 0, spAttack: 0, spDefense: 0, speed: 0 };
+
+    const atkTotal = (ivs.attack || 0) + (evs.attack || 0) / 4;
+    const spAtkTotal = (ivs.spAttack || 0) + (evs.spAttack || 0) / 4;
+    const defTotal = (ivs.defense || 0) + (evs.defense || 0) / 4;
+    const spDefTotal = (ivs.spDefense || 0) + (evs.spDefense || 0) / 4;
+    const speedTotal = (ivs.speed || 0) + (evs.speed || 0) / 4;
+    const hpTotal = (ivs.hp || 0) + (evs.hp || 0) / 4;
+
+    const offensiveScore = Math.max(atkTotal, spAtkTotal);
+    const defensiveScore = (defTotal + spDefTotal + hpTotal) / 3;
+
+    if (speedTotal > 25 && offensiveScore > 25) return 'Sweeper';
+    if (defensiveScore > 30 && hpTotal > 25) return 'Tank';
+    if (offensiveScore > 28 && speedTotal < 20) return 'Wallbreaker';
+    if (defTotal > 25 || spDefTotal > 25) return 'Wall';
+    if (speedTotal > 20) return 'Pivot';
+    return 'Utility';
+  }
+
+  // GET /api/rankings/team - Team ranking with synergy analysis
+  app.get('/api/rankings/team', async (req, res) => {
+    try {
+      const now = new Date();
+      const forceRefresh = req.query.refresh === 'true';
+
+      // Check cache
+      if (!forceRefresh && cachedTeamRanking && lastTeamCalculation) {
+        const timeSince = now.getTime() - lastTeamCalculation.getTime();
+        if (timeSince < TEAM_CACHE_DURATION) {
+          return res.json({ success: true, data: cachedTeamRanking });
+        }
+      }
+
+      console.log('[TEAM RANKING] Calculating team rankings...');
+      const db = getDb();
+      const MINIMUM_TEAM_SIZE = 3;
+
+      // Get current level cap
+      let currentLevelCap = 100;
+      try {
+        const levelCapConfig = await db.collection('level_caps').findOne({});
+        if (levelCapConfig) {
+          const nowDate = new Date();
+          const timeRules = (levelCapConfig.timeBasedRules || []).filter(
+            r => r.active && new Date(r.startDate) <= nowDate && (!r.endDate || new Date(r.endDate) >= nowDate)
+          );
+          for (const rule of timeRules) {
+            if (rule.targetCap === 'ownership' || rule.targetCap === 'both') {
+              const daysPassed = Math.floor((nowDate.getTime() - new Date(rule.startDate).getTime()) / (1000 * 60 * 60 * 24));
+              let cap = rule.startCap || 100;
+              if (rule.progression?.type === 'daily') cap += daysPassed * (rule.progression.dailyIncrease || 0);
+              else if (rule.progression?.type === 'interval') {
+                const intervals = Math.floor(daysPassed / (rule.progression.intervalDays || 1));
+                cap += intervals * (rule.progression.intervalIncrease || 0);
+              }
+              if (rule.maxCap) cap = Math.min(cap, rule.maxCap);
+              currentLevelCap = Math.min(currentLevelCap, cap);
+            }
+          }
+          const staticRules = (levelCapConfig.staticRules || []).filter(r => r.active);
+          for (const rule of staticRules) {
+            if (rule.ownershipCap != null) currentLevelCap = Math.min(currentLevelCap, rule.ownershipCap);
+          }
+        }
+      } catch (e) { console.log('[TEAM RANKING] Level cap error:', e.message); }
+
+      // Get verified users
+      const users = await db.collection('users').find({
+        verified: true,
+        minecraftUsername: { $exists: true, $ne: '' },
+      }).toArray();
+
+      const teamScores = [];
+      let totalPlayersChecked = 0;
+
+      for (const user of users) {
+        totalPlayersChecked++;
+        const party = (user.pokemonParty || []).filter(
+          p => p && typeof p.level === 'number' && p.level > 0 && p.level <= currentLevelCap
+        );
+
+        if (party.length < MINIMUM_TEAM_SIZE) continue;
+
+        // Analyze each member
+        const members = party.map((p, i) => {
+          const ivs = p.ivs || { hp: 0, attack: 0, defense: 0, spAttack: 0, spDefense: 0, speed: 0 };
+          const evs = p.evs || { hp: 0, attack: 0, defense: 0, spAttack: 0, spDefense: 0, speed: 0 };
+          const ivTotal = (ivs.hp || 0) + (ivs.attack || 0) + (ivs.defense || 0) + (ivs.spAttack || 0) + (ivs.spDefense || 0) + (ivs.speed || 0);
+          const evTotal = (evs.hp || 0) + (evs.attack || 0) + (evs.defense || 0) + (evs.spAttack || 0) + (evs.spDefense || 0) + (evs.speed || 0);
+          const powerContribution = (p.level * 100) + (ivTotal * 30) + (evTotal * 10);
+
+          return {
+            slot: i + 1,
+            level: p.level,
+            ivTotal,
+            evTotal,
+            nature: p.nature || 'Unknown',
+            shiny: p.shiny || false,
+            estimatedRole: estimateRole(p),
+            powerContribution,
+          };
+        });
+
+        const roles = members.map(m => m.estimatedRole);
+
+        // Calculate type coverage (simulated based on speciesId)
+        const teamTypes = party.map(p => {
+          const typeIndex = (p.speciesId || 1) % ALL_TYPES.length;
+          const secondTypeIndex = ((p.speciesId || 1) * 7) % ALL_TYPES.length;
+          return typeIndex !== secondTypeIndex ? [ALL_TYPES[typeIndex], ALL_TYPES[secondTypeIndex]] : [ALL_TYPES[typeIndex]];
+        });
+
+        // Calculate coverage
+        const offensive = new Set();
+        const defensive = new Set();
+        const weaknessCount = {};
+
+        for (const types of teamTypes) {
+          for (const type of types) {
+            const typeData = TYPE_CHART[type.toLowerCase()];
+            if (!typeData) continue;
+            typeData.resistsTo.forEach(t => defensive.add(t));
+            typeData.immuneTo.forEach(t => defensive.add(t));
+            typeData.weakTo.forEach(t => { weaknessCount[t] = (weaknessCount[t] || 0) + 1; });
+          }
+        }
+
+        for (const type of ALL_TYPES) {
+          const typeData = TYPE_CHART[type];
+          if (typeData) {
+            for (const memberTypes of teamTypes) {
+              for (const memberType of memberTypes) {
+                if (typeData.weakTo.includes(memberType.toLowerCase())) offensive.add(type);
+              }
+            }
+          }
+        }
+
+        const sharedWeaknesses = Object.entries(weaknessCount).filter(([, count]) => count >= 2).map(([type]) => type);
+
+        const typeCoverage = {
+          offensive: Array.from(offensive),
+          defensive: Array.from(defensive),
+          weaknesses: sharedWeaknesses,
+        };
+
+        // Role distribution
+        const roleDistribution = {
+          sweepers: roles.filter(r => r === 'Sweeper').length,
+          tanks: roles.filter(r => r === 'Tank' || r === 'Wall').length,
+          wallBreakers: roles.filter(r => r === 'Wallbreaker').length,
+          supports: roles.filter(r => r === 'Utility').length,
+          pivots: roles.filter(r => r === 'Pivot').length,
+        };
+
+        // Synergy metrics
+        const typeBalance = Math.max(0, 100 - (sharedWeaknesses.length * 15));
+        const offensiveCoverage = Math.min(100, (offensive.size / ALL_TYPES.length) * 120);
+        const defensiveCoverage = Math.min(100, (defensive.size / ALL_TYPES.length) * 100);
+        const hasOffense = roleDistribution.sweepers + roleDistribution.wallBreakers > 0;
+        const hasDefense = roleDistribution.tanks > 0;
+        const hasSupport = roleDistribution.supports + roleDistribution.pivots > 0;
+        const roleBalance = (hasOffense ? 35 : 0) + (hasDefense ? 35 : 0) + (hasSupport ? 30 : 0);
+        const overallSynergy = Math.round((typeBalance * 0.25) + (offensiveCoverage * 0.25) + (defensiveCoverage * 0.25) + (roleBalance * 0.25));
+
+        const synergyMetrics = {
+          typeBalance: Math.round(typeBalance),
+          offensiveCoverage: Math.round(offensiveCoverage),
+          defensiveCoverage: Math.round(defensiveCoverage),
+          roleBalance: Math.round(roleBalance),
+          overallSynergy,
+        };
+
+        // Calculate scores
+        const avgLevel = Math.round(members.reduce((s, m) => s + m.level, 0) / members.length);
+        const avgIvs = Math.round(members.reduce((s, m) => s + m.ivTotal, 0) / members.length);
+        const avgEvs = Math.round(members.reduce((s, m) => s + m.evTotal, 0) / members.length);
+        const shinyCount = members.filter(m => m.shiny).length;
+
+        const rawPower = members.reduce((sum, m) => sum + m.powerContribution, 0);
+        const synergyBonus = overallSynergy * 50;
+        const coverageBonus = ((offensiveCoverage + defensiveCoverage) / 2) * 30;
+        const balanceBonus = roleBalance * 20;
+        const ivQuality = avgIvs * 10;
+        const evTraining = avgEvs * 5;
+        const shinyBonusValue = shinyCount * 500;
+        const totalScore = rawPower + synergyBonus + coverageBonus + balanceBonus + ivQuality + evTraining + shinyBonusValue;
+
+        teamScores.push({
+          ownerUsername: user.minecraftUsername || user.nickname || 'Desconocido',
+          teamSize: party.length,
+          totalScoreDisplay: Math.round(totalScore),
+          scoreBreakdown: {
+            rawPower: Math.round(rawPower),
+            synergyBonus: Math.round(synergyBonus),
+            coverageBonus: Math.round(coverageBonus),
+            balanceBonus: Math.round(balanceBonus),
+            ivQuality: Math.round(ivQuality),
+            evTraining: Math.round(evTraining),
+            shinyBonus: shinyBonusValue,
+          },
+          teamAnalysis: {
+            members,
+            typeCoverage,
+            roleDistribution,
+            avgLevel,
+            avgIvs,
+            avgEvs,
+            shinyCount,
+          },
+          synergyMetrics,
+          calculatedAt: now,
+        });
+      }
+
+      // Sort by score
+      teamScores.sort((a, b) => b.totalScoreDisplay - a.totalScoreDisplay);
+
+      // Assign ranks
+      const topTeams = teamScores.slice(0, 20).map((t, i) => ({ ...t, rank: i + 1 }));
+
+      // Get Grok AI analysis
+      let grokAnalysis = 'Análisis de IA no disponible.';
+      if (GROQ_API_KEY && topTeams.length > 0) {
+        try {
+          const prompt = `Eres el ANALISTA ESTRATÉGICO del servidor Cobblemon Los Pitufos. Analiza estos TOP 10 EQUIPOS:
+
+${topTeams.slice(0, 10).map((t, i) => `
+#${i + 1}: "${t.ownerUsername}" - ${t.totalScoreDisplay.toLocaleString()} pts
+- Equipo: ${t.teamSize} Pokémon, Nivel Prom: ${t.teamAnalysis.avgLevel}
+- IVs: ${t.teamAnalysis.avgIvs}/186, EVs: ${t.teamAnalysis.avgEvs}/510
+- Sinergia: ${t.synergyMetrics.overallSynergy}% (Tipos: ${t.synergyMetrics.typeBalance}%, Ofensiva: ${t.synergyMetrics.offensiveCoverage}%, Defensiva: ${t.synergyMetrics.defensiveCoverage}%)
+- Roles: ${t.teamAnalysis.roleDistribution.sweepers} Sweepers, ${t.teamAnalysis.roleDistribution.tanks} Tanks, ${t.teamAnalysis.roleDistribution.wallBreakers} Wallbreakers
+- Debilidades: ${t.teamAnalysis.typeCoverage.weaknesses.join(', ') || 'Ninguna crítica'}
+- Shinies: ${t.teamAnalysis.shinyCount}
+`).join('\n')}
+
+Analiza: 1) Mejor equipo y por qué, 2) Matchups clave, 3) Equipos sorpresa, 4) Predicción de torneo. NO menciones especies. Sé ÉPICO y DRAMÁTICO. Español latino. 400-600 palabras.`;
+
+          const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: 'llama-3.3-70b-versatile',
+              messages: [
+                { role: 'system', content: 'Eres un analista estratégico épico de Pokémon competitivo. Español latino, dramático como WWE.' },
+                { role: 'user', content: prompt }
+              ],
+              max_tokens: 2000,
+              temperature: 0.85,
+            }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            grokAnalysis = data.choices?.[0]?.message?.content || grokAnalysis;
+          }
+        } catch (e) { console.log('[TEAM RANKING] Grok error:', e.message); }
+      }
+
+      const result = {
+        rankings: topTeams,
+        totalTeamsAnalyzed: teamScores.length,
+        totalPlayersChecked,
+        lastCalculated: now,
+        nextUpdate: new Date(now.getTime() + TEAM_CACHE_DURATION),
+        grokAnalysis,
+        currentLevelCap,
+        minimumTeamSize: MINIMUM_TEAM_SIZE,
+        timeUntilNextUpdate: { minutes: 5, seconds: 0 },
+      };
+
+      cachedTeamRanking = result;
+      lastTeamCalculation = now;
+
+      console.log(`[TEAM RANKING] ${teamScores.length} teams analyzed from ${totalPlayersChecked} players`);
+      res.json({ success: true, data: result });
+
+    } catch (error) {
+      console.error('[TEAM RANKING] Error:', error);
+      res.status(500).json({ success: false, error: 'Error al obtener ranking de equipos' });
+    }
+  });
+
+  // ============================================
   // TOURNAMENTS ENDPOINTS
   // ============================================
 
