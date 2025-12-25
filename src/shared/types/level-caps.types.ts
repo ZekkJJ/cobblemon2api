@@ -27,6 +27,17 @@ export interface GlobalLevelCapConfig {
     itemBlocked: string;
     tradeBlocked: string;
   };
+  // Nuevas restricciones de Pokémon especiales
+  pokemonRestrictions: {
+    blockLegendaries: boolean;      // Bloquear legendarios
+    blockMythicals: boolean;        // Bloquear míticos
+    blockUltraBeasts: boolean;      // Bloquear Ultra Bestias
+    blockParadox: boolean;          // Bloquear Paradox
+    blockMegas: boolean;            // Bloquear Megas
+    blockRestricted: boolean;       // Bloquear los más poderosos (box legends)
+    customBlockedSpecies: string[]; // Lista personalizada de especies bloqueadas
+    customAllowedSpecies: string[]; // Lista personalizada de excepciones permitidas
+  };
 }
 
 /**
@@ -145,6 +156,17 @@ export interface EffectiveCapsResponse {
   ownershipCap: number;
   appliedRules: string[];
   calculatedAt: Date;
+  // Restricciones de Pokémon
+  pokemonRestrictions?: {
+    blockLegendaries: boolean;
+    blockMythicals: boolean;
+    blockUltraBeasts: boolean;
+    blockParadox: boolean;
+    blockMegas: boolean;
+    blockRestricted: boolean;
+    blockedSpecies: string[];    // Lista combinada de especies bloqueadas
+    allowedSpecies: string[];    // Excepciones permitidas
+  };
 }
 
 /**
@@ -377,6 +399,16 @@ export function createDefaultGlobalConfig(): GlobalLevelCapConfig {
       expBlocked: 'Tu Pokémon ha alcanzado el límite de nivel actual.',
       itemBlocked: 'No puedes usar este objeto en un Pokémon que excede el límite.',
       tradeBlocked: 'No puedes recibir un Pokémon que excede tu límite de nivel.',
+    },
+    pokemonRestrictions: {
+      blockLegendaries: false,
+      blockMythicals: false,
+      blockUltraBeasts: false,
+      blockParadox: false,
+      blockMegas: false,
+      blockRestricted: false,
+      customBlockedSpecies: [],
+      customAllowedSpecies: [],
     },
   };
 }

@@ -5,3 +5,4 @@
 
 export * from './starters.data.js';
 export * from './pokeballs.data.js';
+export * from './legendary-pokemon.data.js';

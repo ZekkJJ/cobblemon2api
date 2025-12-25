@@ -7,6 +7,10 @@ import { User } from '../../shared/types/user.types.js';
 import { LevelCapsDocument, EffectiveCapsResponse, TimeBasedLevelCapRule } from '../../shared/types/level-caps.types.js';
 import { AppError, Errors } from '../../shared/middleware/error-handler.js';
 import { FormulaEvaluator } from '../../shared/utils/formula-evaluator.js';
+import { 
+  LEGENDARY_POKEMON, MYTHICAL_POKEMON, ULTRA_BEASTS, 
+  PARADOX_POKEMON, MEGA_POKEMON, RESTRICTED_POKEMON 
+} from '../../shared/data/legendary-pokemon.data.js';
 
 export class LevelCapsService {
   constructor(
@@ -26,6 +30,16 @@ export class LevelCapsService {
           ownershipCap: 100,
           appliedRules: [],
           calculatedAt: new Date(),
+          pokemonRestrictions: {
+            blockLegendaries: false,
+            blockMythicals: false,
+            blockUltraBeasts: false,
+            blockParadox: false,
+            blockMegas: false,
+            blockRestricted: false,
+            blockedSpecies: [],
+            allowedSpecies: [],
+          },
         };
       }
 
@@ -83,12 +97,61 @@ export class LevelCapsService {
       if (captureCap === Infinity) captureCap = 100;
       if (ownershipCap === Infinity) ownershipCap = 100;
 
+      // 5. Calcular restricciones de Pokémon
+      const restrictions = config.globalConfig.pokemonRestrictions || {
+        blockLegendaries: false,
+        blockMythicals: false,
+        blockUltraBeasts: false,
+        blockParadox: false,
+        blockMegas: false,
+        blockRestricted: false,
+        customBlockedSpecies: [],
+        customAllowedSpecies: [],
+      };
+
+      // Construir lista de especies bloqueadas
+      const blockedSpecies: string[] = [...(restrictions.customBlockedSpecies || [])];
+      
+      if (restrictions.blockLegendaries) {
+        blockedSpecies.push(...Array.from(LEGENDARY_POKEMON));
+      }
+      if (restrictions.blockMythicals) {
+        blockedSpecies.push(...Array.from(MYTHICAL_POKEMON));
+      }
+      if (restrictions.blockUltraBeasts) {
+        blockedSpecies.push(...Array.from(ULTRA_BEASTS));
+      }
+      if (restrictions.blockParadox) {
+        blockedSpecies.push(...Array.from(PARADOX_POKEMON));
+      }
+      if (restrictions.blockMegas) {
+        blockedSpecies.push(...Array.from(MEGA_POKEMON));
+      }
+      if (restrictions.blockRestricted) {
+        blockedSpecies.push(...Array.from(RESTRICTED_POKEMON));
+      }
+
+      // Remover duplicados y excepciones permitidas
+      const allowedSpecies = restrictions.customAllowedSpecies || [];
+      const finalBlockedSpecies = [...new Set(blockedSpecies)]
+        .filter(s => !allowedSpecies.includes(s));
+
       return {
         success: true,
         captureCap,
         ownershipCap,
         appliedRules,
         calculatedAt: new Date(),
+        pokemonRestrictions: {
+          blockLegendaries: restrictions.blockLegendaries,
+          blockMythicals: restrictions.blockMythicals,
+          blockUltraBeasts: restrictions.blockUltraBeasts,
+          blockParadox: restrictions.blockParadox,
+          blockMegas: restrictions.blockMegas,
+          blockRestricted: restrictions.blockRestricted,
+          blockedSpecies: finalBlockedSpecies,
+          allowedSpecies,
+        },
       };
     } catch (error) {
       console.error('[LEVEL CAPS SERVICE] Error calculando caps:', error);
