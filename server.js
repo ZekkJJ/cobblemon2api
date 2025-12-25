@@ -4001,12 +4001,15 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
       const { amount } = req.body;
       const bidderUuid = req.headers['x-player-uuid'] || req.body.bidderUuid;
       
+      console.log('[PLAYER-SHOP BID] Request:', { id, amount, bidderUuid, body: req.body });
+      
       if (!bidderUuid) {
-        return res.status(401).json({ error: 'No autorizado' });
+        return res.status(401).json({ error: 'No autorizado - UUID requerido' });
       }
       
-      if (!amount || amount < 100) {
-        return res.status(400).json({ error: 'Monto de puja inválido' });
+      const parsedAmount = parseInt(amount);
+      if (!parsedAmount || isNaN(parsedAmount) || parsedAmount < 100) {
+        return res.status(400).json({ error: `Monto de puja inválido: ${amount} (parsed: ${parsedAmount})` });
       }
       
       const db = getDb();
@@ -4031,13 +4034,13 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
       }
       
       const minBid = listing.currentBid ? listing.currentBid + 100 : listing.startingBid;
-      if (amount < minBid) {
+      if (parsedAmount < minBid) {
         return res.status(400).json({ error: `La puja mínima es ${minBid} CobbleDollars` });
       }
       
       // Check bidder balance
       const bidder = await db.collection('users').findOne({ minecraftUuid: bidderUuid });
-      if (!bidder || (bidder.cobbleDollars || 0) < amount) {
+      if (!bidder || (bidder.cobbleDollars || 0) < parsedAmount) {
         return res.status(400).json({ error: 'CobbleDollars insuficientes' });
       }
       
@@ -4045,7 +4048,7 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
       const bid = {
         bidderUuid,
         bidderUsername: bidder.minecraftUsername,
-        amount,
+        amount: parsedAmount,
         timestamp: new Date(),
       };
       
@@ -4053,7 +4056,7 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
         { _id: new ObjectId(id) },
         { 
           $set: { 
-            currentBid: amount,
+            currentBid: parsedAmount,
             highestBidder: { uuid: bidderUuid, username: bidder.minecraftUsername },
             updatedAt: new Date()
           },
