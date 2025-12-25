@@ -390,4 +390,169 @@ export class PlayersService {
       throw Errors.databaseError();
     }
   }
+
+  // ============================================
+  // ECONOMY SYSTEM METHODS
+  // ============================================
+
+  /**
+   * Obtiene datos de economía de un jugador
+   */
+  async getEconomyData(uuid: string): Promise<{
+    lastSynergyReward: string | null;
+    caughtSpecies: string[];
+    dailyStreak: number;
+    lastDailyReward: string | null;
+    cobbleDollarsBalance: number;
+  }> {
+    try {
+      const user = await this.usersCollection.findOne({ minecraftUuid: uuid });
+
+      if (!user) {
+        // Return defaults for new player
+        return {
+          lastSynergyReward: null,
+          caughtSpecies: [],
+          dailyStreak: 0,
+          lastDailyReward: null,
+          cobbleDollarsBalance: 0,
+        };
+      }
+
+      return {
+        lastSynergyReward: user.lastSynergyReward || null,
+        caughtSpecies: user.caughtSpecies || [],
+        dailyStreak: user.dailyStreak || 0,
+        lastDailyReward: user.lastDailyReward || null,
+        cobbleDollarsBalance: user.cobbleDollarsBalance || 0,
+      };
+    } catch (error) {
+      console.error('[PLAYERS SERVICE] Error obteniendo datos de economía:', error);
+      throw Errors.databaseError();
+    }
+  }
+
+  /**
+   * Actualiza el timestamp de última recompensa de sinergia
+   */
+  async updateSynergyReward(uuid: string, timestamp: string): Promise<{ success: boolean }> {
+    try {
+      const result = await this.usersCollection.updateOne(
+        { minecraftUuid: uuid },
+        {
+          $set: {
+            lastSynergyReward: timestamp,
+            updatedAt: new Date(),
+          },
+        },
+        { upsert: false }
+      );
+
+      if (result.matchedCount === 0) {
+        // Player doesn't exist yet, create minimal record
+        await this.usersCollection.insertOne({
+          minecraftUuid: uuid,
+          lastSynergyReward: timestamp,
+          caughtSpecies: [],
+          dailyStreak: 0,
+          cobbleDollarsBalance: 0,
+          pokemonParty: [],
+          pcStorage: [],
+          discordId: null,
+          discordUsername: '',
+          nickname: '',
+          verified: false,
+          starterId: null,
+          starterIsShiny: false,
+          starterGiven: false,
+          rolledAt: null,
+          isAdmin: false,
+          banned: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as User);
+      }
+
+      console.log('[PLAYERS SERVICE] Synergy reward updated for', uuid);
+      return { success: true };
+    } catch (error) {
+      console.error('[PLAYERS SERVICE] Error actualizando synergy reward:', error);
+      throw Errors.databaseError();
+    }
+  }
+
+  /**
+   * Actualiza el timestamp y streak de recompensa diaria
+   */
+  async updateDailyReward(uuid: string, timestamp: string, streak: number): Promise<{ success: boolean }> {
+    try {
+      const result = await this.usersCollection.updateOne(
+        { minecraftUuid: uuid },
+        {
+          $set: {
+            lastDailyReward: timestamp,
+            dailyStreak: streak,
+            updatedAt: new Date(),
+          },
+        },
+        { upsert: false }
+      );
+
+      if (result.matchedCount === 0) {
+        console.warn('[PLAYERS SERVICE] Player not found for daily reward update:', uuid);
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('[PLAYERS SERVICE] Error actualizando daily reward:', error);
+      throw Errors.databaseError();
+    }
+  }
+
+  /**
+   * Registra una nueva especie capturada
+   */
+  async registerCaughtSpecies(uuid: string, species: string): Promise<{ 
+    success: boolean; 
+    isNew: boolean;
+    totalSpecies: number;
+  }> {
+    try {
+      const user = await this.usersCollection.findOne({ minecraftUuid: uuid });
+      
+      if (!user) {
+        return { success: false, isNew: false, totalSpecies: 0 };
+      }
+
+      const currentSpecies = user.caughtSpecies || [];
+      const speciesLower = species.toLowerCase();
+      
+      if (currentSpecies.includes(speciesLower)) {
+        // Already caught this species
+        return { 
+          success: true, 
+          isNew: false, 
+          totalSpecies: currentSpecies.length 
+        };
+      }
+
+      // Add new species
+      await this.usersCollection.updateOne(
+        { minecraftUuid: uuid },
+        {
+          $addToSet: { caughtSpecies: speciesLower },
+          $set: { updatedAt: new Date() },
+        }
+      );
+
+      return { 
+        success: true, 
+        isNew: true, 
+        totalSpecies: currentSpecies.length + 1 
+      };
+    } catch (error) {
+      console.error('[PLAYERS SERVICE] Error registrando especie capturada:', error);
+      throw Errors.databaseError();
+    }
+  }
 }

@@ -124,4 +124,81 @@ export class PlayersController {
 
     res.json(status);
   });
+
+  // ============================================
+  // ECONOMY ENDPOINTS
+  // ============================================
+
+  /**
+   * GET /api/players/economy/:uuid
+   * Obtiene datos de economía de un jugador
+   */
+  getEconomyData = asyncHandler(async (req: Request, res: Response) => {
+    const validatedParams = uuidParamSchema.parse(req.params);
+    const data = await this.playersService.getEconomyData(validatedParams.uuid);
+
+    res.json({
+      success: true,
+      ...data,
+    });
+  });
+
+  /**
+   * POST /api/players/economy/synergy
+   * Actualiza el timestamp de última recompensa de sinergia
+   */
+  updateSynergyReward = asyncHandler(async (req: Request, res: Response) => {
+    const schema = z.object({
+      uuid: z.string().uuid('UUID de Minecraft inválido'),
+      timestamp: z.string().min(1, 'Timestamp es requerido'),
+    });
+    
+    const validatedData = schema.parse(req.body);
+    const result = await this.playersService.updateSynergyReward(
+      validatedData.uuid,
+      validatedData.timestamp
+    );
+
+    res.json(result);
+  });
+
+  /**
+   * POST /api/players/economy/daily
+   * Actualiza el timestamp y streak de recompensa diaria
+   */
+  updateDailyReward = asyncHandler(async (req: Request, res: Response) => {
+    const schema = z.object({
+      uuid: z.string().uuid('UUID de Minecraft inválido'),
+      timestamp: z.string().min(1, 'Timestamp es requerido'),
+      streak: z.number().int().min(0).max(7),
+    });
+    
+    const validatedData = schema.parse(req.body);
+    const result = await this.playersService.updateDailyReward(
+      validatedData.uuid,
+      validatedData.timestamp,
+      validatedData.streak
+    );
+
+    res.json(result);
+  });
+
+  /**
+   * POST /api/players/economy/species
+   * Registra una nueva especie capturada
+   */
+  registerCaughtSpecies = asyncHandler(async (req: Request, res: Response) => {
+    const schema = z.object({
+      uuid: z.string().uuid('UUID de Minecraft inválido'),
+      species: z.string().min(1, 'Species es requerido'),
+    });
+    
+    const validatedData = schema.parse(req.body);
+    const result = await this.playersService.registerCaughtSpecies(
+      validatedData.uuid,
+      validatedData.species
+    );
+
+    res.json(result);
+  });
 }

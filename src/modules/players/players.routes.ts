@@ -89,5 +89,33 @@ export async function createPlayersRouter(): Promise<Router> {
    */
   router.get('/ban-status', ipWhitelistMiddleware, readLimiter, playersController.getBanStatus);
 
+  // ============================================
+  // RUTAS DE ECONOMÍA (requieren IP autorizada)
+  // ============================================
+
+  /**
+   * GET /api/players/economy/:uuid
+   * Obtiene datos de economía de un jugador (synergy, daily, etc.)
+   */
+  router.get('/economy/:uuid', ipWhitelistMiddleware, readLimiter, playersController.getEconomyData);
+
+  /**
+   * POST /api/players/economy/synergy
+   * Actualiza el timestamp de última recompensa de sinergia
+   */
+  router.post('/economy/synergy', ipWhitelistMiddleware, syncLimiter, playersController.updateSynergyReward);
+
+  /**
+   * POST /api/players/economy/daily
+   * Actualiza el timestamp y streak de recompensa diaria
+   */
+  router.post('/economy/daily', ipWhitelistMiddleware, syncLimiter, playersController.updateDailyReward);
+
+  /**
+   * POST /api/players/economy/species
+   * Registra una nueva especie capturada
+   */
+  router.post('/economy/species', ipWhitelistMiddleware, syncLimiter, playersController.registerCaughtSpecies);
+
   return router;
 }

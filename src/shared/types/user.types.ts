@@ -59,6 +59,12 @@ export interface User {
   // Economía
   cobbleDollarsBalance: number;
   
+  // Economy System - Synergy Rewards
+  lastSynergyReward?: string; // ISO timestamp of last synergy reward
+  caughtSpecies?: string[]; // Species caught for Pokédex tracking
+  dailyStreak?: number; // Daily login streak (1-7)
+  lastDailyReward?: string; // ISO timestamp of last daily reward
+  
   // Progreso del juego
   badges?: number;
   playtime?: number; // en minutos

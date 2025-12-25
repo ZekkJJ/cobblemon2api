@@ -15,6 +15,7 @@ const crypto = require('crypto');
 
 // Modular routes
 const { initModsRoutes } = require('./routes/mods.routes');
+const { initEconomyRoutes } = require('./routes/economy.routes');
 const { initDiscordBot, generateVerificationCode, isPlayerVerified, getBotStatus } = require('./routes/discord-bot.routes');
 
 // Environment variables
@@ -4254,6 +4255,12 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
   // ============================================
   app.use('/api/mods', initModsRoutes(getDb));
   console.log('📦 [ROUTES] Mods routes loaded');
+
+  // ============================================
+  // MODULAR ROUTES - Economy API
+  // ============================================
+  app.use('/api/economy', initEconomyRoutes(getDb));
+  console.log('💰 [ROUTES] Economy routes loaded');
 
   // Error handler
   app.use((err, req, res, next) => {
