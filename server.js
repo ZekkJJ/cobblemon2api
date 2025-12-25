@@ -128,21 +128,21 @@ async function callGroqLLM(prompt) {
         messages: [
           {
             role: 'system',
-            content: `You are an AGGRESSIVE game economist for a Pokémon Minecraft server. Your job is to set HIGH prices that make players WORK HARD for items.
+            content: `You are a BALANCED game economist for a Pokémon Minecraft server. Your job is to set FAIR prices that are accessible but still require some effort.
 
 CRITICAL PRICING RULES:
-- Use the 75th PERCENTILE (P75) as your base, NOT the median - this targets the richer players
-- If there's high wealth inequality (some rich, some poor), prices should target the RICH players
-- Players with 0 balance should be IGNORED when calculating prices
-- Common balls: 15-25% of P75 balance (minimum 500)
-- Uncommon balls: 30-50% of P75 balance (minimum 1,000)
-- Rare balls: 75-150% of P75 balance (minimum 3,000)
-- Epic balls: 200-400% of P75 balance (minimum 10,000)
-- Legendary (Master Ball): 800-1500% of P75 balance (minimum 50,000)
-- NEVER set prices below the minimums listed above
-- Items should feel EXPENSIVE - players should need to grind
-- A Poké Ball should NEVER cost less than 500
-- A Master Ball should NEVER cost less than 50,000
+- Use the MEDIAN balance as your base reference point
+- Prices should be AFFORDABLE for average players, not just rich ones
+- Common balls: 2-5% of median balance (minimum 100)
+- Uncommon balls: 5-10% of median balance (minimum 300)
+- Rare balls: 15-30% of median balance (minimum 1,000)
+- Epic balls: 50-100% of median balance (minimum 3,000)
+- Legendary (Master Ball): 200-400% of median balance (minimum 15,000)
+- A Poké Ball should cost around 100-300
+- A Great Ball should cost around 300-600
+- An Ultra Ball should cost around 500-1,200
+- A Master Ball should cost around 15,000-30,000
+- Items should be ACCESSIBLE - players should be able to buy basic balls easily
 - Always respond with valid JSON only, no explanations`
           },
           {
@@ -228,66 +228,66 @@ async function updateDynamicPricesWithAI() {
     const shopItems = await database.collection('shop_items').find({}).toArray();
     const itemNames = shopItems.map(i => ({ id: i.id, name: i.name, rarity: RARITY_CONFIG[i.id]?.rarity || 'uncommon' }));
 
-    // Build prompt for Groq - emphasize P75 and high prices
-    const prompt = `Analyze this Pokémon server economy and set AGGRESSIVE prices for Pokéballs.
+    // Build prompt for Groq - balanced pricing
+    const prompt = `Analyze this Pokémon server economy and set BALANCED, ACCESSIBLE prices for Pokéballs.
 
 ECONOMY DATA (players with balance > 0 only):
 - Active Players: ${totalPlayers}
 - Total Wealth: ${totalWealth.toLocaleString()} CobbleDollars
 - Average Balance: ${averageBalance.toLocaleString()}
-- Median Balance: ${medianBalance.toLocaleString()}
+- Median Balance: ${medianBalance.toLocaleString()} <-- USE THIS AS BASE
 - Min Balance: ${minBalance.toLocaleString()}
 - Max Balance: ${maxBalance.toLocaleString()}
 - 25th Percentile (P25): ${p25.toLocaleString()}
-- 75th Percentile (P75): ${p75.toLocaleString()} <-- USE THIS AS BASE
+- 75th Percentile (P75): ${p75.toLocaleString()}
 - 90th Percentile (P90): ${p90.toLocaleString()}
 - Wealth Inequality: ${(wealthGap * 100).toFixed(1)}% gap between richest and poorest
 - Purchases in last 24h: ${purchaseCount24h}
 - Money spent in 24h: ${totalSpent24h.toLocaleString()}
 
-ITEMS TO PRICE (use P75 as base, prices should be HIGH):
+ITEMS TO PRICE (use MEDIAN as base, prices should be ACCESSIBLE):
 ${itemNames.map(i => `- ${i.id} (${i.rarity}): ${i.name}`).join('\n')}
 
-MINIMUM PRICES (NEVER go below these):
-- Common balls: minimum 500
-- Uncommon balls: minimum 1,000
-- Rare balls: minimum 3,000
-- Epic balls: minimum 10,000
-- Legendary: minimum 50,000
+TARGET PRICES (aim for these ranges):
+- Common balls (poke, great, premier, heal): 100-400
+- Uncommon balls (ultra, net, dive, nest, etc): 300-800
+- Rare balls (apricorn balls, quick): 800-2,000
+- Epic balls (dream, beast): 2,000-5,000
+- Legendary (master): 10,000-25,000
 
-Set prices that make players GRIND. Use P75 (${p75.toLocaleString()}) as your reference point.
+Set prices that are FAIR and ACCESSIBLE. Use median (${medianBalance.toLocaleString()}) as reference.
 
 Respond with ONLY a JSON object in this exact format:
 {
   "analysis": "Brief 1-2 sentence analysis",
   "economyHealth": "healthy|inflated|deflated",
-  "recommendedBasePrice": <number based on P75>,
+  "recommendedBasePrice": <number based on median>,
   "prices": {
-    "poke_ball": <price, max 800>,
-    "great_ball": <price, min 500>,
-    "ultra_ball": <price, min 400>,
-    "premier_ball": <price, min 500>,
-    "luxury_ball": <price, min 1000>,
-    "heal_ball": <price, min 500>,
-    "net_ball": <price, min 1000>,
-    "dive_ball": <price, min 1000>,
-    "nest_ball": <price, min 1000>,
-    "repeat_ball": <price, min 1000>,
-    "timer_ball": <price, min 1000>,
-    "quick_ball": <price, min 3000>,
-    "dusk_ball": <price, min 1000>,
-    "level_ball": <price, min 3000>,
-    "lure_ball": <price, min 3000>,
-    "moon_ball": <price, min 3000>,
-    "friend_ball": <price, min 3000>,
-    "love_ball": <price, min 3000>,
-    "heavy_ball": <price, min 3000>,
-    "fast_ball": <price, min 3000>,
-    "safari_ball": <price, min 3000>,
-    "sport_ball": <price, min 3000>,
-    "dream_ball": <price, min 10000>,
-    "beast_ball": <price, min 10000>,
-    "master_ball": <price, min 50000>
+    "poke_ball": <price, 100-200>,
+    "great_ball": <price, 200-400>,
+    "ultra_ball": <price, 400-800>,
+    "premier_ball": <price, 100-200>,
+    "luxury_ball": <price, 400-800>,
+    "heal_ball": <price, 150-300>,
+    "net_ball": <price, 400-700>,
+    "dive_ball": <price, 400-700>,
+    "nest_ball": <price, 400-700>,
+    "repeat_ball": <price, 400-700>,
+    "timer_ball": <price, 400-700>,
+    "quick_ball": <price, 600-1200>,
+    "dusk_ball": <price, 400-700>,
+    "level_ball": <price, 800-1500>,
+    "lure_ball": <price, 800-1500>,
+    "moon_ball": <price, 800-1500>,
+    "friend_ball": <price, 800-1500>,
+    "love_ball": <price, 1000-2000>,
+    "heavy_ball": <price, 800-1500>,
+    "fast_ball": <price, 800-1500>,
+    "safari_ball": <price, 600-1200>,
+    "sport_ball": <price, 600-1200>,
+    "dream_ball": <price, 2000-4000>,
+    "beast_ball": <price, 3000-6000>,
+    "master_ball": <price, 15000-25000>
   }
 }`;
 
@@ -299,13 +299,13 @@ Respond with ONLY a JSON object in this exact format:
       console.log(`[ECONOMIC AI] Economy Health: ${aiResponse.economyHealth}`);
       console.log(`[ECONOMIC AI] Recommended Base: ${aiResponse.recommendedBasePrice}`);
 
-      // Minimum prices by rarity (ENFORCED)
+      // Minimum prices by rarity (ENFORCED) - more accessible
       const MIN_PRICES = {
-        common: 500,
-        uncommon: 1000,
-        rare: 3000,
-        epic: 10000,
-        legendary: 50000,
+        common: 100,
+        uncommon: 300,
+        rare: 800,
+        epic: 2000,
+        legendary: 15000,
       };
 
       // Apply AI-recommended prices with ENFORCED minimums

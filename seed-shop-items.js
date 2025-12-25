@@ -10,18 +10,18 @@ const { MongoClient } = require('mongodb');
 const MONGODB_URI = process.env.MONGODB_URI;
 
 // Items adicionales para la tienda
-// URLs verificadas que funcionan
+// URLs de sprites de mc.nerothe.com (permite hotlinking)
 const SHOP_ITEMS = [
   // ============================================
   // COMIDA DE MINECRAFT 
-  // Usando emojis como placeholder hasta tener sprites propios
+  // Sprites de mc.nerothe.com - API de items de Minecraft
   // ============================================
   {
     id: 'golden_apple',
     minecraftId: 'minecraft:golden_apple',
     name: 'Golden Apple',
     description: 'Manzana dorada. Regeneración II y Absorción por 2 minutos.',
-    sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/golden-razz-berry.png',
+    sprite: 'https://mc.nerothe.com/img/1.20.1/golden_apple.png',
     type: 'food',
     category: 'minecraft',
     basePrice: 5000,
@@ -35,7 +35,7 @@ const SHOP_ITEMS = [
     minecraftId: 'minecraft:enchanted_golden_apple',
     name: 'Enchanted Golden Apple',
     description: 'La legendaria Notch Apple. Regeneración V, Absorción IV, Resistencia.',
-    sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/starf-berry.png',
+    sprite: 'https://mc.nerothe.com/img/1.20.1/enchanted_golden_apple.png',
     type: 'food',
     category: 'minecraft',
     basePrice: 50000,
@@ -49,7 +49,7 @@ const SHOP_ITEMS = [
     minecraftId: 'minecraft:golden_carrot',
     name: 'Golden Carrot',
     description: 'Zanahoria dorada. La mejor comida del juego en saturación.',
-    sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/sitrus-berry.png',
+    sprite: 'https://mc.nerothe.com/img/1.20.1/golden_carrot.png',
     type: 'food',
     category: 'minecraft',
     basePrice: 2000,
@@ -63,7 +63,7 @@ const SHOP_ITEMS = [
     minecraftId: 'minecraft:cooked_beef',
     name: 'Steak',
     description: 'Filete de res cocido. Restaura 8 de hambre y 12.8 de saturación.',
-    sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/oran-berry.png',
+    sprite: 'https://mc.nerothe.com/img/1.20.1/cooked_beef.png',
     type: 'food',
     category: 'minecraft',
     basePrice: 500,
@@ -77,7 +77,7 @@ const SHOP_ITEMS = [
     minecraftId: 'minecraft:cooked_porkchop',
     name: 'Cooked Porkchop',
     description: 'Chuleta de cerdo cocida. Restaura 8 de hambre y 12.8 de saturación.',
-    sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/leppa-berry.png',
+    sprite: 'https://mc.nerothe.com/img/1.20.1/cooked_porkchop.png',
     type: 'food',
     category: 'minecraft',
     basePrice: 500,
