@@ -1711,13 +1711,17 @@ function createApp() {
   app.get('/api/players/:uuid', async (req, res) => {
     try {
       const { uuid } = req.params;
+      console.log('[PLAYER PROFILE] Fetching profile for UUID:', uuid);
+      
       const db = getDb();
       const user = await db.collection('users').findOne({ minecraftUuid: uuid });
 
       if (!user) {
+        console.log('[PLAYER PROFILE] User not found for UUID:', uuid);
         return res.status(404).json({ error: 'Player not found' });
       }
 
+      console.log('[PLAYER PROFILE] Found user:', user.minecraftUsername, 'party:', user.party?.length || 0, 'pc:', user.pcStorage?.length || 0);
       res.json({ success: true, profile: user });
     } catch (error) {
       console.error('[PLAYER PROFILE] Error:', error);
@@ -3582,6 +3586,7 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
 
       const userData = await userResponse.json();
 
+      // Update user in DB
       await getDb().collection('users').updateOne(
         { discordId: userData.id },
         {
@@ -3596,11 +3601,23 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
         { upsert: true }
       );
 
+      // Fetch the full user to get minecraftUuid if verified
+      const fullUser = await getDb().collection('users').findOne({ discordId: userData.id });
+
+      // Also check players collection for verified status
+      const playerData = await getDb().collection('players').findOne({ discordId: userData.id });
+
       const userForFrontend = {
         discordId: userData.id,
         discordUsername: userData.global_name || userData.username,
         avatar: userData.avatar ? `https://cdn.discordapp.com/avatars/${userData.id}/${userData.avatar}.png` : null,
+        // Include minecraftUuid if user is verified (from either collection)
+        minecraftUuid: fullUser?.minecraftUuid || playerData?.minecraftUuid || null,
+        minecraftUsername: fullUser?.minecraftUsername || playerData?.username || null,
+        isMinecraftVerified: !!(fullUser?.minecraftUuid || playerData?.verified),
       };
+
+      console.log('[AUTH] User logged in:', userForFrontend.discordUsername, 'minecraftUuid:', userForFrontend.minecraftUuid);
 
       res.redirect(`${FRONTEND_URL}/auth/callback?user=${encodeURIComponent(JSON.stringify(userForFrontend))}`);
     } catch (error) {
