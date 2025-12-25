@@ -15,6 +15,7 @@ const crypto = require('crypto');
 
 // Modular routes
 const { initModsRoutes } = require('./routes/mods.routes');
+const { initDiscordBot, generateVerificationCode, isPlayerVerified, getBotStatus } = require('./routes/discord-bot.routes');
 
 // Environment variables
 const PORT = process.env.PORT || 25617;
@@ -937,7 +938,59 @@ function createApp() {
   });
 
   // ============================================
-  // NEW VERIFICATION FLOW (Web → In-Game)
+  // NEW VERIFICATION FLOW (In-Game → Discord)
+  // Plugin generates code when player joins
+  // Player posts code in Discord channel
+  // Bot reads message and links accounts
+  // ============================================
+
+  // POST /api/verification/generate-code - Plugin generates code for unverified player
+  app.post('/api/verification/generate-code', async (req, res) => {
+    try {
+      const { minecraftUuid, minecraftUsername } = req.body;
+      if (!minecraftUuid || !minecraftUsername) {
+        return res.status(400).json({ error: 'minecraftUuid and minecraftUsername required' });
+      }
+
+      const database = getDb();
+      
+      // Check if already verified
+      const existingPlayer = await database.collection('players').findOne({ 
+        minecraftUuid,
+        verified: true 
+      });
+      
+      if (existingPlayer) {
+        return res.json({ 
+          success: true, 
+          alreadyVerified: true,
+          discordUsername: existingPlayer.discordUsername 
+        });
+      }
+
+      // Generate code using the discord-bot module
+      const code = await generateVerificationCode(minecraftUuid, minecraftUsername);
+
+      console.log(`[VERIFICATION] Generated code ${code} for ${minecraftUsername}`);
+      res.json({ success: true, code });
+    } catch (error) {
+      console.error('[VERIFICATION GENERATE CODE] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // GET /api/verification/bot-status - Check Discord bot status
+  app.get('/api/verification/bot-status', async (req, res) => {
+    try {
+      const status = getBotStatus();
+      res.json({ success: true, ...status });
+    } catch (error) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ============================================
+  // LEGACY VERIFICATION FLOW (Web → In-Game)
   // Code generated on WEB after gacha roll
   // Player uses /verify <code> in-game to link accounts
   // ============================================
@@ -3847,6 +3900,15 @@ async function startServer() {
   try {
     console.log('🚀 Iniciando servidor...');
     await connectToDatabase();
+    
+    // Initialize Discord Bot for verification
+    try {
+      await initDiscordBot(getDb());
+      console.log('🤖 Discord Bot initialized for verification');
+    } catch (botError) {
+      console.log('⚠️ Discord Bot not initialized:', botError.message);
+    }
+    
     const app = createApp();
 
     app.listen(PORT, '0.0.0.0', async () => {
