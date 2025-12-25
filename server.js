@@ -3952,16 +3952,10 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
         return res.status(400).json({ error: 'CobbleDollars insuficientes' });
       }
       
-      // Process transaction
-      await db.collection('users').updateOne(
-        { minecraftUuid: buyerUuid },
-        { $inc: { cobbleDollars: -listing.price } }
-      );
-      
-      await db.collection('users').updateOne(
-        { minecraftUuid: listing.seller.uuid },
-        { $inc: { cobbleDollars: listing.price } }
-      );
+      // NOTE: Balance transfer is handled by the plugin via CobbleDollars commands
+      // The plugin will execute /cobbledollars remove and /cobbledollars give
+      // when processing the delivery. We don't update DB here because the plugin
+      // syncs the real balance from the game files and would overwrite our changes.
       
       // Update listing
       await db.collection('player_shop_listings').updateOne(
