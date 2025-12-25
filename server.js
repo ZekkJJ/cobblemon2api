@@ -4180,9 +4180,13 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
       }
 
       const database = getDb();
+      // Buscar por recipientUuid O buyerUuid para compatibilidad
       const deliveries = await database.collection('player_shop_deliveries')
         .find({ 
-          recipientUuid: uuid,
+          $or: [
+            { recipientUuid: uuid },
+            { buyerUuid: uuid }
+          ],
           status: 'pending'
         })
         .toArray();
@@ -4190,10 +4194,11 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
       res.json({
         success: true,
         deliveries: deliveries.map(d => ({
-          id: d._id.toString(),
-          recipientUuid: d.recipientUuid,
-          pokemonData: d.pokemonData,
-          type: d.type,
+          _id: d._id.toString(),
+          recipientUuid: d.recipientUuid || d.buyerUuid,
+          recipientUsername: d.recipientUsername || d.buyerUsername,
+          pokemon: d.pokemon || d.pokemonData,
+          type: d.type || 'purchase',
           listingId: d.listingId,
           createdAt: d.createdAt,
         })),
