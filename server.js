@@ -3609,8 +3609,151 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
   });
 
   // ============================================
-  // PLAYER SHOP - Deliveries for Plugin
+  // PLAYER SHOP - Full API for Frontend & Plugin
   // ============================================
+
+  // GET /api/player-shop/listings - Get active listings with filters
+  app.get('/api/player-shop/listings', async (req, res) => {
+    try {
+      const { 
+        species, type, minPrice, maxPrice, shinyOnly, 
+        saleMethod, sortBy = 'createdAt', sortOrder = 'desc',
+        page = 1, limit = 20 
+      } = req.query;
+
+      const database = getDb();
+      const query = { status: 'active' };
+
+      // Apply filters
+      if (species) {
+        query['pokemonData.species'] = { $regex: species, $options: 'i' };
+      }
+      if (type) {
+        query['pokemonData.types'] = type;
+      }
+      if (minPrice || maxPrice) {
+        query.price = {};
+        if (minPrice) query.price.$gte = parseInt(minPrice);
+        if (maxPrice) query.price.$lte = parseInt(maxPrice);
+      }
+      if (shinyOnly === 'true') {
+        query['pokemonData.shiny'] = true;
+      }
+      if (saleMethod) {
+        query.saleMethod = saleMethod;
+      }
+
+      // Sort options
+      const sortOptions = {};
+      sortOptions[sortBy] = sortOrder === 'asc' ? 1 : -1;
+
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+      const total = await database.collection('player_shop_listings').countDocuments(query);
+      const listings = await database.collection('player_shop_listings')
+        .find(query)
+        .sort(sortOptions)
+        .skip(skip)
+        .limit(parseInt(limit))
+        .toArray();
+
+      res.json({
+        success: true,
+        listings: listings.map(l => ({
+          id: l._id.toString(),
+          ...l,
+          _id: undefined,
+        })),
+        page: parseInt(page),
+        totalPages: Math.ceil(total / parseInt(limit)),
+        total,
+        hasMore: skip + listings.length < total,
+      });
+    } catch (error) {
+      console.error('[PLAYER-SHOP] Error getting listings:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // GET /api/player-shop/listings/:id - Get single listing
+  app.get('/api/player-shop/listings/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const database = getDb();
+      
+      const listing = await database.collection('player_shop_listings').findOne({ 
+        _id: new ObjectId(id) 
+      });
+
+      if (!listing) {
+        return res.status(404).json({ error: 'Listing not found' });
+      }
+
+      res.json({
+        success: true,
+        listing: {
+          id: listing._id.toString(),
+          ...listing,
+          _id: undefined,
+        },
+      });
+    } catch (error) {
+      console.error('[PLAYER-SHOP] Error getting listing:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // GET /api/player-shop/my-listings - Get user's listings
+  app.get('/api/player-shop/my-listings', async (req, res) => {
+    try {
+      const uuid = req.query.uuid || req.headers['x-player-uuid'];
+      if (!uuid) {
+        return res.status(400).json({ error: 'UUID required' });
+      }
+
+      const database = getDb();
+      const listings = await database.collection('player_shop_listings')
+        .find({ sellerUuid: uuid })
+        .sort({ createdAt: -1 })
+        .toArray();
+
+      res.json({
+        success: true,
+        listings: listings.map(l => ({
+          id: l._id.toString(),
+          ...l,
+          _id: undefined,
+        })),
+      });
+    } catch (error) {
+      console.error('[PLAYER-SHOP] Error getting my listings:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // GET /api/player-shop/listings/:id/bids - Get bid history
+  app.get('/api/player-shop/listings/:id/bids', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const database = getDb();
+      
+      const bids = await database.collection('player_shop_bids')
+        .find({ listingId: id })
+        .sort({ amount: -1, createdAt: -1 })
+        .toArray();
+
+      res.json({
+        success: true,
+        bids: bids.map(b => ({
+          id: b._id.toString(),
+          ...b,
+          _id: undefined,
+        })),
+      });
+    } catch (error) {
+      console.error('[PLAYER-SHOP] Error getting bids:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
 
   // GET /api/player-shop/deliveries - Get pending deliveries for a player
   app.get('/api/player-shop/deliveries', async (req, res) => {
