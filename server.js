@@ -3758,9 +3758,9 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
       res.json({
         success: true,
         listings: listings.map(l => ({
-          id: l._id.toString(),
           ...l,
-          _id: undefined,
+          _id: l._id.toString(),
+          id: l._id.toString(),
         })),
         page: parseInt(page),
         totalPages: Math.ceil(total / parseInt(limit)),
