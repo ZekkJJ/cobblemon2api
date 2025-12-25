@@ -1680,6 +1680,199 @@ function createApp() {
     }
   });
 
+  // ============================================
+  // PLAYER ECONOMY ENDPOINTS (for plugin)
+  // ============================================
+
+  // GET /api/players/economy/:uuid - Get player economy data
+  app.get('/api/players/economy/:uuid', async (req, res) => {
+    try {
+      const { uuid } = req.params;
+      
+      if (!uuid) {
+        return res.status(400).json({ success: false, error: 'UUID is required' });
+      }
+
+      const db = getDb();
+      const user = await db.collection('users').findOne({ minecraftUuid: uuid });
+      
+      if (!user) {
+        return res.json({ 
+          success: true, 
+          exists: false,
+          lastSynergyReward: null,
+          lastDailyReward: null,
+          dailyStreak: 0,
+          caughtSpecies: []
+        });
+      }
+
+      console.log(`[ECONOMY] GET economy data for ${user.minecraftUsername || uuid}`);
+      
+      res.json({ 
+        success: true,
+        exists: true,
+        lastSynergyReward: user.lastSynergyReward || null,
+        lastDailyReward: user.lastDailyReward || null,
+        dailyStreak: user.dailyStreak || 0,
+        caughtSpecies: user.caughtSpecies || [],
+        cobbleDollars: user.cobbleDollars || 0
+      });
+    } catch (error) {
+      console.error('[ECONOMY] Error getting economy data:', error);
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/players/economy/daily - Save daily reward data
+  app.post('/api/players/economy/daily', async (req, res) => {
+    try {
+      const { uuid, timestamp, streak } = req.body;
+      
+      if (!uuid) {
+        return res.status(400).json({ success: false, error: 'UUID is required' });
+      }
+
+      const db = getDb();
+      await db.collection('users').updateOne(
+        { minecraftUuid: uuid },
+        { 
+          $set: { 
+            lastDailyReward: timestamp ? new Date(timestamp) : new Date(),
+            dailyStreak: streak || 1,
+            lastEconomyUpdate: new Date()
+          }
+        },
+        { upsert: false }
+      );
+
+      console.log(`[ECONOMY] Daily reward saved for ${uuid}: streak ${streak}`);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('[ECONOMY] Error saving daily reward:', error);
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/players/economy/synergy - Save synergy reward timestamp
+  app.post('/api/players/economy/synergy', async (req, res) => {
+    try {
+      const { uuid, timestamp } = req.body;
+      
+      if (!uuid) {
+        return res.status(400).json({ success: false, error: 'UUID is required' });
+      }
+
+      const db = getDb();
+      await db.collection('users').updateOne(
+        { minecraftUuid: uuid },
+        { 
+          $set: { 
+            lastSynergyReward: timestamp ? new Date(timestamp) : new Date(),
+            lastEconomyUpdate: new Date()
+          }
+        },
+        { upsert: false }
+      );
+
+      console.log(`[ECONOMY] Synergy reward saved for ${uuid}`);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('[ECONOMY] Error saving synergy reward:', error);
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/players/economy/species - Register caught species
+  app.post('/api/players/economy/species', async (req, res) => {
+    try {
+      const { uuid, species } = req.body;
+      
+      if (!uuid || !species) {
+        return res.status(400).json({ success: false, error: 'UUID and species are required' });
+      }
+
+      const db = getDb();
+      await db.collection('users').updateOne(
+        { minecraftUuid: uuid },
+        { 
+          $addToSet: { caughtSpecies: species.toLowerCase() },
+          $set: { lastEconomyUpdate: new Date() }
+        },
+        { upsert: false }
+      );
+
+      console.log(`[ECONOMY] Species ${species} registered for ${uuid}`);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('[ECONOMY] Error registering species:', error);
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/players/economy/transaction - Process economy transaction
+  app.post('/api/players/economy/transaction', async (req, res) => {
+    try {
+      const { uuid, type, amount, reason } = req.body;
+      
+      if (!uuid) {
+        return res.status(400).json({ success: false, error: 'UUID is required' });
+      }
+
+      if (!type || !['add', 'remove', 'set'].includes(type)) {
+        return res.status(400).json({ success: false, error: 'Invalid transaction type' });
+      }
+
+      if (typeof amount !== 'number' || amount < 0) {
+        return res.status(400).json({ success: false, error: 'Amount must be a non-negative number' });
+      }
+
+      const db = getDb();
+      const user = await db.collection('users').findOne({ minecraftUuid: uuid });
+      const previousBalance = user?.cobbleDollars || 0;
+      let newBalance = previousBalance;
+
+      switch (type) {
+        case 'add':
+          newBalance = previousBalance + amount;
+          break;
+        case 'remove':
+          newBalance = Math.max(0, previousBalance - amount);
+          break;
+        case 'set':
+          newBalance = amount;
+          break;
+      }
+
+      await db.collection('users').updateOne(
+        { minecraftUuid: uuid },
+        { $set: { cobbleDollars: newBalance, lastEconomyUpdate: new Date() } }
+      );
+
+      // Log transaction
+      await db.collection('economy_transactions').insertOne({
+        uuid,
+        type,
+        amount,
+        previousBalance,
+        newBalance,
+        reason: reason || 'No reason',
+        source: 'plugin',
+        timestamp: new Date()
+      });
+
+      console.log(`[ECONOMY] Transaction: ${type} ${amount} for ${uuid} | ${previousBalance} -> ${newBalance}`);
+
+      res.json({ success: true, previousBalance, newBalance });
+    } catch (error) {
+      console.error('[ECONOMY] Transaction error:', error);
+      res.status(500).json({ success: false, error: 'Transaction failed' });
+    }
+  });
+
   // GET /api/players - Get all players
   app.get('/api/players', async (req, res) => {
     try {
