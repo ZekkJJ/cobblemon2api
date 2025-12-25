@@ -262,9 +262,9 @@ Respond with ONLY a JSON object in this exact format:
   "economyHealth": "healthy|inflated|deflated",
   "recommendedBasePrice": <number based on P75>,
   "prices": {
-    "poke_ball": <price, min 500>,
+    "poke_ball": <price, max 800>,
     "great_ball": <price, min 500>,
-    "ultra_ball": <price, min 1000>,
+    "ultra_ball": <price, min 400>,
     "premier_ball": <price, min 500>,
     "luxury_ball": <price, min 1000>,
     "heal_ball": <price, min 500>,
