@@ -4001,14 +4001,16 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
       const { amount } = req.body;
       const bidderUuid = req.headers['x-player-uuid'] || req.body.bidderUuid;
       
-      console.log('[PLAYER-SHOP BID] Request:', { id, amount, bidderUuid, body: req.body });
+      console.log('[PLAYER-SHOP BID] Request:', { id, amount, bidderUuid });
       
       if (!bidderUuid) {
+        console.log('[PLAYER-SHOP BID] FAIL: No bidderUuid');
         return res.status(401).json({ error: 'No autorizado - UUID requerido' });
       }
       
       const parsedAmount = parseInt(amount);
       if (!parsedAmount || isNaN(parsedAmount) || parsedAmount < 100) {
+        console.log('[PLAYER-SHOP BID] FAIL: Invalid amount', { amount, parsedAmount });
         return res.status(400).json({ error: `Monto de puja inválido: ${amount} (parsed: ${parsedAmount})` });
       }
       
@@ -4021,26 +4023,35 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
         saleMethod: 'bidding'
       });
       
+      console.log('[PLAYER-SHOP BID] Listing found:', listing ? { id: listing._id, seller: listing.seller?.uuid, saleMethod: listing.saleMethod, expiresAt: listing.expiresAt, currentBid: listing.currentBid, startingBid: listing.startingBid } : 'NOT FOUND');
+      
       if (!listing) {
+        console.log('[PLAYER-SHOP BID] FAIL: Listing not found');
         return res.status(404).json({ error: 'Subasta no encontrada o no disponible' });
       }
       
       if (listing.seller.uuid === bidderUuid) {
+        console.log('[PLAYER-SHOP BID] FAIL: Own auction');
         return res.status(400).json({ error: 'No puedes pujar en tu propia subasta' });
       }
       
       if (new Date() > new Date(listing.expiresAt)) {
+        console.log('[PLAYER-SHOP BID] FAIL: Auction expired', { expiresAt: listing.expiresAt, now: new Date() });
         return res.status(400).json({ error: 'La subasta ha terminado' });
       }
       
       const minBid = listing.currentBid ? listing.currentBid + 100 : listing.startingBid;
+      console.log('[PLAYER-SHOP BID] Min bid check:', { minBid, parsedAmount, currentBid: listing.currentBid, startingBid: listing.startingBid });
       if (parsedAmount < minBid) {
+        console.log('[PLAYER-SHOP BID] FAIL: Bid too low');
         return res.status(400).json({ error: `La puja mínima es ${minBid} CobbleDollars` });
       }
       
       // Check bidder balance
       const bidder = await db.collection('users').findOne({ minecraftUuid: bidderUuid });
+      console.log('[PLAYER-SHOP BID] Bidder found:', bidder ? { uuid: bidder.minecraftUuid, balance: bidder.cobbleDollars } : 'NOT FOUND');
       if (!bidder || (bidder.cobbleDollars || 0) < parsedAmount) {
+        console.log('[PLAYER-SHOP BID] FAIL: Insufficient balance', { balance: bidder?.cobbleDollars, needed: parsedAmount });
         return res.status(400).json({ error: 'CobbleDollars insuficientes' });
       }
       
