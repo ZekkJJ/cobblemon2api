@@ -4073,6 +4073,7 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
     try {
       const { id } = req.params;
       const database = getDb();
+      const { ObjectId } = require('mongodb');
       
       const listing = await database.collection('player_shop_listings').findOne({ 
         _id: new ObjectId(id) 
@@ -4085,9 +4086,9 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
       res.json({
         success: true,
         listing: {
-          id: listing._id.toString(),
           ...listing,
-          _id: undefined,
+          _id: listing._id.toString(),
+          id: listing._id.toString(),
         },
       });
     } catch (error) {
