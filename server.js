@@ -838,6 +838,19 @@ function createApp() {
   app.post('/api/players/sync', async (req, res) => {
     try {
       const { uuid, username, online, party, pcStorage, cobbleDollars, cobbleDollarsBalance, badges, playtime, x, y, z, world } = req.body;
+      
+      // DEBUG: Log what the plugin is sending
+      if (username === 'ZekkJJ') {
+        console.log('[SYNC DEBUG] ZekkJJ sync received:');
+        console.log('  - party:', party ? `${party.length} pokemon` : 'undefined');
+        console.log('  - pcStorage:', pcStorage ? `${pcStorage.length} items` : 'undefined');
+        console.log('  - online:', online);
+        console.log('  - position:', x, y, z, world);
+        if (party && party.length > 0) {
+          console.log('  - party pokemon:', party.map(p => `${p?.species || p?.name} Lv.${p?.level}`).join(', '));
+        }
+      }
+      
       if (!uuid || !username) {
         return res.status(400).json({ error: 'uuid and username required' });
       }
@@ -4087,22 +4100,27 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
   app.get('/api/player-shop/my-listings', async (req, res) => {
     try {
       const uuid = req.query.uuid || req.headers['x-player-uuid'];
+      console.log('[MY-LISTINGS] Fetching for UUID:', uuid);
+      
       if (!uuid) {
         return res.status(400).json({ error: 'UUID required' });
       }
 
       const database = getDb();
+      // Search by seller.uuid (nested field)
       const listings = await database.collection('player_shop_listings')
-        .find({ sellerUuid: uuid })
+        .find({ 'seller.uuid': uuid })
         .sort({ createdAt: -1 })
         .toArray();
+
+      console.log('[MY-LISTINGS] Found', listings.length, 'listings for', uuid);
 
       res.json({
         success: true,
         listings: listings.map(l => ({
           id: l._id.toString(),
+          _id: l._id.toString(),
           ...l,
-          _id: undefined,
         })),
       });
     } catch (error) {
