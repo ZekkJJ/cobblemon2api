@@ -653,10 +653,17 @@ export class PlayerShopService {
 
   /**
    * Obtiene entregas pendientes para un jugador
+   * Busca por recipientUuid O buyerUuid para compatibilidad con diferentes flujos
    */
   async getPendingDeliveries(playerUuid: string): Promise<PendingDelivery[]> {
     return await this.deliveriesCollection
-      .find({ recipientUuid: playerUuid, status: 'pending' })
+      .find({ 
+        $or: [
+          { recipientUuid: playerUuid },
+          { buyerUuid: playerUuid }
+        ],
+        status: 'pending' 
+      })
       .toArray();
   }
 
