@@ -1721,8 +1721,21 @@ function createApp() {
         return res.status(404).json({ error: 'Player not found' });
       }
 
-      console.log('[PLAYER PROFILE] Found user:', user.minecraftUsername, 'party:', user.party?.length || 0, 'pc:', user.pcStorage?.length || 0);
-      res.json({ success: true, profile: user });
+      // Normalize pokemon data - use pokemonParty if party is empty (legacy support)
+      const party = (user.party && user.party.length > 0) ? user.party : (user.pokemonParty || []);
+      const pcStorage = user.pcStorage || [];
+      
+      console.log('[PLAYER PROFILE] Found user:', user.minecraftUsername, 'party:', party.length, 'pc:', pcStorage.length);
+      
+      // Return normalized profile
+      res.json({ 
+        success: true, 
+        profile: {
+          ...user,
+          party: party,
+          pcStorage: pcStorage
+        }
+      });
     } catch (error) {
       console.error('[PLAYER PROFILE] Error:', error);
       res.status(500).json({ error: 'Internal server error' });
