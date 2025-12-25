@@ -1722,10 +1722,13 @@ function createApp() {
       }
 
       // Normalize pokemon data - use pokemonParty if party is empty (legacy support)
+      // Also check pokemonPC for legacy PC storage
       const party = (user.party && user.party.length > 0) ? user.party : (user.pokemonParty || []);
-      const pcStorage = user.pcStorage || [];
+      const pcStorage = (user.pcStorage && user.pcStorage.length > 0) ? user.pcStorage : (user.pokemonPC || []);
       
-      console.log('[PLAYER PROFILE] Found user:', user.minecraftUsername, 'party:', party.length, 'pc:', pcStorage.length);
+      console.log('[PLAYER PROFILE] Found user:', user.minecraftUsername);
+      console.log('[PLAYER PROFILE] party:', party.length, '(from:', user.party?.length > 0 ? 'party' : 'pokemonParty', ')');
+      console.log('[PLAYER PROFILE] pc:', pcStorage.length, '(from:', user.pcStorage?.length > 0 ? 'pcStorage' : 'pokemonPC', ')');
       
       // Return normalized profile
       res.json({ 
@@ -3753,6 +3756,301 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
       });
     } catch (error) {
       console.error('[PLAYER-SHOP] Error getting listings:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/player-shop/listings - Create a new listing
+  app.post('/api/player-shop/listings', async (req, res) => {
+    try {
+      const { pokemonUuid, saleMethod, price, startingBid, duration } = req.body;
+      
+      // Get seller info from session/headers
+      const sellerUuid = req.headers['x-player-uuid'] || req.body.sellerUuid;
+      
+      if (!sellerUuid) {
+        return res.status(401).json({ error: 'No autorizado - UUID de jugador requerido' });
+      }
+      
+      if (!pokemonUuid || !saleMethod) {
+        return res.status(400).json({ error: 'pokemonUuid y saleMethod son requeridos' });
+      }
+      
+      if (saleMethod === 'direct' && (!price || price < 100)) {
+        return res.status(400).json({ error: 'Precio mínimo es 100 CobbleDollars' });
+      }
+      
+      if (saleMethod === 'bidding' && (!startingBid || startingBid < 100)) {
+        return res.status(400).json({ error: 'Puja inicial mínima es 100 CobbleDollars' });
+      }
+      
+      const db = getDb();
+      
+      // Get seller data
+      const seller = await db.collection('users').findOne({ minecraftUuid: sellerUuid });
+      if (!seller) {
+        return res.status(404).json({ error: 'Vendedor no encontrado' });
+      }
+      
+      // Find the Pokemon in seller's party or PC
+      const allPokemon = [...(seller.party || []), ...(seller.pokemonParty || [])];
+      
+      // Also check PC storage
+      if (seller.pcStorage && Array.isArray(seller.pcStorage)) {
+        seller.pcStorage.forEach(box => {
+          if (box.pokemon && Array.isArray(box.pokemon)) {
+            allPokemon.push(...box.pokemon.filter(p => p));
+          } else if (box && !box.pokemon) {
+            // Flat array format
+            allPokemon.push(box);
+          }
+        });
+      }
+      
+      const pokemon = allPokemon.find(p => p && p.uuid === pokemonUuid);
+      if (!pokemon) {
+        return res.status(404).json({ error: 'Pokémon no encontrado en tu inventario' });
+      }
+      
+      // Calculate Pitufipuntos
+      const ivTotal = (pokemon.ivs?.hp || 0) + (pokemon.ivs?.attack || 0) + (pokemon.ivs?.defense || 0) +
+                      (pokemon.ivs?.spAttack || 0) + (pokemon.ivs?.spDefense || 0) + (pokemon.ivs?.speed || 0);
+      const evTotal = (pokemon.evs?.hp || 0) + (pokemon.evs?.attack || 0) + (pokemon.evs?.defense || 0) +
+                      (pokemon.evs?.spAttack || 0) + (pokemon.evs?.spDefense || 0) + (pokemon.evs?.speed || 0);
+      const pitufipuntos = 400 + (ivTotal * 2) + Math.floor(evTotal / 4) + (pokemon.level * 5) + (pokemon.shiny ? 200 : 0);
+      
+      // Create listing
+      const now = new Date();
+      const listing = {
+        pokemonUuid,
+        pokemon: {
+          ...pokemon,
+          pitufipuntos,
+        },
+        seller: {
+          uuid: sellerUuid,
+          username: seller.minecraftUsername,
+        },
+        saleMethod,
+        status: 'active',
+        createdAt: now,
+        updatedAt: now,
+      };
+      
+      if (saleMethod === 'direct') {
+        listing.price = price;
+      } else {
+        listing.startingBid = startingBid;
+        listing.currentBid = null;
+        listing.highestBidder = null;
+        listing.bids = [];
+        listing.duration = duration || 24;
+        listing.expiresAt = new Date(now.getTime() + (duration || 24) * 60 * 60 * 1000);
+      }
+      
+      const result = await db.collection('player_shop_listings').insertOne(listing);
+      
+      console.log('[PLAYER-SHOP] Created listing:', result.insertedId, 'for', pokemon.species);
+      
+      res.json({
+        success: true,
+        listing: {
+          ...listing,
+          _id: result.insertedId,
+        },
+      });
+    } catch (error) {
+      console.error('[PLAYER-SHOP] Error creating listing:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // DELETE /api/player-shop/listings/:id - Cancel a listing
+  app.delete('/api/player-shop/listings/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const sellerUuid = req.headers['x-player-uuid'] || req.query.uuid;
+      
+      if (!sellerUuid) {
+        return res.status(401).json({ error: 'No autorizado' });
+      }
+      
+      const db = getDb();
+      const { ObjectId } = require('mongodb');
+      
+      const listing = await db.collection('player_shop_listings').findOne({ 
+        _id: new ObjectId(id) 
+      });
+      
+      if (!listing) {
+        return res.status(404).json({ error: 'Listing no encontrado' });
+      }
+      
+      if (listing.seller.uuid !== sellerUuid) {
+        return res.status(403).json({ error: 'No puedes cancelar un listing que no es tuyo' });
+      }
+      
+      if (listing.saleMethod === 'bidding' && listing.bids && listing.bids.length > 0) {
+        return res.status(400).json({ error: 'No puedes cancelar una subasta con pujas activas' });
+      }
+      
+      await db.collection('player_shop_listings').updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { status: 'cancelled', updatedAt: new Date() } }
+      );
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('[PLAYER-SHOP] Error cancelling listing:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/player-shop/listings/:id/purchase - Direct purchase
+  app.post('/api/player-shop/listings/:id/purchase', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const buyerUuid = req.headers['x-player-uuid'] || req.body.buyerUuid;
+      
+      if (!buyerUuid) {
+        return res.status(401).json({ error: 'No autorizado' });
+      }
+      
+      const db = getDb();
+      const { ObjectId } = require('mongodb');
+      
+      const listing = await db.collection('player_shop_listings').findOne({ 
+        _id: new ObjectId(id),
+        status: 'active',
+        saleMethod: 'direct'
+      });
+      
+      if (!listing) {
+        return res.status(404).json({ error: 'Listing no encontrado o no disponible' });
+      }
+      
+      if (listing.seller.uuid === buyerUuid) {
+        return res.status(400).json({ error: 'No puedes comprar tu propio Pokémon' });
+      }
+      
+      // Check buyer balance
+      const buyer = await db.collection('users').findOne({ minecraftUuid: buyerUuid });
+      if (!buyer || (buyer.cobbleDollars || 0) < listing.price) {
+        return res.status(400).json({ error: 'CobbleDollars insuficientes' });
+      }
+      
+      // Process transaction
+      await db.collection('users').updateOne(
+        { minecraftUuid: buyerUuid },
+        { $inc: { cobbleDollars: -listing.price } }
+      );
+      
+      await db.collection('users').updateOne(
+        { minecraftUuid: listing.seller.uuid },
+        { $inc: { cobbleDollars: listing.price } }
+      );
+      
+      // Update listing
+      await db.collection('player_shop_listings').updateOne(
+        { _id: new ObjectId(id) },
+        { 
+          $set: { 
+            status: 'sold',
+            buyer: { uuid: buyerUuid, username: buyer.minecraftUsername },
+            soldAt: new Date(),
+            updatedAt: new Date()
+          } 
+        }
+      );
+      
+      // Create delivery record
+      await db.collection('player_shop_deliveries').insertOne({
+        listingId: new ObjectId(id),
+        pokemon: listing.pokemon,
+        buyerUuid,
+        buyerUsername: buyer.minecraftUsername,
+        sellerUuid: listing.seller.uuid,
+        status: 'pending',
+        createdAt: new Date(),
+      });
+      
+      res.json({ success: true, message: 'Compra exitosa! El Pokémon será entregado cuando entres al servidor.' });
+    } catch (error) {
+      console.error('[PLAYER-SHOP] Error purchasing:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/player-shop/listings/:id/bid - Place a bid
+  app.post('/api/player-shop/listings/:id/bid', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { amount } = req.body;
+      const bidderUuid = req.headers['x-player-uuid'] || req.body.bidderUuid;
+      
+      if (!bidderUuid) {
+        return res.status(401).json({ error: 'No autorizado' });
+      }
+      
+      if (!amount || amount < 100) {
+        return res.status(400).json({ error: 'Monto de puja inválido' });
+      }
+      
+      const db = getDb();
+      const { ObjectId } = require('mongodb');
+      
+      const listing = await db.collection('player_shop_listings').findOne({ 
+        _id: new ObjectId(id),
+        status: 'active',
+        saleMethod: 'bidding'
+      });
+      
+      if (!listing) {
+        return res.status(404).json({ error: 'Subasta no encontrada o no disponible' });
+      }
+      
+      if (listing.seller.uuid === bidderUuid) {
+        return res.status(400).json({ error: 'No puedes pujar en tu propia subasta' });
+      }
+      
+      if (new Date() > new Date(listing.expiresAt)) {
+        return res.status(400).json({ error: 'La subasta ha terminado' });
+      }
+      
+      const minBid = listing.currentBid ? listing.currentBid + 100 : listing.startingBid;
+      if (amount < minBid) {
+        return res.status(400).json({ error: `La puja mínima es ${minBid} CobbleDollars` });
+      }
+      
+      // Check bidder balance
+      const bidder = await db.collection('users').findOne({ minecraftUuid: bidderUuid });
+      if (!bidder || (bidder.cobbleDollars || 0) < amount) {
+        return res.status(400).json({ error: 'CobbleDollars insuficientes' });
+      }
+      
+      // Add bid
+      const bid = {
+        bidderUuid,
+        bidderUsername: bidder.minecraftUsername,
+        amount,
+        timestamp: new Date(),
+      };
+      
+      await db.collection('player_shop_listings').updateOne(
+        { _id: new ObjectId(id) },
+        { 
+          $set: { 
+            currentBid: amount,
+            highestBidder: { uuid: bidderUuid, username: bidder.minecraftUsername },
+            updatedAt: new Date()
+          },
+          $push: { bids: bid }
+        }
+      );
+      
+      res.json({ success: true, message: 'Puja realizada exitosamente!' });
+    } catch (error) {
+      console.error('[PLAYER-SHOP] Error placing bid:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
