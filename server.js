@@ -4119,9 +4119,11 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
       res.json({
         success: true,
         listings: listings.map(l => ({
+          ...l,
           id: l._id.toString(),
           _id: l._id.toString(),
-          ...l,
+          bidCount: l.bids?.length || 0,
+          viewCount: l.viewCount || 0,
         })),
       });
     } catch (error) {
