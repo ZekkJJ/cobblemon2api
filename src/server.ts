@@ -7,9 +7,15 @@
  */
 
 import { createApp } from './app.js';
-import { connectToDatabase, closeDatabase } from './config/database.js';
+import { connectToDatabase, closeDatabase, getMongoClient } from './config/database.js';
 import { env, isDevelopment } from './config/env.js';
 import { initializeWebSocket, getWebSocketService } from './modules/tournaments/index.js';
+import { PlayerShopService } from './modules/player-shop/player-shop.service.js';
+import { TransactionManager } from './shared/utils/transaction-manager.js';
+import { Listing, Bid, PendingDelivery } from './shared/types/player-shop.types.js';
+
+// Auction processor interval (every 60 seconds)
+let auctionProcessorInterval: NodeJS.Timeout | null = null;
 
 /**
  * Inicia el servidor
@@ -56,9 +62,37 @@ async function startServer() {
     initializeWebSocket(server, corsOrigins);
     console.log('🔌 WebSocket inicializado para torneos');
 
+    // Inicializar procesador de subastas expiradas
+    const mongoClient = await getMongoClient();
+    const db = mongoClient.db();
+    const transactionManager = new TransactionManager(mongoClient);
+    const playerShopService = new PlayerShopService(
+      db.collection('users'),
+      db.collection<Listing>('player_shop_listings'),
+      db.collection<Bid>('player_shop_bids'),
+      db.collection<PendingDelivery>('player_shop_deliveries'),
+      transactionManager
+    );
+
+    // Process expired auctions every 60 seconds
+    auctionProcessorInterval = setInterval(async () => {
+      try {
+        await playerShopService.processExpiredAuctions();
+      } catch (error) {
+        console.error('Error processing expired auctions:', error);
+      }
+    }, 60000);
+    console.log('⏰ Procesador de subastas expiradas iniciado (cada 60s)');
+
     // Manejo de señales de terminación
     const gracefulShutdown = async (signal: string) => {
       console.log(`\n⚠️  Señal ${signal} recibida, cerrando servidor...`);
+      
+      // Detener procesador de subastas
+      if (auctionProcessorInterval) {
+        clearInterval(auctionProcessorInterval);
+        console.log('⏰ Procesador de subastas detenido');
+      }
       
       // Cerrar WebSocket
       const wsService = getWebSocketService();

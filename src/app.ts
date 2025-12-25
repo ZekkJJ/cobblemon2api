@@ -27,6 +27,9 @@ import { createLevelCapsRouter } from './modules/level-caps/level-caps.routes.js
 import { createAdminRouter } from './modules/admin/admin.routes.js';
 import { createModsRouter } from './modules/mods/mods.routes.js';
 import { createRankingsRouter } from './modules/rankings/rankings.routes.js';
+import { createPlayerShopRoutes } from './modules/player-shop/player-shop.routes.js';
+import { TransactionManager } from './shared/utils/transaction-manager.js';
+import { Listing, Bid, PendingDelivery } from './shared/types/player-shop.types.js';
 
 /**
  * Crea y configura la aplicación Express
@@ -231,6 +234,17 @@ export async function createApp(): Promise<Application> {
   const modsRouter = await createModsRouter();
   const rankingsRouter = await createRankingsRouter();
 
+  // Player Shop router
+  const db = mongoClient.db();
+  const transactionManager = new TransactionManager(mongoClient);
+  const playerShopRouter = createPlayerShopRoutes(
+    db.collection('users'),
+    db.collection<Listing>('player_shop_listings'),
+    db.collection<Bid>('player_shop_bids'),
+    db.collection<PendingDelivery>('player_shop_deliveries'),
+    transactionManager
+  );
+
   // Registrar rutas
   app.use('/api/auth', authRouter);
   app.use('/api/players', playersRouter);
@@ -244,6 +258,7 @@ export async function createApp(): Promise<Application> {
   app.use('/api/admin', adminRouter);
   app.use('/api/mods', modsRouter);
   app.use('/api/rankings', rankingsRouter);
+  app.use('/api/player-shop', playerShopRouter);
 
   // Alias para cuando el reverse proxy pasa el path completo
   // Esto soluciona los 404 cuando la request llega como /port/25617/api/...
@@ -260,6 +275,7 @@ export async function createApp(): Promise<Application> {
   apiRouter.use('/admin', adminRouter);
   apiRouter.use('/mods', modsRouter);
   apiRouter.use('/rankings', rankingsRouter);
+  apiRouter.use('/player-shop', playerShopRouter);
 
   app.use('/port/25617/api', apiRouter);
 

@@ -848,13 +848,13 @@ function createApp() {
       const balance = cobbleDollars !== undefined ? cobbleDollars : cobbleDollarsBalance;
 
       if (!user) {
-        // Create new user
-        await db.collection('users').insertOne({
+        // Create new user - only save party if it has data
+        const newUser = {
           minecraftUuid: uuid,
           minecraftUsername: username,
           online: online || false,
-          party: party || [],
-          pcStorage: pcStorage || [],
+          party: (party && Array.isArray(party) && party.length > 0) ? party : [],
+          pcStorage: (pcStorage && Array.isArray(pcStorage) && pcStorage.length > 0) ? pcStorage : [],
           cobbleDollars: balance || 0,
           badges: badges || 0,
           playtime: playtime || 0,
@@ -865,7 +865,8 @@ function createApp() {
           verified: false,
           createdAt: new Date(),
           updatedAt: new Date(),
-        });
+        };
+        await db.collection('users').insertOne(newUser);
         return res.json({ success: true, verified: false, banned: false });
       }
 
@@ -876,9 +877,15 @@ function createApp() {
         updatedAt: new Date(),
       };
       
-      // Only update these if provided
-      if (party !== undefined) updateData.party = party;
-      if (pcStorage !== undefined) updateData.pcStorage = pcStorage;
+      // Only update party if provided AND not empty (preserve party data when player disconnects)
+      // This ensures offline players still appear in rankings with their last known team
+      if (party !== undefined && Array.isArray(party) && party.length > 0) {
+        updateData.party = party;
+      }
+      // Only update pcStorage if provided AND not empty
+      if (pcStorage !== undefined && Array.isArray(pcStorage) && pcStorage.length > 0) {
+        updateData.pcStorage = pcStorage;
+      }
       if (balance !== undefined) updateData.cobbleDollars = balance;
       if (badges !== undefined) updateData.badges = badges;
       if (playtime !== undefined) updateData.playtime = playtime;
