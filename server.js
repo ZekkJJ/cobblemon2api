@@ -3976,14 +3976,25 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
         }
       );
       
-      // Create delivery record
+      // Create delivery record with balance transfer info
       await db.collection('player_shop_deliveries').insertOne({
         listingId: new ObjectId(id),
         pokemon: listing.pokemon,
         buyerUuid,
         buyerUsername: buyer.minecraftUsername,
         sellerUuid: listing.seller.uuid,
+        sellerUsername: listing.seller.username,
         status: 'pending',
+        type: 'purchase',
+        // Balance transfer info - plugin will execute CobbleDollars commands
+        balanceTransfer: {
+          amount: listing.price,
+          fromUuid: buyerUuid,
+          fromUsername: buyer.minecraftUsername,
+          toUuid: listing.seller.uuid,
+          toUsername: listing.seller.username,
+          processed: false
+        },
         createdAt: new Date(),
       });
       
