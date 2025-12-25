@@ -3609,6 +3609,78 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
   });
 
   // ============================================
+  // PLAYER SHOP - Deliveries for Plugin
+  // ============================================
+
+  // GET /api/player-shop/deliveries - Get pending deliveries for a player
+  app.get('/api/player-shop/deliveries', async (req, res) => {
+    try {
+      const { uuid } = req.query;
+      if (!uuid) {
+        return res.status(400).json({ error: 'uuid query parameter required' });
+      }
+
+      const database = getDb();
+      const deliveries = await database.collection('player_shop_deliveries')
+        .find({ 
+          recipientUuid: uuid,
+          status: 'pending'
+        })
+        .toArray();
+
+      res.json({
+        success: true,
+        deliveries: deliveries.map(d => ({
+          id: d._id.toString(),
+          recipientUuid: d.recipientUuid,
+          pokemonData: d.pokemonData,
+          type: d.type,
+          listingId: d.listingId,
+          createdAt: d.createdAt,
+        })),
+      });
+    } catch (error) {
+      console.error('[PLAYER-SHOP] Error getting deliveries:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/player-shop/deliveries/:id/delivered - Mark delivery as completed
+  app.post('/api/player-shop/deliveries/:id/delivered', async (req, res) => {
+    try {
+      const { id } = req.params;
+      if (!id) {
+        return res.status(400).json({ error: 'Delivery ID required' });
+      }
+
+      const database = getDb();
+      const result = await database.collection('player_shop_deliveries').updateOne(
+        { _id: new ObjectId(id) },
+        { 
+          $set: { 
+            status: 'delivered',
+            deliveredAt: new Date()
+          } 
+        }
+      );
+
+      if (result.matchedCount === 0) {
+        return res.status(404).json({ error: 'Delivery not found' });
+      }
+
+      res.json({
+        success: true,
+        message: 'Delivery marked as completed',
+      });
+    } catch (error) {
+      console.error('[PLAYER-SHOP] Error marking delivery:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  console.log('🛒 [ROUTES] Player Shop routes loaded');
+
+  // ============================================
   // MODULAR ROUTES - Mods API
   // ============================================
   app.use('/api/mods', initModsRoutes(getDb));
@@ -3653,6 +3725,9 @@ async function startServer() {
       console.log(`   GET  /api/shop/purchases`);
       console.log(`   POST /api/shop/claim`);
       console.log(`   POST /api/shop/purchase`);
+      console.log(`\n� Pldayer Shop API:`);
+      console.log(`   GET  /api/player-shop/deliveries`);
+      console.log(`   POST /api/player-shop/deliveries/:id/delivered`);
       console.log(`\n📦 Mods API:`);
       console.log(`   GET  /api/mods`);
       console.log(`   GET  /api/mods/versions`);
