@@ -246,24 +246,43 @@ class PokemonGachaService {
   }
 
   // Selección de rareza con precisión decimal alta (10^8)
-  selectRarityPrecise(pityCount, featuredPokemon = []) {
+  // allowedRarities: objeto con { epic: true/false, legendary: true/false, mythic: true/false }
+  selectRarityPrecise(pityCount, featuredPokemon = [], allowedRarities = {}) {
     // Usar enteros para evitar errores de punto flotante
     const rates = { ...BASE_RATES_PRECISE };
     
-    // Hard pity garantiza epic
-    if (pityCount >= HARD_PITY) {
+    // Si ciertas rarezas están deshabilitadas, redistribuir su probabilidad a common
+    const disabledRarities = [];
+    if (allowedRarities.allowEpic === false) {
+      disabledRarities.push('epic');
+      rates.common += rates.epic;
+      rates.epic = 0;
+    }
+    if (allowedRarities.allowLegendary === false) {
+      disabledRarities.push('legendary');
+      rates.common += rates.legendary;
+      rates.legendary = 0;
+    }
+    if (allowedRarities.allowMythic === false) {
+      disabledRarities.push('mythic');
+      rates.common += rates.mythic;
+      rates.mythic = 0;
+    }
+    
+    // Hard pity garantiza epic (solo si epic está permitido)
+    if (pityCount >= HARD_PITY && rates.epic > 0) {
       return 'epic';
     }
     
-    // Soft pity aumenta probabilidad de epic
-    if (pityCount >= SOFT_PITY_START) {
+    // Soft pity aumenta probabilidad de epic (solo si epic está permitido)
+    if (pityCount >= SOFT_PITY_START && rates.epic > 0) {
       const bonusPrecise = Math.floor((pityCount - SOFT_PITY_START) * SOFT_PITY_INCREASE * PRECISION);
       rates.epic = Math.min(rates.epic + bonusPrecise, PRECISION);
     }
 
     // Agregar bonus de featured (+3% a la rareza de cada featured)
     for (const featured of featuredPokemon) {
-      if (rates[featured.rarity] !== undefined) {
+      if (rates[featured.rarity] !== undefined && rates[featured.rarity] > 0) {
         const bonusPrecise = Math.floor(FEATURED_BONUS * PRECISION);
         rates[featured.rarity] = Math.min(rates[featured.rarity] + bonusPrecise, Math.floor(0.5 * PRECISION));
       }
@@ -327,13 +346,20 @@ class PokemonGachaService {
   }
 
   async executePull(playerId, playerUuid, bannerId) {
-    // Obtener banner para featured pokemon
+    // Obtener banner para featured pokemon y restricciones de rareza
     const banner = await this.getBanner(bannerId);
     const featuredPokemon = banner?.featuredPokemon || [];
     
+    // Obtener restricciones de rareza del banner (por defecto todo deshabilitado para seguridad)
+    const allowedRarities = {
+      allowEpic: banner?.allowEpic ?? false,
+      allowLegendary: banner?.allowLegendary ?? false,
+      allowMythic: banner?.allowMythic ?? false,
+    };
+    
     const pityCount = await this.getPityCount(playerId, bannerId);
-    // Usar la función de precisión alta
-    const rarity = this.selectRarityPrecise(pityCount, featuredPokemon);
+    // Usar la función de precisión alta con restricciones
+    const rarity = this.selectRarityPrecise(pityCount, featuredPokemon, allowedRarities);
     const selected = this.selectReward(rarity, featuredPokemon);
     const isShiny = selected.type === 'pokemon' && chance(SHINY_RATE);
     const rewardId = generateUUID();
