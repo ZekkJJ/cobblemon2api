@@ -4557,6 +4557,13 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
   console.log('💰 [ROUTES] Economy routes loaded');
 
   // ============================================
+  // MODULAR ROUTES - Announcements API
+  // ============================================
+  const announcementsRoutes = require('./routes/announcements.routes');
+  app.use('/api/announcements', announcementsRoutes);
+  console.log('📢 [ROUTES] Announcements routes loaded');
+
+  // ============================================
   // MODULAR ROUTES - Pokemon Gacha API
   // ============================================
   initPokemonGachaRoutes(app, getDb(), getDb().collection('users'));

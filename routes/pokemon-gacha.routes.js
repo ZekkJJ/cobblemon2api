@@ -19,9 +19,15 @@ const crypto = require('crypto');
 
 const PULL_COSTS = { single: 500, multi: 4500 };
 const SHINY_RATE = 1 / 4096;
-const SOFT_PITY_START = 75;
-const HARD_PITY = 90;
-const SOFT_PITY_INCREASE = 0.05;
+
+// PITY SYSTEM - Gradual probability increase
+// Hard pity at 200 pulls (guaranteed epic)
+// Soft pity starts at 50 and increases gradually
+const SOFT_PITY_START = 50;
+const HARD_PITY = 200;
+// Each pull after soft pity adds this % to epic chance
+// At pull 50: +0%, at pull 100: +2.5%, at pull 150: +5%, at pull 199: +7.45%
+const SOFT_PITY_INCREASE = 0.0005; // 0.05% per pull after soft pity start
 
 // ============================================
 // SISTEMA DE FUSIÓN DE REPETIDOS
@@ -514,25 +520,33 @@ class PokemonGachaService {
       rates.common = Math.max(0, rates.common - totalBoost);
     }
     
-    // HARD PITY: Garantiza epic SIEMPRE en tirada 90+
+    // HARD PITY: Garantiza epic SIEMPRE en tirada 200+
     // El hard pity ignora las restricciones de allowedRarities porque es un contador global
     // Si ya salió un epic en este x10, el pity se resetea de todas formas
     if (pityCount >= HARD_PITY) {
       return 'epic';
     }
     
-    // Soft pity aumenta probabilidad de epic
-    // Funciona incluso si allowedRarities.allowEpic es false, porque el pity es global
-    // Si el soft pity da epic pero no está permitido en este x10, se dará de todas formas
-    // (el límite de 1 epic por x10 es una restricción suave, el pity es más importante)
+    // SOFT PITY: Aumenta gradualmente la probabilidad de epic desde tirada 50
+    // Cada tirada después de 50 añade +0.05% a la probabilidad de epic
+    // Tirada 50: +0%, Tirada 100: +2.5%, Tirada 150: +5%, Tirada 199: +7.45%
+    // Esto hace que sea más probable conseguir epic mientras más tires
     if (pityCount >= SOFT_PITY_START) {
-      const bonusPrecise = Math.floor((pityCount - SOFT_PITY_START) * SOFT_PITY_INCREASE * PRECISION);
+      const pullsIntoPity = pityCount - SOFT_PITY_START;
+      // Bonus gradual: cada pull añade 0.05% (50000 en precisión 10^8)
+      const bonusPrecise = Math.floor(pullsIntoPity * SOFT_PITY_INCREASE * PRECISION);
+      
       // Restaurar rates.epic si fue deshabilitado, para que el soft pity funcione
       if (rates.epic === 0 && allowedRarities.allowEpic === false) {
         rates.epic = BASE_RATES_PRECISE.epic;
         rates.common -= BASE_RATES_PRECISE.epic; // Revertir la redistribución
       }
-      rates.epic = Math.min(rates.epic + bonusPrecise, PRECISION);
+      
+      // Aplicar bonus (máximo 50% de probabilidad)
+      rates.epic = Math.min(rates.epic + bonusPrecise, Math.floor(0.5 * PRECISION));
+      
+      // Reducir common para compensar el aumento de epic
+      rates.common = Math.max(0, rates.common - bonusPrecise);
     }
 
     // Agregar bonus de featured (+3% a la rareza de cada featured)
@@ -1284,6 +1298,45 @@ function initPokemonGachaRoutes(app, db, usersCollection) {
       res.json({ success: true, ...result });
     } catch (error) {
       res.status(400).json({ success: false, error: error.message });
+    }
+  });
+
+  // POST /api/pokemon-gacha/credits/add-stardust - Agregar stardust (llamado por plugin fusion)
+  router.post('/credits/add-stardust', async (req, res) => {
+    try {
+      const { uuid, stardust, source } = req.body;
+      
+      if (!uuid || typeof stardust !== 'number' || stardust <= 0) {
+        return res.status(400).json({ success: false, error: 'uuid y stardust (>0) requeridos' });
+      }
+
+      // Find user by minecraft UUID
+      const user = await usersCollection.findOne({ minecraftUuid: uuid });
+      if (!user || !user.discordId) {
+        return res.status(400).json({ success: false, error: 'Usuario no encontrado o no vinculado' });
+      }
+
+      // Add stardust to credits collection
+      const result = await gachaService.creditsCollection.findOneAndUpdate(
+        { discordId: user.discordId },
+        { 
+          $inc: { stardust: stardust },
+          $set: { updatedAt: new Date() },
+          $setOnInsert: { discordId: user.discordId, credits: 0, createdAt: new Date() }
+        },
+        { upsert: true, returnDocument: 'after' }
+      );
+
+      console.log(`[GACHA] Added ${stardust} stardust to ${user.minecraftUsername || uuid} (source: ${source || 'unknown'})`);
+
+      res.json({ 
+        success: true, 
+        stardust: result.stardust || stardust,
+        source: source || 'unknown'
+      });
+    } catch (error) {
+      console.error('[GACHA] Error adding stardust:', error);
+      res.status(500).json({ success: false, error: error.message });
     }
   });
 
