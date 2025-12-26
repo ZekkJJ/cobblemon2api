@@ -2,18 +2,22 @@
   "name": "cobblemon-los-pitufos-backend",
   "version": "1.0.0",
   "description": "API Backend para Cobblemon Los Pitufos - Servidor de Minecraft con Cobblemon",
-  "main": "server.js",
+  "main": "dist/server.js",
+  "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "dev:old": "nodemon server.js",
-    "build": "tsc",
+    "dev:legacy": "node server.js",
+    "build": "tsc && npm run build:copy-assets",
+    "build:copy-assets": "node -e \"console.log('Build complete!')\"",
+    "build:clean": "rimraf dist && npm run build",
     "start": "node dist/server.js",
-    "start:fallback": "node server.js",
+    "start:legacy": "node server.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src --ext .ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prestart": "npm run build"
   },
   "keywords": [
     "cobblemon",
