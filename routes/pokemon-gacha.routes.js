@@ -4,6 +4,10 @@
  * 
  * Sistema de gacha estilo Genshin Impact
  * Usando precisión decimal alta (10^8) para cálculos de probabilidad
+ * 
+ * FEATURES:
+ * - Sistema de créditos (deposit in-game → créditos web)
+ * - Auto-fusión de Pokémon repetidos (3 comunes = 1 uncommon, etc.)
  */
 
 const express = require('express');
@@ -18,6 +22,40 @@ const SHINY_RATE = 1 / 4096;
 const SOFT_PITY_START = 75;
 const HARD_PITY = 90;
 const SOFT_PITY_INCREASE = 0.05;
+
+// ============================================
+// SISTEMA DE FUSIÓN DE REPETIDOS
+// ============================================
+// 3 del mismo Pokémon = 1 de rareza superior
+// Los repetidos se convierten automáticamente en "Stardust" (polvo estelar)
+// El Stardust se puede usar para:
+// - Comprar tiradas extra
+// - Mejorar probabilidades temporalmente
+// - Intercambiar por items
+
+const FUSION_CONFIG = {
+  // Cuántos repetidos necesitas para fusionar
+  DUPLICATES_TO_FUSE: 3,
+  
+  // Stardust por rareza cuando se fusiona
+  STARDUST_PER_RARITY: {
+    common: 10,      // 3 comunes = 30 stardust
+    uncommon: 25,    // 3 uncommon = 75 stardust
+    rare: 100,       // 3 rare = 300 stardust
+    epic: 500,       // 3 epic = 1500 stardust
+    legendary: 2000, // 3 legendary = 6000 stardust
+    mythic: 10000,   // 3 mythic = 30000 stardust
+  },
+  
+  // Costo de tirada en stardust (alternativa a CD)
+  PULL_COST_STARDUST: 100,
+  MULTI_PULL_COST_STARDUST: 900,
+  
+  // Bonus temporal de probabilidad (comprable con stardust)
+  LUCK_BOOST_COST: 500,      // 500 stardust
+  LUCK_BOOST_DURATION_MS: 30 * 60 * 1000, // 30 minutos
+  LUCK_BOOST_MULTIPLIER: 1.5, // +50% probabilidad de raros+
+};
 
 // Precisión decimal: usamos enteros multiplicados por 10^8 para evitar errores de punto flotante
 const PRECISION = 100000000; // 10^8
@@ -44,8 +82,8 @@ const BASE_RATES = {
   mythic: BASE_RATES_PRECISE.mythic / PRECISION,
 };
 
-// Bonus de probabilidad para featured pokemon (+3% sobre su rareza base)
-const FEATURED_BONUS = 0.03;
+// Bonus de probabilidad para featured pokemon (+0.5% sobre su rareza base - NERFED from 3%)
+const FEATURED_BONUS = 0.005;
 
 // Pool de Pokémon por rareza
 const POKEMON_POOL = {
@@ -176,6 +214,8 @@ class PokemonGachaService {
     this.pityCollection = db.collection('gacha_pity');
     this.pendingCollection = db.collection('gacha_pending');
     this.pendingSyncCollection = db.collection('economy_pending_sync');
+    this.creditsCollection = db.collection('gacha_credits');
+    this.inventoryCollection = db.collection('gacha_inventory'); // Para tracking de repetidos
   }
 
   async ensureIndexes() {
@@ -185,10 +225,198 @@ class PokemonGachaService {
       await this.pityCollection.createIndex({ playerId: 1, bannerId: 1 }, { unique: true });
       await this.pendingCollection.createIndex({ playerUuid: 1, status: 1 });
       await this.pendingCollection.createIndex({ rewardId: 1 }, { unique: true });
+      await this.creditsCollection.createIndex({ discordId: 1 }, { unique: true });
+      await this.inventoryCollection.createIndex({ discordId: 1, pokemonId: 1 });
       console.log('[POKEMON GACHA] Índices creados');
     } catch (e) {
       console.error('[POKEMON GACHA] Error creando índices:', e.message);
     }
+  }
+
+  // ============================================
+  // SISTEMA DE CRÉDITOS (CASINO)
+  // ============================================
+
+  async getCredits(discordId) {
+    const record = await this.creditsCollection.findOne({ discordId });
+    return {
+      credits: record?.credits || 0,
+      stardust: record?.stardust || 0,
+      luckBoostUntil: record?.luckBoostUntil || null,
+    };
+  }
+
+  async addCredits(discordId, amount, reason = 'deposit') {
+    const result = await this.creditsCollection.updateOne(
+      { discordId },
+      { 
+        $inc: { credits: amount },
+        $push: { 
+          transactions: {
+            type: 'credit',
+            amount,
+            reason,
+            timestamp: new Date()
+          }
+        },
+        $setOnInsert: { stardust: 0, createdAt: new Date() }
+      },
+      { upsert: true }
+    );
+    console.log(`[GACHA CREDITS] Added ${amount} credits to ${discordId} (${reason})`);
+    return this.getCredits(discordId);
+  }
+
+  async removeCredits(discordId, amount, reason = 'pull') {
+    const current = await this.getCredits(discordId);
+    if (current.credits < amount) {
+      throw new Error(`Créditos insuficientes. Tienes ${current.credits}, necesitas ${amount}`);
+    }
+    
+    await this.creditsCollection.updateOne(
+      { discordId },
+      { 
+        $inc: { credits: -amount },
+        $push: { 
+          transactions: {
+            type: 'debit',
+            amount: -amount,
+            reason,
+            timestamp: new Date()
+          }
+        }
+      }
+    );
+    console.log(`[GACHA CREDITS] Removed ${amount} credits from ${discordId} (${reason})`);
+    return this.getCredits(discordId);
+  }
+
+  async addStardust(discordId, amount, reason = 'fusion') {
+    await this.creditsCollection.updateOne(
+      { discordId },
+      { 
+        $inc: { stardust: amount },
+        $setOnInsert: { credits: 0, createdAt: new Date() }
+      },
+      { upsert: true }
+    );
+    console.log(`[GACHA STARDUST] Added ${amount} stardust to ${discordId} (${reason})`);
+    return this.getCredits(discordId);
+  }
+
+  async removeStardust(discordId, amount, reason = 'purchase') {
+    const current = await this.getCredits(discordId);
+    if (current.stardust < amount) {
+      throw new Error(`Stardust insuficiente. Tienes ${current.stardust}, necesitas ${amount}`);
+    }
+    
+    await this.creditsCollection.updateOne(
+      { discordId },
+      { $inc: { stardust: -amount } }
+    );
+    return this.getCredits(discordId);
+  }
+
+  async activateLuckBoost(discordId) {
+    const current = await this.getCredits(discordId);
+    if (current.stardust < FUSION_CONFIG.LUCK_BOOST_COST) {
+      throw new Error(`Necesitas ${FUSION_CONFIG.LUCK_BOOST_COST} stardust para activar el boost`);
+    }
+    
+    const boostUntil = new Date(Date.now() + FUSION_CONFIG.LUCK_BOOST_DURATION_MS);
+    
+    await this.creditsCollection.updateOne(
+      { discordId },
+      { 
+        $inc: { stardust: -FUSION_CONFIG.LUCK_BOOST_COST },
+        $set: { luckBoostUntil: boostUntil }
+      }
+    );
+    
+    console.log(`[GACHA] Luck boost activated for ${discordId} until ${boostUntil}`);
+    return { boostUntil, cost: FUSION_CONFIG.LUCK_BOOST_COST };
+  }
+
+  hasActiveLuckBoost(creditData) {
+    if (!creditData?.luckBoostUntil) return false;
+    return new Date(creditData.luckBoostUntil) > new Date();
+  }
+
+  // ============================================
+  // SISTEMA DE FUSIÓN DE REPETIDOS
+  // ============================================
+
+  async trackPokemonPull(discordId, pokemonId, rarity) {
+    // Incrementar contador de este Pokémon
+    const result = await this.inventoryCollection.findOneAndUpdate(
+      { discordId, pokemonId },
+      { 
+        $inc: { count: 1 },
+        $set: { rarity, lastPulled: new Date() },
+        $setOnInsert: { firstPulled: new Date() }
+      },
+      { upsert: true, returnDocument: 'after' }
+    );
+    
+    const count = result?.count || 1;
+    
+    // Si tiene 3+ del mismo, auto-fusionar
+    if (count >= FUSION_CONFIG.DUPLICATES_TO_FUSE) {
+      return this.autoFuse(discordId, pokemonId, rarity, count);
+    }
+    
+    return { fused: false, count };
+  }
+
+  async autoFuse(discordId, pokemonId, rarity, currentCount) {
+    // Calcular cuántas fusiones hacer
+    const fusionsToMake = Math.floor(currentCount / FUSION_CONFIG.DUPLICATES_TO_FUSE);
+    const remaining = currentCount % FUSION_CONFIG.DUPLICATES_TO_FUSE;
+    
+    // Calcular stardust ganado
+    const stardustPerFusion = FUSION_CONFIG.STARDUST_PER_RARITY[rarity] * FUSION_CONFIG.DUPLICATES_TO_FUSE;
+    const totalStardust = stardustPerFusion * fusionsToMake;
+    
+    // Actualizar inventario (reducir a los que quedan)
+    await this.inventoryCollection.updateOne(
+      { discordId, pokemonId },
+      { $set: { count: remaining } }
+    );
+    
+    // Dar stardust
+    await this.addStardust(discordId, totalStardust, `fusion_${pokemonId}_x${fusionsToMake}`);
+    
+    console.log(`[GACHA FUSION] ${discordId} fused ${fusionsToMake * FUSION_CONFIG.DUPLICATES_TO_FUSE}x Pokemon #${pokemonId} → ${totalStardust} stardust`);
+    
+    return {
+      fused: true,
+      fusionCount: fusionsToMake,
+      pokemonFused: fusionsToMake * FUSION_CONFIG.DUPLICATES_TO_FUSE,
+      stardustGained: totalStardust,
+      remaining
+    };
+  }
+
+  async getInventory(discordId) {
+    const inventory = await this.inventoryCollection.find({ discordId }).toArray();
+    return inventory;
+  }
+
+  async getInventoryStats(discordId) {
+    const inventory = await this.getInventory(discordId);
+    const stats = {
+      totalUnique: inventory.length,
+      totalPokemon: inventory.reduce((sum, p) => sum + p.count, 0),
+      byRarity: {},
+      duplicates: inventory.filter(p => p.count >= 2).length,
+      readyToFuse: inventory.filter(p => p.count >= FUSION_CONFIG.DUPLICATES_TO_FUSE).length,
+    };
+    
+    for (const pokemon of inventory) {
+      stats.byRarity[pokemon.rarity] = (stats.byRarity[pokemon.rarity] || 0) + pokemon.count;
+    }
+    
+    return stats;
   }
 
   async ensureStandardBanner() {
@@ -248,7 +476,8 @@ class PokemonGachaService {
 
   // Selección de rareza con precisión decimal alta (10^8)
   // allowedRarities: objeto con { epic: true/false, legendary: true/false, mythic: true/false }
-  selectRarityPrecise(pityCount, featuredPokemon = [], allowedRarities = {}) {
+  // hasLuckBoost: si tiene el boost de suerte activo (+50% a raros+)
+  selectRarityPrecise(pityCount, featuredPokemon = [], allowedRarities = {}, hasLuckBoost = false) {
     // Usar enteros para evitar errores de punto flotante
     const rates = { ...BASE_RATES_PRECISE };
     
@@ -268,6 +497,21 @@ class PokemonGachaService {
       disabledRarities.push('mythic');
       rates.common += rates.mythic;
       rates.mythic = 0;
+    }
+    
+    // LUCK BOOST: +50% a probabilidades de rare, epic, legendary, mythic
+    if (hasLuckBoost) {
+      const boostMultiplier = FUSION_CONFIG.LUCK_BOOST_MULTIPLIER;
+      rates.rare = Math.floor(rates.rare * boostMultiplier);
+      rates.epic = Math.floor(rates.epic * boostMultiplier);
+      rates.legendary = Math.floor(rates.legendary * boostMultiplier);
+      rates.mythic = Math.floor(rates.mythic * boostMultiplier);
+      // Reducir common para compensar
+      const totalBoost = (rates.rare - BASE_RATES_PRECISE.rare) + 
+                         (rates.epic - BASE_RATES_PRECISE.epic) +
+                         (rates.legendary - BASE_RATES_PRECISE.legendary) +
+                         (rates.mythic - BASE_RATES_PRECISE.mythic);
+      rates.common = Math.max(0, rates.common - totalBoost);
     }
     
     // Hard pity garantiza epic (solo si epic está permitido)
@@ -358,9 +602,13 @@ class PokemonGachaService {
       allowMythic: banner?.allowMythic ?? false,
     };
     
+    // Verificar si tiene luck boost activo
+    const creditData = await this.getCredits(playerId);
+    const hasLuckBoost = this.hasActiveLuckBoost(creditData);
+    
     const pityCount = await this.getPityCount(playerId, bannerId);
     // Usar la función de precisión alta con restricciones
-    const rarity = this.selectRarityPrecise(pityCount, featuredPokemon, allowedRarities);
+    const rarity = this.selectRarityPrecise(pityCount, featuredPokemon, allowedRarities, hasLuckBoost);
     const selected = this.selectReward(rarity, featuredPokemon);
     const isShiny = selected.type === 'pokemon' && chance(SHINY_RATE);
     const rewardId = generateUUID();
@@ -375,6 +623,7 @@ class PokemonGachaService {
       isFeatured: selected.isFeatured || false,
       status: 'pending',
       pulledAt: new Date(),
+      fusionResult: null, // Se llena si hay auto-fusión
     };
 
     if (selected.type === 'pokemon') {
@@ -389,6 +638,17 @@ class PokemonGachaService {
         types: selected.data.types,
         sprite: getPokemonSprite(selected.data.pokemonId, isShiny),
       };
+      
+      // AUTO-FUSIÓN: Trackear el Pokémon y fusionar si hay repetidos
+      // Solo fusionar comunes y uncommons (los raros+ son valiosos)
+      if (['common', 'uncommon'].includes(rarity) && !isShiny) {
+        const fusionResult = await this.trackPokemonPull(playerId, selected.data.pokemonId, rarity);
+        reward.fusionResult = fusionResult;
+        
+        if (fusionResult.fused) {
+          console.log(`[GACHA FUSION] Auto-fused for ${playerId}: ${fusionResult.stardustGained} stardust`);
+        }
+      }
     } else {
       reward.item = {
         itemId: selected.data.itemId,
@@ -416,20 +676,28 @@ class PokemonGachaService {
       pulledAt: new Date(),
     });
 
-    // Crear entrega pendiente
-    await this.pendingCollection.insertOne({
-      rewardId,
-      playerId,
-      playerUuid,
-      type: reward.type,
-      pokemon: reward.pokemon,
-      item: reward.item,
-      rarity,
-      isShiny,
-      status: 'pending',
-      deliveryAttempts: 0,
-      createdAt: new Date(),
-    });
+    // Crear entrega pendiente (solo si NO fue fusionado o es shiny/raro+)
+    // Los comunes/uncommons fusionados NO se entregan (se convierten en stardust)
+    const shouldDeliver = !reward.fusionResult?.fused || isShiny || !['common', 'uncommon'].includes(rarity);
+    
+    if (shouldDeliver) {
+      await this.pendingCollection.insertOne({
+        rewardId,
+        playerId,
+        playerUuid,
+        type: reward.type,
+        pokemon: reward.pokemon,
+        item: reward.item,
+        rarity,
+        isShiny,
+        status: 'pending',
+        deliveryAttempts: 0,
+        createdAt: new Date(),
+      });
+    } else {
+      // Marcar como auto-fusionado (no se entrega)
+      reward.status = 'auto_fused';
+    }
 
     return reward;
   }
@@ -521,10 +789,22 @@ class PokemonGachaService {
       console.log('[GACHA] Created pending sync for', user.minecraftUsername, '- remove', cost, 'CD');
     }
 
+    // NERF: Máximo 1 epic/legendary/mythic por multi-pull
+    // Si ya salió uno, los demás pulls fuerzan common/uncommon/rare
     const rewards = [];
+    let gotEpicOrBetter = false;
+    
     for (let i = 0; i < 10; i++) {
-      const reward = await this.executePull(playerId, playerUuid, bannerId);
+      // Si ya sacó un epic+, forzar que los siguientes NO puedan sacar epic+
+      const forceNoEpic = gotEpicOrBetter;
+      const reward = await this.executePullWithRestriction(playerId, playerUuid, bannerId, forceNoEpic);
       rewards.push(reward);
+      
+      // Marcar si sacó epic o mejor
+      if (['epic', 'legendary', 'mythic'].includes(reward.rarity)) {
+        gotEpicOrBetter = true;
+        console.log(`[GACHA MULTI] Got ${reward.rarity} on pull ${i + 1}/10 - blocking further epic+ pulls`);
+      }
     }
 
     const newBalance = balance - cost;
@@ -540,6 +820,122 @@ class PokemonGachaService {
       pityStatus: { currentPity: await this.getPityCount(playerId, bannerId), softPityStart: SOFT_PITY_START, hardPity: HARD_PITY },
       highlights,
     };
+  }
+
+  // Versión de executePull que puede forzar NO epic/legendary/mythic
+  async executePullWithRestriction(playerId, playerUuid, bannerId, forceNoEpic = false) {
+    // Obtener banner para featured pokemon y restricciones de rareza
+    const banner = await this.getBanner(bannerId);
+    const featuredPokemon = banner?.featuredPokemon || [];
+    
+    // Obtener restricciones de rareza del banner
+    let allowedRarities = {
+      allowEpic: banner?.allowEpic ?? false,
+      allowLegendary: banner?.allowLegendary ?? false,
+      allowMythic: banner?.allowMythic ?? false,
+    };
+    
+    // Si forceNoEpic, deshabilitar todas las rarezas altas
+    if (forceNoEpic) {
+      allowedRarities = {
+        allowEpic: false,
+        allowLegendary: false,
+        allowMythic: false,
+      };
+    }
+    
+    // Verificar si tiene luck boost activo
+    const creditData = await this.getCredits(playerId);
+    const hasLuckBoost = this.hasActiveLuckBoost(creditData);
+    
+    const pityCount = await this.getPityCount(playerId, bannerId);
+    // Usar la función de precisión alta con restricciones
+    const rarity = this.selectRarityPrecise(pityCount, featuredPokemon, allowedRarities, hasLuckBoost);
+    const selected = this.selectReward(rarity, featuredPokemon);
+    const isShiny = selected.type === 'pokemon' && chance(SHINY_RATE);
+    const rewardId = generateUUID();
+
+    const reward = {
+      rewardId,
+      playerId,
+      bannerId,
+      type: selected.type,
+      rarity: selected.rarity,
+      isShiny,
+      isFeatured: selected.isFeatured || false,
+      status: 'pending',
+      pulledAt: new Date(),
+      fusionResult: null,
+    };
+
+    if (selected.type === 'pokemon') {
+      const ivs = generateIVs(rarity);
+      reward.pokemon = {
+        pokemonId: selected.data.pokemonId,
+        name: selected.data.name,
+        level: 1,
+        isShiny,
+        ivs,
+        nature: 'hardy',
+        types: selected.data.types,
+        sprite: getPokemonSprite(selected.data.pokemonId, isShiny),
+      };
+      
+      // AUTO-FUSIÓN: Trackear el Pokémon y fusionar si hay repetidos
+      if (['common', 'uncommon'].includes(rarity) && !isShiny) {
+        const fusionResult = await this.trackPokemonPull(playerId, selected.data.pokemonId, rarity);
+        reward.fusionResult = fusionResult;
+      }
+    } else {
+      reward.item = {
+        itemId: selected.data.itemId,
+        name: selected.data.name,
+        quantity: selected.data.quantity,
+      };
+    }
+
+    // PITY RESET: Si sale epic/legendary/mythic, resetear pity INMEDIATAMENTE
+    if (['epic', 'legendary', 'mythic'].includes(rarity)) {
+      await this.resetPity(playerId, bannerId);
+      console.log(`[GACHA PITY] Reset pity for ${playerId} after getting ${rarity}`);
+    } else {
+      await this.incrementPity(playerId, bannerId);
+    }
+
+    // Guardar historial
+    await this.historyCollection.insertOne({
+      playerId,
+      bannerId,
+      reward,
+      rarity,
+      isShiny,
+      pityAtPull: pityCount,
+      cost: PULL_COSTS.single,
+      pulledAt: new Date(),
+    });
+
+    // Crear entrega pendiente
+    const shouldDeliver = !reward.fusionResult?.fused || isShiny || !['common', 'uncommon'].includes(rarity);
+    
+    if (shouldDeliver) {
+      await this.pendingCollection.insertOne({
+        rewardId,
+        playerId,
+        playerUuid,
+        type: reward.type,
+        pokemon: reward.pokemon,
+        item: reward.item,
+        rarity,
+        isShiny,
+        status: 'pending',
+        deliveryAttempts: 0,
+        createdAt: new Date(),
+      });
+    } else {
+      reward.status = 'auto_fused';
+    }
+
+    return reward;
   }
 
   async getActiveBanners() {
@@ -764,6 +1160,247 @@ function initPokemonGachaRoutes(app, db, usersCollection) {
   });
 
   // ============================================
+  // RUTAS DE CRÉDITOS (CASINO)
+  // ============================================
+
+  // GET /api/pokemon-gacha/credits/:discordId - Obtener créditos y stardust
+  router.get('/credits/:discordId', async (req, res) => {
+    try {
+      const credits = await gachaService.getCredits(req.params.discordId);
+      res.json({ success: true, ...credits });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // POST /api/pokemon-gacha/credits/deposit - Depositar CD → Créditos (llamado por plugin)
+  router.post('/credits/deposit', async (req, res) => {
+    try {
+      const { uuid, discordId, amount } = req.body;
+      
+      if (!discordId && !uuid) {
+        return res.status(400).json({ success: false, error: 'discordId o uuid requerido' });
+      }
+      if (!amount || amount <= 0) {
+        return res.status(400).json({ success: false, error: 'amount debe ser positivo' });
+      }
+
+      // Si viene uuid, buscar el discordId
+      let finalDiscordId = discordId;
+      if (!finalDiscordId && uuid) {
+        const user = await usersCollection.findOne({ minecraftUuid: uuid });
+        if (!user) {
+          return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+        }
+        finalDiscordId = user.discordId;
+      }
+
+      const result = await gachaService.addCredits(finalDiscordId, amount, 'deposit_ingame');
+      
+      console.log(`[GACHA CASINO] Deposit: ${amount} CD → credits for ${finalDiscordId}`);
+      
+      res.json({ 
+        success: true, 
+        credits: result.credits,
+        stardust: result.stardust,
+        deposited: amount
+      });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // POST /api/pokemon-gacha/credits/withdraw - Retirar Créditos → CD (llamado por plugin)
+  router.post('/credits/withdraw', async (req, res) => {
+    try {
+      const { uuid, discordId, amount } = req.body;
+      
+      if (!discordId && !uuid) {
+        return res.status(400).json({ success: false, error: 'discordId o uuid requerido' });
+      }
+      if (!amount || amount <= 0) {
+        return res.status(400).json({ success: false, error: 'amount debe ser positivo' });
+      }
+
+      let finalDiscordId = discordId;
+      let userUuid = uuid;
+      
+      if (!finalDiscordId && uuid) {
+        const user = await usersCollection.findOne({ minecraftUuid: uuid });
+        if (!user) {
+          return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+        }
+        finalDiscordId = user.discordId;
+        userUuid = user.minecraftUuid;
+      }
+
+      // Verificar que tiene suficientes créditos
+      const result = await gachaService.removeCredits(finalDiscordId, amount, 'withdraw_ingame');
+      
+      // Crear pending sync para dar el dinero in-game
+      await gachaService.pendingSyncCollection.insertOne({
+        uuid: userUuid,
+        username: 'Unknown',
+        type: 'add',
+        amount: amount,
+        reason: 'Casino withdrawal',
+        source: 'gacha_casino',
+        synced: false,
+        createdAt: new Date()
+      });
+      
+      console.log(`[GACHA CASINO] Withdraw: ${amount} credits → CD for ${finalDiscordId}`);
+      
+      res.json({ 
+        success: true, 
+        credits: result.credits,
+        stardust: result.stardust,
+        withdrawn: amount
+      });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  });
+
+  // POST /api/pokemon-gacha/credits/luck-boost - Activar luck boost con stardust
+  router.post('/credits/luck-boost', async (req, res) => {
+    try {
+      const { discordId } = req.body;
+      if (!discordId) {
+        return res.status(400).json({ success: false, error: 'discordId requerido' });
+      }
+
+      const result = await gachaService.activateLuckBoost(discordId);
+      res.json({ success: true, ...result });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  });
+
+  // GET /api/pokemon-gacha/inventory/:discordId - Ver inventario de Pokémon
+  router.get('/inventory/:discordId', async (req, res) => {
+    try {
+      const inventory = await gachaService.getInventory(req.params.discordId);
+      const stats = await gachaService.getInventoryStats(req.params.discordId);
+      res.json({ success: true, inventory, stats });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // POST /api/pokemon-gacha/pull-with-credits - Tirar usando créditos en vez de CD
+  router.post('/pull-with-credits', async (req, res) => {
+    try {
+      const { discordId, bannerId = 'standard' } = req.body;
+      
+      if (!discordId) {
+        return res.status(400).json({ success: false, error: 'discordId requerido' });
+      }
+
+      const user = await usersCollection.findOne({ discordId });
+      if (!user) {
+        return res.status(400).json({ success: false, error: 'Usuario no encontrado' });
+      }
+
+      // Verificar créditos
+      const credits = await gachaService.getCredits(discordId);
+      if (credits.credits < PULL_COSTS.single) {
+        return res.status(400).json({ 
+          success: false, 
+          error: `Créditos insuficientes. Tienes ${credits.credits}, necesitas ${PULL_COSTS.single}` 
+        });
+      }
+
+      // Deducir créditos
+      await gachaService.removeCredits(discordId, PULL_COSTS.single, 'gacha_pull');
+
+      // Ejecutar pull
+      const playerUuid = user.minecraftUuid;
+      const reward = await gachaService.executePull(discordId, playerUuid, bannerId);
+      const newCredits = await gachaService.getCredits(discordId);
+
+      console.log('[GACHA PULL WITH CREDITS] Success:', reward.rarity);
+      
+      res.json({
+        success: true,
+        reward,
+        newCredits: newCredits.credits,
+        stardust: newCredits.stardust,
+        pityStatus: { 
+          currentPity: await gachaService.getPityCount(discordId, bannerId), 
+          softPityStart: SOFT_PITY_START, 
+          hardPity: HARD_PITY 
+        },
+      });
+    } catch (error) {
+      console.log('[GACHA PULL WITH CREDITS] Error:', error.message);
+      res.status(400).json({ success: false, error: error.message });
+    }
+  });
+
+  // POST /api/pokemon-gacha/multi-pull-with-credits - 10 tiradas con créditos
+  router.post('/multi-pull-with-credits', async (req, res) => {
+    try {
+      const { discordId, bannerId = 'standard' } = req.body;
+      
+      if (!discordId) {
+        return res.status(400).json({ success: false, error: 'discordId requerido' });
+      }
+
+      const user = await usersCollection.findOne({ discordId });
+      if (!user) {
+        return res.status(400).json({ success: false, error: 'Usuario no encontrado' });
+      }
+
+      // Verificar créditos
+      const credits = await gachaService.getCredits(discordId);
+      if (credits.credits < PULL_COSTS.multi) {
+        return res.status(400).json({ 
+          success: false, 
+          error: `Créditos insuficientes. Tienes ${credits.credits}, necesitas ${PULL_COSTS.multi}` 
+        });
+      }
+
+      // Deducir créditos
+      await gachaService.removeCredits(discordId, PULL_COSTS.multi, 'gacha_multi_pull');
+
+      // Ejecutar 10 pulls
+      const playerUuid = user.minecraftUuid;
+      const rewards = [];
+      for (let i = 0; i < 10; i++) {
+        const reward = await gachaService.executePull(discordId, playerUuid, bannerId);
+        rewards.push(reward);
+      }
+
+      const newCredits = await gachaService.getCredits(discordId);
+      const highlights = {
+        epicOrBetter: rewards.filter(r => ['epic', 'legendary', 'mythic'].includes(r.rarity)).length,
+        shinies: rewards.filter(r => r.isShiny).length,
+        fused: rewards.filter(r => r.fusionResult?.fused).length,
+        stardustGained: rewards.reduce((sum, r) => sum + (r.fusionResult?.stardustGained || 0), 0),
+      };
+
+      console.log('[GACHA MULTI-PULL WITH CREDITS] Success:', highlights);
+      
+      res.json({
+        success: true,
+        rewards,
+        newCredits: newCredits.credits,
+        stardust: newCredits.stardust,
+        pityStatus: { 
+          currentPity: await gachaService.getPityCount(discordId, bannerId), 
+          softPityStart: SOFT_PITY_START, 
+          hardPity: HARD_PITY 
+        },
+        highlights,
+      });
+    } catch (error) {
+      console.log('[GACHA MULTI-PULL WITH CREDITS] Error:', error.message);
+      res.status(400).json({ success: false, error: error.message });
+    }
+  });
+
+  // ============================================
   // RUTAS DE ADMIN
   // ============================================
 
@@ -855,6 +1492,131 @@ function initPokemonGachaRoutes(app, db, usersCollection) {
       }
 
       res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // ============================================
+  // ADMIN: CLEAR GACHA POKEMON
+  // ============================================
+
+  // POST /api/pokemon-gacha/admin/clear-player/:uuid - Limpiar todos los pokemon claimeados de un jugador
+  router.post('/admin/clear-player/:uuid', async (req, res) => {
+    try {
+      const { uuid } = req.params;
+      const { refund = false } = req.body;
+      
+      console.log('[GACHA ADMIN] Clear player request for UUID:', uuid, 'Refund:', refund);
+      
+      if (!uuid) {
+        return res.status(400).json({ success: false, error: 'UUID requerido' });
+      }
+
+      // Buscar usuario por UUID
+      const user = await usersCollection.findOne({ minecraftUuid: uuid });
+      if (!user) {
+        return res.status(404).json({ success: false, error: 'Usuario no encontrado con ese UUID' });
+      }
+
+      const playerId = user.discordId;
+      
+      // Contar rewards pendientes y claimeados
+      const pendingCount = await gachaService.pendingCollection.countDocuments({ 
+        playerUuid: uuid, 
+        status: 'pending' 
+      });
+      const claimedCount = await gachaService.pendingCollection.countDocuments({ 
+        playerUuid: uuid, 
+        status: 'claimed' 
+      });
+      
+      // Contar historial
+      const historyCount = await gachaService.historyCollection.countDocuments({ playerId });
+      
+      // Calcular refund si se solicita
+      let refundAmount = 0;
+      if (refund) {
+        const history = await gachaService.historyCollection.find({ playerId }).toArray();
+        refundAmount = history.reduce((sum, h) => sum + (h.cost || 0), 0);
+      }
+
+      // Eliminar todos los pending rewards
+      const deletedPending = await gachaService.pendingCollection.deleteMany({ playerUuid: uuid });
+      
+      // Eliminar historial
+      const deletedHistory = await gachaService.historyCollection.deleteMany({ playerId });
+      
+      // Resetear pity
+      const deletedPity = await gachaService.pityCollection.deleteMany({ playerId });
+      
+      // Aplicar refund si se solicita
+      if (refund && refundAmount > 0) {
+        await usersCollection.updateOne(
+          { discordId: playerId },
+          { $inc: { cobbleDollars: refundAmount, cobbleDollarsBalance: refundAmount } }
+        );
+        console.log('[GACHA ADMIN] Refunded', refundAmount, 'CD to', user.discordUsername);
+      }
+
+      const result = {
+        success: true,
+        cleared: {
+          pendingRewards: deletedPending.deletedCount,
+          claimedRewards: claimedCount,
+          historyRecords: deletedHistory.deletedCount,
+          pityRecords: deletedPity.deletedCount,
+        },
+        refund: refund ? refundAmount : 0,
+        player: {
+          uuid,
+          discordId: playerId,
+          username: user.discordUsername || user.minecraftUsername
+        }
+      };
+
+      console.log('[GACHA ADMIN] Clear complete:', result);
+      res.json(result);
+    } catch (error) {
+      console.error('[GACHA ADMIN] Error clearing player:', error.message);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // GET /api/pokemon-gacha/admin/player-info/:uuid - Obtener info de gacha de un jugador
+  router.get('/admin/player-info/:uuid', async (req, res) => {
+    try {
+      const { uuid } = req.params;
+      
+      const user = await usersCollection.findOne({ minecraftUuid: uuid });
+      if (!user) {
+        return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+      }
+
+      const playerId = user.discordId;
+      
+      const pendingRewards = await gachaService.pendingCollection.find({ playerUuid: uuid }).toArray();
+      const history = await gachaService.historyCollection.find({ playerId }).sort({ pulledAt: -1 }).limit(50).toArray();
+      const pity = await gachaService.pityCollection.find({ playerId }).toArray();
+      
+      const totalSpent = history.reduce((sum, h) => sum + (h.cost || 0), 0);
+      
+      res.json({
+        success: true,
+        player: {
+          uuid,
+          discordId: playerId,
+          username: user.discordUsername || user.minecraftUsername
+        },
+        stats: {
+          totalPulls: history.length,
+          totalSpent,
+          pendingRewards: pendingRewards.filter(r => r.status === 'pending').length,
+          claimedRewards: pendingRewards.filter(r => r.status === 'claimed').length,
+        },
+        pity,
+        recentHistory: history.slice(0, 10)
+      });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
     }

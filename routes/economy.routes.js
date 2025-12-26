@@ -414,9 +414,15 @@ function initEconomyRoutes(getDb) {
         .sort({ createdAt: 1 })
         .toArray();
 
+      // Convert ObjectId to string format that plugin expects
+      const formattedPending = pending.map(p => ({
+        ...p,
+        _id: p._id.toString() // Convert ObjectId to string
+      }));
+
       res.json({ 
         success: true, 
-        pending,
+        pending: formattedPending,
         count: pending.length
       });
     } catch (error) {

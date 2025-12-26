@@ -861,7 +861,21 @@ function createApp() {
       const user = await db.collection('users').findOne({ minecraftUuid: uuid });
       
       // Use cobbleDollarsBalance if cobbleDollars not provided (plugin sends cobbleDollarsBalance)
-      const balance = cobbleDollars !== undefined ? cobbleDollars : cobbleDollarsBalance;
+      const inGameBalance = cobbleDollars !== undefined ? cobbleDollars : cobbleDollarsBalance;
+
+      // CRITICAL FIX: Check for pending economy syncs before accepting in-game balance
+      // If there are pending syncs (web transactions not yet applied in-game), 
+      // we should NOT overwrite the DB balance with the in-game balance
+      const pendingSyncs = await db.collection('economy_pending_sync').countDocuments({
+        uuid: uuid,
+        synced: false
+      });
+      
+      const shouldUpdateBalance = pendingSyncs === 0; // Only update if no pending syncs
+      
+      if (pendingSyncs > 0) {
+        console.log(`[SYNC] Skipping balance update for ${username} - ${pendingSyncs} pending economy syncs`);
+      }
 
       if (!user) {
         // Create new user - only save party if it has data
@@ -871,7 +885,7 @@ function createApp() {
           online: online || false,
           party: (party && Array.isArray(party) && party.length > 0) ? party : [],
           pcStorage: (pcStorage && Array.isArray(pcStorage) && pcStorage.length > 0) ? pcStorage : [],
-          cobbleDollars: balance || 0,
+          cobbleDollars: shouldUpdateBalance ? (inGameBalance || 0) : 0,
           badges: badges || 0,
           playtime: playtime || 0,
           x: x,
@@ -883,7 +897,7 @@ function createApp() {
           updatedAt: new Date(),
         };
         await db.collection('users').insertOne(newUser);
-        return res.json({ success: true, verified: false, banned: false });
+        return res.json({ success: true, verified: false, banned: false, pendingSyncs });
       }
 
       // Update existing user
@@ -902,7 +916,13 @@ function createApp() {
       if (pcStorage !== undefined && Array.isArray(pcStorage) && pcStorage.length > 0) {
         updateData.pcStorage = pcStorage;
       }
-      if (balance !== undefined) updateData.cobbleDollars = balance;
+      
+      // CRITICAL: Only update balance if there are NO pending economy syncs
+      // This prevents the in-game balance from overwriting web transactions
+      if (shouldUpdateBalance && inGameBalance !== undefined) {
+        updateData.cobbleDollars = inGameBalance;
+      }
+      
       if (badges !== undefined) updateData.badges = badges;
       if (playtime !== undefined) updateData.playtime = playtime;
       if (x !== undefined) updateData.x = x;
@@ -920,6 +940,7 @@ function createApp() {
         verified: user.verified || false,
         banned: user.banned || false,
         banReason: user.banReason,
+        pendingSyncs, // Tell plugin how many pending syncs there are
       });
     } catch (error) {
       console.error('[PLAYERS SYNC] Error:', error);
@@ -1911,6 +1932,29 @@ function createApp() {
       res.json({ players });
     } catch (error) {
       console.error('[PLAYERS] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // GET /api/players/by-uuid/:uuid - Get player by Minecraft UUID (returns discordId for casino)
+  app.get('/api/players/by-uuid/:uuid', async (req, res) => {
+    try {
+      const { uuid } = req.params;
+      const db = getDb();
+      const user = await db.collection('users').findOne({ minecraftUuid: uuid });
+
+      if (!user) {
+        return res.status(404).json({ error: 'Player not found' });
+      }
+
+      res.json({ 
+        success: true,
+        discordId: user.discordId,
+        minecraftUsername: user.minecraftUsername,
+        minecraftUuid: user.minecraftUuid
+      });
+    } catch (error) {
+      console.error('[PLAYERS BY-UUID] Error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
