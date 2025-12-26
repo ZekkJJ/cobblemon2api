@@ -23,14 +23,15 @@ const SOFT_PITY_INCREASE = 0.05;
 const PRECISION = 100000000; // 10^8
 
 // Probabilidades base por rareza (en formato de alta precisión)
-// Valores reales: common=55%, uncommon=30%, rare=12%, epic=2.5%, legendary=0.06%, mythic=0.001%
+// ULTRA NERFED - Legendarios y Mythics son CASI IMPOSIBLES
+// Valores reales: common=60%, uncommon=30%, rare=8.5%, epic=1.5%, legendary=0.009%, mythic=0.001%
 const BASE_RATES_PRECISE = {
-  common:    55000000,  // 55.000000%
+  common:    60000000,  // 60.000000%
   uncommon:  30000000,  // 30.000000%
-  rare:      12000000,  // 12.000000%
-  epic:       2500000,  //  2.500000%
-  legendary:    60000,  //  0.060000% (muy raro)
-  mythic:        1000,  //  0.001000% (extremadamente raro)
+  rare:       8500000,  //  8.500000%
+  epic:       1490000,  //  1.490000% (muy raro - pseudos)
+  legendary:     9000,  //  0.009000% (1 en 11,111 - casi imposible)
+  mythic:        1000,  //  0.001000% (1 en 100,000 - extremadamente raro)
 };
 
 // Convertir a decimales para compatibilidad
