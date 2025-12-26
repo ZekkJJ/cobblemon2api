@@ -17,6 +17,7 @@ const crypto = require('crypto');
 const { initModsRoutes } = require('./routes/mods.routes');
 const { initEconomyRoutes } = require('./routes/economy.routes');
 const { initDiscordBot, generateVerificationCode, isPlayerVerified, getBotStatus } = require('./routes/discord-bot.routes');
+const { initPokemonGachaRoutes } = require('./routes/pokemon-gacha.routes');
 
 // Environment variables
 const PORT = process.env.PORT || 25617;
@@ -4454,6 +4455,12 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
   // ============================================
   app.use('/api/economy', initEconomyRoutes(getDb));
   console.log('💰 [ROUTES] Economy routes loaded');
+
+  // ============================================
+  // MODULAR ROUTES - Pokemon Gacha API
+  // ============================================
+  initPokemonGachaRoutes(app, getDb(), getDb().collection('users'));
+  console.log('🎰 [ROUTES] Pokemon Gacha routes loaded');
 
   // Error handler
   app.use((err, req, res, next) => {
