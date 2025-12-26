@@ -348,19 +348,24 @@ class PokemonGachaService {
     const user = await usersCollection.findOne({ discordId: playerId });
     if (!user) throw new Error('Jugador no encontrado');
     
-    const balance = user.cobbleDollarsBalance || user.cobbleDollars || 0;
-    if (balance < PULL_COSTS.single) {
-      throw new Error(`Balance insuficiente. Necesitas ${PULL_COSTS.single} CD`);
+    // IMPORTANTE: Forzar conversión a número para evitar comparación de strings
+    const balance = Number(user.cobbleDollarsBalance) || Number(user.cobbleDollars) || 0;
+    const cost = Number(PULL_COSTS.single);
+    
+    console.log('[GACHA DEBUG] Balance type:', typeof balance, 'Value:', balance, 'Cost:', cost);
+    
+    if (balance < cost) {
+      throw new Error(`Balance insuficiente. Necesitas ${cost} CD`);
     }
 
     // Deducir balance
     await usersCollection.updateOne(
       { discordId: playerId },
-      { $inc: { cobbleDollarsBalance: -PULL_COSTS.single, cobbleDollars: -PULL_COSTS.single } }
+      { $inc: { cobbleDollarsBalance: -cost, cobbleDollars: -cost } }
     );
 
     const reward = await this.executePull(playerId, playerUuid, bannerId);
-    const newBalance = balance - PULL_COSTS.single;
+    const newBalance = balance - cost;
 
     return {
       success: true,
@@ -374,14 +379,19 @@ class PokemonGachaService {
     const user = await usersCollection.findOne({ discordId: playerId });
     if (!user) throw new Error('Jugador no encontrado');
     
-    const balance = user.cobbleDollarsBalance || user.cobbleDollars || 0;
-    if (balance < PULL_COSTS.multi) {
-      throw new Error(`Balance insuficiente. Necesitas ${PULL_COSTS.multi} CD`);
+    // IMPORTANTE: Forzar conversión a número para evitar comparación de strings
+    const balance = Number(user.cobbleDollarsBalance) || Number(user.cobbleDollars) || 0;
+    const cost = Number(PULL_COSTS.multi);
+    
+    console.log('[GACHA DEBUG] Multi-pull Balance type:', typeof balance, 'Value:', balance, 'Cost:', cost);
+    
+    if (balance < cost) {
+      throw new Error(`Balance insuficiente. Necesitas ${cost} CD`);
     }
 
     await usersCollection.updateOne(
       { discordId: playerId },
-      { $inc: { cobbleDollarsBalance: -PULL_COSTS.multi, cobbleDollars: -PULL_COSTS.multi } }
+      { $inc: { cobbleDollarsBalance: -cost, cobbleDollars: -cost } }
     );
 
     const rewards = [];
@@ -390,7 +400,7 @@ class PokemonGachaService {
       rewards.push(reward);
     }
 
-    const newBalance = balance - PULL_COSTS.multi;
+    const newBalance = balance - cost;
     const highlights = {
       epicOrBetter: rewards.filter(r => ['epic', 'legendary', 'mythic'].includes(r.rarity)).length,
       shinies: rewards.filter(r => r.isShiny).length,
