@@ -18,15 +18,18 @@ const SOFT_PITY_START = 75;
 const HARD_PITY = 90;
 const SOFT_PITY_INCREASE = 0.05;
 
-// Probabilidades base por rareza
+// Probabilidades base por rareza (NERFED: epic bajado de 4% a 1.5%)
 const BASE_RATES = {
-  common: 0.50,
+  common: 0.52,
   uncommon: 0.30,
   rare: 0.15,
-  epic: 0.04,
-  legendary: 0.006,
+  epic: 0.015,      // Nerfed from 0.04
+  legendary: 0.004,
   mythic: 0.0001,
 };
+
+// Bonus de probabilidad para featured pokemon (+3% sobre su rareza base)
+const FEATURED_BONUS = 0.03;
 
 // Pool de Pokémon por rareza
 const POKEMON_POOL = {
@@ -250,7 +253,7 @@ class PokemonGachaService {
     return 'common';
   }
 
-  selectReward(rarity) {
+  selectReward(rarity, featuredPokemon = []) {
     // 80% Pokémon, 20% Items (solo para rare+)
     const isItem = ['rare', 'epic', 'legendary'].includes(rarity) && 
                    ITEM_POOL[rarity] && 
@@ -259,18 +262,71 @@ class PokemonGachaService {
     if (isItem) {
       const items = ITEM_POOL[rarity];
       const item = items[randomInt(0, items.length - 1)];
-      return { type: 'item', data: item, rarity };
+      return { type: 'item', data: item, rarity, isFeatured: false };
+    }
+
+    // Verificar si hay featured pokemon de esta rareza
+    const featuredOfRarity = featuredPokemon.filter(f => f.rarity === rarity);
+    
+    // Si hay featured de esta rareza, 50% de chance de obtener uno de ellos
+    if (featuredOfRarity.length > 0 && chance(0.5)) {
+      const featured = featuredOfRarity[randomInt(0, featuredOfRarity.length - 1)];
+      return { 
+        type: 'pokemon', 
+        data: { 
+          pokemonId: featured.pokemonId, 
+          name: featured.name, 
+          types: featured.types || ['normal'] 
+        }, 
+        rarity,
+        isFeatured: true 
+      };
     }
 
     const pokemon = POKEMON_POOL[rarity] || POKEMON_POOL.common;
     const selected = pokemon[randomInt(0, pokemon.length - 1)];
-    return { type: 'pokemon', data: selected, rarity };
+    return { type: 'pokemon', data: selected, rarity, isFeatured: false };
+  }
+
+  selectRarityWithFeatured(pityCount, featuredPokemon = []) {
+    // Calcular probabilidades ajustadas por soft pity y featured
+    const rates = { ...BASE_RATES };
+    
+    if (pityCount >= HARD_PITY) {
+      return 'epic'; // Garantizado
+    }
+    
+    if (pityCount >= SOFT_PITY_START) {
+      const bonus = (pityCount - SOFT_PITY_START) * SOFT_PITY_INCREASE;
+      rates.epic = Math.min(rates.epic + bonus, 1);
+    }
+
+    // Agregar bonus de featured (+3% a la rareza de cada featured)
+    for (const featured of featuredPokemon) {
+      if (rates[featured.rarity] !== undefined) {
+        rates[featured.rarity] = Math.min(rates[featured.rarity] + FEATURED_BONUS, 0.5);
+      }
+    }
+
+    const roll = randomFloat();
+    let cumulative = 0;
+    
+    for (const [rarity, rate] of Object.entries(rates)) {
+      cumulative += rate;
+      if (roll < cumulative) return rarity;
+    }
+    
+    return 'common';
   }
 
   async executePull(playerId, playerUuid, bannerId) {
+    // Obtener banner para featured pokemon
+    const banner = await this.getBanner(bannerId);
+    const featuredPokemon = banner?.featuredPokemon || [];
+    
     const pityCount = await this.getPityCount(playerId, bannerId);
-    const rarity = this.selectRarity(pityCount);
-    const selected = this.selectReward(rarity);
+    const rarity = this.selectRarityWithFeatured(pityCount, featuredPokemon);
+    const selected = this.selectReward(rarity, featuredPokemon);
     const isShiny = selected.type === 'pokemon' && chance(SHINY_RATE);
     const rewardId = generateUUID();
 
@@ -281,7 +337,7 @@ class PokemonGachaService {
       type: selected.type,
       rarity: selected.rarity,
       isShiny,
-      isFeatured: false,
+      isFeatured: selected.isFeatured || false,
       status: 'pending',
       pulledAt: new Date(),
     };
