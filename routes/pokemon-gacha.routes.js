@@ -479,13 +479,14 @@ function initPokemonGachaRoutes(app, db, usersCollection) {
   // POST /api/pokemon-gacha/pull - Tirada simple
   router.post('/pull', async (req, res) => {
     try {
-      const { playerId, bannerId = 'standard' } = req.body;
-      if (!playerId) return res.status(400).json({ success: false, error: 'playerId requerido' });
+      const { playerId, discordId, bannerId = 'standard' } = req.body;
+      const userId = discordId || playerId;
+      if (!userId) return res.status(400).json({ success: false, error: 'discordId requerido' });
 
-      const user = await usersCollection.findOne({ discordId: playerId });
+      const user = await usersCollection.findOne({ discordId: userId });
       const playerUuid = user?.minecraftUuid;
 
-      const result = await gachaService.pull(playerId, playerUuid, bannerId, usersCollection);
+      const result = await gachaService.pull(userId, playerUuid, bannerId, usersCollection);
       res.json(result);
     } catch (error) {
       res.status(400).json({ success: false, error: error.message });
@@ -495,13 +496,14 @@ function initPokemonGachaRoutes(app, db, usersCollection) {
   // POST /api/pokemon-gacha/multi-pull - 10 tiradas
   router.post('/multi-pull', async (req, res) => {
     try {
-      const { playerId, bannerId = 'standard' } = req.body;
-      if (!playerId) return res.status(400).json({ success: false, error: 'playerId requerido' });
+      const { playerId, discordId, bannerId = 'standard' } = req.body;
+      const userId = discordId || playerId;
+      if (!userId) return res.status(400).json({ success: false, error: 'discordId requerido' });
 
-      const user = await usersCollection.findOne({ discordId: playerId });
+      const user = await usersCollection.findOne({ discordId: userId });
       const playerUuid = user?.minecraftUuid;
 
-      const result = await gachaService.multiPull(playerId, playerUuid, bannerId, usersCollection);
+      const result = await gachaService.multiPull(userId, playerUuid, bannerId, usersCollection);
       res.json(result);
     } catch (error) {
       res.status(400).json({ success: false, error: error.message });
@@ -511,8 +513,8 @@ function initPokemonGachaRoutes(app, db, usersCollection) {
   // GET /api/pokemon-gacha/pity/:bannerId
   router.get('/pity/:bannerId', async (req, res) => {
     try {
-      const playerId = req.query.playerId;
-      if (!playerId) return res.status(400).json({ success: false, error: 'playerId requerido' });
+      const playerId = req.query.playerId || req.query.discordId;
+      if (!playerId) return res.status(400).json({ success: false, error: 'discordId requerido' });
 
       const currentPity = await gachaService.getPityCount(playerId, req.params.bannerId);
       res.json({ success: true, pityStatus: { currentPity, softPityStart: SOFT_PITY_START, hardPity: HARD_PITY } });
@@ -524,8 +526,8 @@ function initPokemonGachaRoutes(app, db, usersCollection) {
   // GET /api/pokemon-gacha/history
   router.get('/history', async (req, res) => {
     try {
-      const playerId = req.query.playerId;
-      if (!playerId) return res.status(400).json({ success: false, error: 'playerId requerido' });
+      const playerId = req.query.playerId || req.query.discordId;
+      if (!playerId) return res.status(400).json({ success: false, error: 'discordId requerido' });
 
       const history = await gachaService.getHistory(playerId);
       res.json({ success: true, history });
@@ -537,8 +539,8 @@ function initPokemonGachaRoutes(app, db, usersCollection) {
   // GET /api/pokemon-gacha/stats
   router.get('/stats', async (req, res) => {
     try {
-      const playerId = req.query.playerId;
-      if (!playerId) return res.status(400).json({ success: false, error: 'playerId requerido' });
+      const playerId = req.query.playerId || req.query.discordId;
+      if (!playerId) return res.status(400).json({ success: false, error: 'discordId requerido' });
 
       const stats = await gachaService.getStats(playerId);
       res.json({ success: true, stats });
