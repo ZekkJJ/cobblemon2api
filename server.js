@@ -3850,6 +3850,62 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
     }
   });
 
+  // GET /auth/session - Get user session data (for gacha page and others)
+  // Also available at /api/auth/session for consistency
+  app.get(['/auth/session', '/api/auth/session'], async (req, res) => {
+    try {
+      // Get discordId from query param (frontend sends it from localStorage)
+      const { discordId } = req.query;
+      
+      if (!discordId) {
+        return res.json({ 
+          success: false, 
+          user: null,
+          message: 'No session - discordId required'
+        });
+      }
+
+      const db = getDb();
+      
+      // Get user from users collection
+      const user = await db.collection('users').findOne({ discordId });
+      
+      if (!user) {
+        return res.json({ 
+          success: false, 
+          user: null,
+          message: 'User not found'
+        });
+      }
+
+      // Also check players collection for additional data
+      const playerData = await db.collection('players').findOne({ discordId });
+
+      const sessionUser = {
+        discordId: user.discordId,
+        discordUsername: user.discordUsername,
+        avatar: user.avatar,
+        minecraftUuid: user.minecraftUuid || playerData?.minecraftUuid || null,
+        minecraftUsername: user.minecraftUsername || playerData?.username || null,
+        isMinecraftVerified: !!(user.minecraftUuid || playerData?.verified),
+        cobbleDollarsBalance: user.cobbleDollars || playerData?.cobbleDollars || 0,
+        hasStarter: user.hasStarter || playerData?.hasStarter || false,
+        starterPokemon: user.starterPokemon || playerData?.starterPokemon || null,
+      };
+
+      res.json({ 
+        success: true, 
+        user: sessionUser 
+      });
+    } catch (error) {
+      console.error('[AUTH SESSION] Error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Internal server error' 
+      });
+    }
+  });
+
   // Admin endpoints
   app.post('/api/admin/ban', async (req, res) => {
     try {
