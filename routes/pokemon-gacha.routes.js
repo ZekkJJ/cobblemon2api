@@ -348,11 +348,14 @@ class PokemonGachaService {
     const user = await usersCollection.findOne({ discordId: playerId });
     if (!user) throw new Error('Jugador no encontrado');
     
-    // IMPORTANTE: Forzar conversión a número para evitar comparación de strings
-    const balance = Number(user.cobbleDollarsBalance) || Number(user.cobbleDollars) || 0;
+    // IMPORTANTE: Usar el balance correcto - cobbleDollars es el campo principal
+    // cobbleDollarsBalance puede estar desincronizado, usar el mayor de los dos
+    const balanceA = Number(user.cobbleDollars) || 0;
+    const balanceB = Number(user.cobbleDollarsBalance) || 0;
+    const balance = Math.max(balanceA, balanceB);
     const cost = Number(PULL_COSTS.single);
     
-    console.log('[GACHA DEBUG] Balance type:', typeof balance, 'Value:', balance, 'Cost:', cost);
+    console.log('[GACHA DEBUG] cobbleDollars:', balanceA, 'cobbleDollarsBalance:', balanceB, 'Using:', balance, 'Cost:', cost);
     
     if (balance < cost) {
       throw new Error(`Balance insuficiente. Necesitas ${cost} CD`);
@@ -379,11 +382,14 @@ class PokemonGachaService {
     const user = await usersCollection.findOne({ discordId: playerId });
     if (!user) throw new Error('Jugador no encontrado');
     
-    // IMPORTANTE: Forzar conversión a número para evitar comparación de strings
-    const balance = Number(user.cobbleDollarsBalance) || Number(user.cobbleDollars) || 0;
+    // IMPORTANTE: Usar el balance correcto - cobbleDollars es el campo principal
+    // cobbleDollarsBalance puede estar desincronizado, usar el mayor de los dos
+    const balanceA = Number(user.cobbleDollars) || 0;
+    const balanceB = Number(user.cobbleDollarsBalance) || 0;
+    const balance = Math.max(balanceA, balanceB);
     const cost = Number(PULL_COSTS.multi);
     
-    console.log('[GACHA DEBUG] Multi-pull Balance type:', typeof balance, 'Value:', balance, 'Cost:', cost);
+    console.log('[GACHA DEBUG] Multi-pull cobbleDollars:', balanceA, 'cobbleDollarsBalance:', balanceB, 'Using:', balance, 'Cost:', cost);
     
     if (balance < cost) {
       throw new Error(`Balance insuficiente. Necesitas ${cost} CD`);
