@@ -521,9 +521,17 @@ class PokemonGachaService {
       return 'epic';
     }
     
-    // Soft pity aumenta probabilidad de epic (solo si epic está permitido)
-    if (pityCount >= SOFT_PITY_START && rates.epic > 0) {
+    // Soft pity aumenta probabilidad de epic
+    // Funciona incluso si allowedRarities.allowEpic es false, porque el pity es global
+    // Si el soft pity da epic pero no está permitido en este x10, se dará de todas formas
+    // (el límite de 1 epic por x10 es una restricción suave, el pity es más importante)
+    if (pityCount >= SOFT_PITY_START) {
       const bonusPrecise = Math.floor((pityCount - SOFT_PITY_START) * SOFT_PITY_INCREASE * PRECISION);
+      // Restaurar rates.epic si fue deshabilitado, para que el soft pity funcione
+      if (rates.epic === 0 && allowedRarities.allowEpic === false) {
+        rates.epic = BASE_RATES_PRECISE.epic;
+        rates.common -= BASE_RATES_PRECISE.epic; // Revertir la redistribución
+      }
       rates.epic = Math.min(rates.epic + bonusPrecise, PRECISION);
     }
 
