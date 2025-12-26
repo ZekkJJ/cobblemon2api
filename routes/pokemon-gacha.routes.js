@@ -175,6 +175,7 @@ class PokemonGachaService {
     this.historyCollection = db.collection('gacha_history');
     this.pityCollection = db.collection('gacha_pity');
     this.pendingCollection = db.collection('gacha_pending');
+    this.pendingSyncCollection = db.collection('economy_pending_sync');
   }
 
   async ensureIndexes() {
@@ -451,11 +452,26 @@ class PokemonGachaService {
       throw new Error(`Balance insuficiente. Necesitas ${cost} CD`);
     }
 
-    // Deducir balance
+    // Deducir balance en MongoDB
     await usersCollection.updateOne(
       { discordId: playerId },
       { $inc: { cobbleDollarsBalance: -cost, cobbleDollars: -cost } }
     );
+
+    // Crear pending sync para que el plugin quite el dinero in-game
+    if (user.minecraftUuid) {
+      await this.pendingSyncCollection.insertOne({
+        uuid: user.minecraftUuid,
+        username: user.minecraftUsername || 'Unknown',
+        type: 'remove',
+        amount: cost,
+        reason: 'Gacha pull x1',
+        source: 'gacha',
+        synced: false,
+        createdAt: new Date()
+      });
+      console.log('[GACHA] Created pending sync for', user.minecraftUsername, '- remove', cost, 'CD');
+    }
 
     const reward = await this.executePull(playerId, playerUuid, bannerId);
     const newBalance = balance - cost;
@@ -489,6 +505,21 @@ class PokemonGachaService {
       { discordId: playerId },
       { $inc: { cobbleDollarsBalance: -cost, cobbleDollars: -cost } }
     );
+
+    // Crear pending sync para que el plugin quite el dinero in-game
+    if (user.minecraftUuid) {
+      await this.pendingSyncCollection.insertOne({
+        uuid: user.minecraftUuid,
+        username: user.minecraftUsername || 'Unknown',
+        type: 'remove',
+        amount: cost,
+        reason: 'Gacha pull x10',
+        source: 'gacha',
+        synced: false,
+        createdAt: new Date()
+      });
+      console.log('[GACHA] Created pending sync for', user.minecraftUsername, '- remove', cost, 'CD');
+    }
 
     const rewards = [];
     for (let i = 0; i < 10; i++) {

@@ -19,6 +19,7 @@ function initEconomyRoutes(getDb) {
   // Helper to get users collection
   const getUsersCollection = () => getDb().collection('users');
   const getTransactionsCollection = () => getDb().collection('economy_transactions');
+  const getPendingSyncCollection = () => getDb().collection('economy_pending_sync');
 
   // ============================================
   // GET /api/economy/balance/:uuid - Get player balance
@@ -397,6 +398,92 @@ function initEconomyRoutes(getDb) {
         error: 'Sync failed',
         message: error.message 
       });
+    }
+  });
+
+  // ============================================
+  // GET /api/economy/pending-sync/:uuid - Get pending transactions for player
+  // Plugin polls this to sync web purchases (gacha) to in-game
+  // ============================================
+  router.get('/pending-sync/:uuid', async (req, res) => {
+    try {
+      const { uuid } = req.params;
+      
+      const pending = await getPendingSyncCollection()
+        .find({ uuid, synced: false })
+        .sort({ createdAt: 1 })
+        .toArray();
+
+      res.json({ 
+        success: true, 
+        pending,
+        count: pending.length
+      });
+    } catch (error) {
+      console.error('[ECONOMY] Error getting pending sync:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // ============================================
+  // POST /api/economy/pending-sync - Create pending sync (called by gacha)
+  // ============================================
+  router.post('/pending-sync', async (req, res) => {
+    try {
+      const { uuid, username, type, amount, reason, source } = req.body;
+      
+      if (!uuid || !type || typeof amount !== 'number') {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'uuid, type, and amount are required' 
+        });
+      }
+
+      const pendingSync = {
+        uuid,
+        username: username || 'Unknown',
+        type, // 'remove' for gacha purchases
+        amount,
+        reason: reason || 'Web transaction',
+        source: source || 'web',
+        synced: false,
+        createdAt: new Date()
+      };
+
+      await getPendingSyncCollection().insertOne(pendingSync);
+      
+      console.log(`[ECONOMY] Pending sync created: ${type} ${amount} for ${username || uuid}`);
+
+      res.json({ success: true, pendingSync });
+    } catch (error) {
+      console.error('[ECONOMY] Error creating pending sync:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // ============================================
+  // POST /api/economy/confirm-sync/:id - Mark pending sync as completed
+  // Plugin calls this after executing the transaction in-game
+  // ============================================
+  router.post('/confirm-sync/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { ObjectId } = require('mongodb');
+      
+      const result = await getPendingSyncCollection().updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { synced: true, syncedAt: new Date() } }
+      );
+
+      if (result.modifiedCount === 0) {
+        return res.status(404).json({ success: false, error: 'Pending sync not found' });
+      }
+
+      console.log(`[ECONOMY] Sync confirmed: ${id}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('[ECONOMY] Error confirming sync:', error);
+      res.status(500).json({ success: false, error: error.message });
     }
   });
 
