@@ -6,9 +6,13 @@
  * Usa este archivo en la configuración de Pterodactyl: index.js
  */
 
-const { execSync, spawn } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+import { execSync, spawn } from 'child_process';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const distPath = path.join(__dirname, 'dist', 'server.js');
 const srcPath = path.join(__dirname, 'src', 'server.ts');
@@ -17,8 +21,13 @@ console.log('🚀 Cobblemon Los Pitufos - Backend');
 console.log('================================');
 
 // Verificar si necesitamos compilar
-const needsBuild = !fs.existsSync(distPath) || 
-  (fs.existsSync(srcPath) && fs.statSync(srcPath).mtime > fs.statSync(distPath).mtime);
+let needsBuild = !fs.existsSync(distPath);
+
+if (!needsBuild && fs.existsSync(srcPath)) {
+  const srcStat = fs.statSync(srcPath);
+  const distStat = fs.statSync(distPath);
+  needsBuild = srcStat.mtime > distStat.mtime;
+}
 
 if (needsBuild) {
   console.log('🔨 Compilando TypeScript...');
@@ -32,8 +41,8 @@ if (needsBuild) {
     // Fallback al server.js legacy si existe
     const legacyPath = path.join(__dirname, 'server.js');
     if (fs.existsSync(legacyPath)) {
-      require('./server.js');
-      return;
+      const legacy = await import('./server.js');
+      process.exit(0);
     }
     
     console.error('❌ No hay fallback disponible. Saliendo...');
@@ -44,7 +53,6 @@ if (needsBuild) {
 // Ejecutar el servidor compilado
 console.log('🚀 Iniciando servidor desde dist/server.js...');
 
-// Usar spawn para mantener el proceso vivo
 const server = spawn('node', ['dist/server.js'], {
   cwd: __dirname,
   stdio: 'inherit',
