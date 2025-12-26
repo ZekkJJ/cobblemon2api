@@ -514,8 +514,10 @@ class PokemonGachaService {
       rates.common = Math.max(0, rates.common - totalBoost);
     }
     
-    // Hard pity garantiza epic (solo si epic está permitido)
-    if (pityCount >= HARD_PITY && rates.epic > 0) {
+    // HARD PITY: Garantiza epic SIEMPRE en tirada 90+
+    // El hard pity ignora las restricciones de allowedRarities porque es un contador global
+    // Si ya salió un epic en este x10, el pity se resetea de todas formas
+    if (pityCount >= HARD_PITY) {
       return 'epic';
     }
     

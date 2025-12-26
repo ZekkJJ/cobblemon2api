@@ -177,12 +177,30 @@ export class ShopService {
           { minecraftUuid: uuid },
           { 
             $set: { 
-              cobbleDollarsBalance: newBalance, 
+              cobbleDollarsBalance: newBalance,
+              cobbleDollars: newBalance, // Also update cobbleDollars field for consistency
               updatedAt: new Date() 
             } 
           },
           { session }
         );
+        
+        // 4.5 CRITICAL: Create pending economy sync to prevent /syncnow from restoring balance
+        // This tells the sync endpoint to NOT overwrite the DB balance with in-game balance
+        // Type must be 'remove' for the plugin to process it correctly
+        const db = this.usersCollection.db;
+        await db.collection('economy_pending_sync').insertOne({
+          uuid: uuid,
+          username: user.minecraftUsername || 'Unknown',
+          type: 'remove', // Plugin expects 'remove' or 'add'
+          amount: totalCost, // Positive amount, type indicates direction
+          reason: `Compra tienda: ${quantity}x ${ballId}`,
+          source: 'web_shop',
+          previousBalance: currentBalance,
+          newBalance: newBalance,
+          synced: false,
+          createdAt: new Date()
+        }, { session });
 
         // 5. Create purchase record
         const purchases = await this.shopPurchasesCollection.findOne({ uuid }, { session });
@@ -317,12 +335,29 @@ export class ShopService {
           { minecraftUuid: uuid },
           { 
             $set: { 
-              cobbleDollarsBalance: newBalance, 
+              cobbleDollarsBalance: newBalance,
+              cobbleDollars: newBalance, // Also update cobbleDollars field for consistency
               updatedAt: new Date() 
             } 
           },
           { session }
         );
+        
+        // Create pending economy sync for refund
+        // Type must be 'add' for the plugin to process it correctly
+        const db = this.usersCollection.db;
+        await db.collection('economy_pending_sync').insertOne({
+          uuid: uuid,
+          username: user.minecraftUsername || 'Unknown',
+          type: 'add', // Plugin expects 'remove' or 'add'
+          amount: refundAmount,
+          reason: `Reembolso tienda: ${purchase.quantity}x ${purchase.ballId} - ${reason}`,
+          source: 'web_shop_refund',
+          previousBalance: user.cobbleDollarsBalance || 0,
+          newBalance: newBalance,
+          synced: false,
+          createdAt: new Date()
+        }, { session });
 
         // 3. Restore stock
         const stockData = await this.shopStockCollection.findOne({ id: 'current' }, { session });
