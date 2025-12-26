@@ -10,7 +10,7 @@ import { ModsController } from './mods.controller.js';
 import { ModsService } from './mods.service.js';
 import { connectToDatabase } from '../../config/database.js';
 import { createRateLimiter } from '../../shared/utils/rate-limiter.js';
-import { adminAuthMiddleware } from '../../modules/auth/auth.middleware.js';
+import { requireAdmin as adminAuthMiddleware } from '../../modules/auth/auth.middleware.js';
 
 // Configuración de multer para uploads de mods
 const storage = multer.memoryStorage();

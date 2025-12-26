@@ -2,11 +2,12 @@
  * Punto de Entrada para Pterodactyl
  * Cobblemon Los Pitufos - Backend API
  * 
- * Usa server.js directamente
+ * Full Legacy JavaScript
  */
 
 console.log('🚀 Cobblemon Los Pitufos - Backend');
 console.log('================================');
+console.log('📦 Modo: Legacy JavaScript');
 
-// Cargar el servidor legacy
+// Cargar servidor directamente
 require('./server.js');
