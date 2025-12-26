@@ -178,9 +178,11 @@ class PokemonGachaService {
         bannerId: 'standard',
         name: 'Standard Banner',
         nameEs: 'Banner Estándar',
-        description: 'El banner permanente con todos los Pokémon disponibles',
+        description: 'The permanent banner with all available Pokémon',
+        descriptionEs: 'El banner permanente con todos los Pokémon disponibles. ¡Tira para obtener Pokémon de todas las rarezas!',
         type: 'standard',
         isActive: true,
+        artwork: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png',
         singlePullCost: PULL_COSTS.single,
         multiPullCost: PULL_COSTS.multi,
         featuredPokemon: [],
@@ -188,6 +190,18 @@ class PokemonGachaService {
         createdAt: new Date(),
       });
       console.log('[POKEMON GACHA] Banner estándar creado');
+    } else if (!exists.artwork) {
+      // Update existing banner with artwork if missing
+      await this.bannersCollection.updateOne(
+        { bannerId: 'standard' },
+        { 
+          $set: { 
+            artwork: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png',
+            descriptionEs: 'El banner permanente con todos los Pokémon disponibles. ¡Tira para obtener Pokémon de todas las rarezas!',
+          } 
+        }
+      );
+      console.log('[POKEMON GACHA] Banner estándar actualizado con artwork');
     }
   }
 
@@ -481,14 +495,28 @@ function initPokemonGachaRoutes(app, db, usersCollection) {
     try {
       const { playerId, discordId, bannerId = 'standard' } = req.body;
       const userId = discordId || playerId;
-      if (!userId) return res.status(400).json({ success: false, error: 'discordId requerido' });
+      
+      console.log('[GACHA PULL] Request:', { userId, bannerId });
+      
+      if (!userId) {
+        console.log('[GACHA PULL] Error: No discordId provided');
+        return res.status(400).json({ success: false, error: 'discordId requerido' });
+      }
 
       const user = await usersCollection.findOne({ discordId: userId });
+      if (!user) {
+        console.log('[GACHA PULL] Error: User not found:', userId);
+        return res.status(400).json({ success: false, error: 'Usuario no encontrado. Debes iniciar sesión primero.' });
+      }
+      
       const playerUuid = user?.minecraftUuid;
+      console.log('[GACHA PULL] User found:', user.discordUsername, 'Balance:', user.cobbleDollars || user.cobbleDollarsBalance || 0);
 
       const result = await gachaService.pull(userId, playerUuid, bannerId, usersCollection);
+      console.log('[GACHA PULL] Success:', result.reward?.rarity);
       res.json(result);
     } catch (error) {
+      console.log('[GACHA PULL] Error:', error.message);
       res.status(400).json({ success: false, error: error.message });
     }
   });
@@ -498,14 +526,28 @@ function initPokemonGachaRoutes(app, db, usersCollection) {
     try {
       const { playerId, discordId, bannerId = 'standard' } = req.body;
       const userId = discordId || playerId;
-      if (!userId) return res.status(400).json({ success: false, error: 'discordId requerido' });
+      
+      console.log('[GACHA MULTI-PULL] Request:', { userId, bannerId });
+      
+      if (!userId) {
+        console.log('[GACHA MULTI-PULL] Error: No discordId provided');
+        return res.status(400).json({ success: false, error: 'discordId requerido' });
+      }
 
       const user = await usersCollection.findOne({ discordId: userId });
+      if (!user) {
+        console.log('[GACHA MULTI-PULL] Error: User not found:', userId);
+        return res.status(400).json({ success: false, error: 'Usuario no encontrado. Debes iniciar sesión primero.' });
+      }
+      
       const playerUuid = user?.minecraftUuid;
+      console.log('[GACHA MULTI-PULL] User found:', user.discordUsername, 'Balance:', user.cobbleDollars || user.cobbleDollarsBalance || 0);
 
       const result = await gachaService.multiPull(userId, playerUuid, bannerId, usersCollection);
+      console.log('[GACHA MULTI-PULL] Success:', result.highlights);
       res.json(result);
     } catch (error) {
+      console.log('[GACHA MULTI-PULL] Error:', error.message);
       res.status(400).json({ success: false, error: error.message });
     }
   });
@@ -578,6 +620,103 @@ function initPokemonGachaRoutes(app, db, usersCollection) {
     try {
       const { rewardId, reason } = req.body;
       await gachaService.markDeliveryFailed(rewardId, reason);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // ============================================
+  // RUTAS DE ADMIN
+  // ============================================
+
+  // POST /api/pokemon-gacha/banners - Crear nuevo banner
+  router.post('/banners', async (req, res) => {
+    try {
+      const { bannerId, name, nameEs, description, descriptionEs, type, artwork, singlePullCost, multiPullCost, endDate, featuredPokemon, featuredItems, isActive } = req.body;
+      
+      if (!bannerId || !nameEs) {
+        return res.status(400).json({ success: false, error: 'bannerId y nameEs son requeridos' });
+      }
+
+      // Check if banner already exists
+      const existing = await gachaService.bannersCollection.findOne({ bannerId });
+      if (existing) {
+        return res.status(400).json({ success: false, error: 'Ya existe un banner con ese ID' });
+      }
+
+      const newBanner = {
+        bannerId,
+        name: name || nameEs,
+        nameEs,
+        description: description || descriptionEs,
+        descriptionEs: descriptionEs || description,
+        type: type || 'limited',
+        artwork: artwork || '',
+        singlePullCost: singlePullCost || PULL_COSTS.single,
+        multiPullCost: multiPullCost || PULL_COSTS.multi,
+        endDate: endDate ? new Date(endDate) : null,
+        featuredPokemon: featuredPokemon || [],
+        featuredItems: featuredItems || [],
+        isActive: isActive !== false,
+        createdAt: new Date(),
+      };
+
+      await gachaService.bannersCollection.insertOne(newBanner);
+      res.json({ success: true, banner: newBanner });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // PATCH /api/pokemon-gacha/banners/:id - Actualizar banner
+  router.patch('/banners/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      
+      // Remove fields that shouldn't be updated
+      delete updates.bannerId;
+      delete updates.createdAt;
+      
+      if (updates.endDate) {
+        updates.endDate = new Date(updates.endDate);
+      }
+      
+      updates.updatedAt = new Date();
+
+      const result = await gachaService.bannersCollection.updateOne(
+        { bannerId: id },
+        { $set: updates }
+      );
+
+      if (result.matchedCount === 0) {
+        return res.status(404).json({ success: false, error: 'Banner no encontrado' });
+      }
+
+      const updated = await gachaService.bannersCollection.findOne({ bannerId: id });
+      res.json({ success: true, banner: updated });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // DELETE /api/pokemon-gacha/banners/:id - Eliminar banner
+  router.delete('/banners/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Don't allow deleting the standard banner
+      if (id === 'standard') {
+        return res.status(400).json({ success: false, error: 'No se puede eliminar el banner estándar' });
+      }
+
+      const result = await gachaService.bannersCollection.deleteOne({ bannerId: id });
+      
+      if (result.deletedCount === 0) {
+        return res.status(404).json({ success: false, error: 'Banner no encontrado' });
+      }
+
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
