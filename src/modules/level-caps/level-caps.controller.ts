@@ -18,10 +18,22 @@ const updateConfigSchema = z.object({
   ownershipCapEnabled: z.boolean().optional(),
   defaultCaptureCapFormula: z.string().max(200).optional(),
   defaultOwnershipCapFormula: z.string().max(200).optional(),
+  defaultCaptureCap: z.number().int().min(1).max(100).optional(),
+  defaultOwnershipCap: z.number().int().min(1).max(100).optional(),
   enforcementMode: z.enum(['hard', 'soft']).optional(),
   customMessages: z.object({
     captureFailed: z.string().max(200).optional(),
     expBlocked: z.string().max(200).optional(),
+  }).optional(),
+  pokemonRestrictions: z.object({
+    blockLegendaries: z.boolean().optional(),
+    blockMythicals: z.boolean().optional(),
+    blockUltraBeasts: z.boolean().optional(),
+    blockParadox: z.boolean().optional(),
+    blockMegas: z.boolean().optional(),
+    blockRestricted: z.boolean().optional(),
+    customBlockedSpecies: z.array(z.string()).optional(),
+    customAllowedSpecies: z.array(z.string()).optional(),
   }).optional(),
 });
 
@@ -46,10 +58,15 @@ export class LevelCapsController {
   });
 
   updateConfig = asyncHandler(async (req: Request, res: Response) => {
+    // El frontend envía { globalConfig: { ... } }
+    const globalConfig = req.body.globalConfig || req.body;
+    
     // Validar body
-    const validatedData = updateConfigSchema.parse(req.body);
+    const validatedData = updateConfigSchema.parse(globalConfig);
     const adminName = (req as any).user?.discordUsername || 'Admin';
-    const config = await this.levelCapsService.updateConfig(validatedData, adminName);
+    
+    // Pasar como globalConfig al servicio
+    const config = await this.levelCapsService.updateConfig({ globalConfig: validatedData as any }, adminName);
     
     console.log(`[LEVEL CAPS] Config updated by ${adminName}, version: ${config.version}`);
     console.log(`[LEVEL CAPS] 🔔 Plugin should detect this change and refresh all player caches`);

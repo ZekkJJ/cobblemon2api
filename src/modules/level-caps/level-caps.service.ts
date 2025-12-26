@@ -47,13 +47,23 @@ export class LevelCapsService {
       let ownershipCap = Infinity;
       const appliedRules: string[] = [];
 
-      // 1. Evaluar fórmula por defecto
-      if (config.globalConfig.captureCapEnabled && config.globalConfig.defaultCaptureCapFormula) {
-        captureCap = this.evaluateFormula(config.globalConfig.defaultCaptureCapFormula, player);
+      // 1. Evaluar caps - primero valores directos, luego fórmulas
+      if (config.globalConfig.captureCapEnabled) {
+        // Si hay un valor directo, usarlo
+        if ((config.globalConfig as any).defaultCaptureCap) {
+          captureCap = (config.globalConfig as any).defaultCaptureCap;
+        } else if (config.globalConfig.defaultCaptureCapFormula) {
+          captureCap = this.evaluateFormula(config.globalConfig.defaultCaptureCapFormula, player);
+        }
       }
 
-      if (config.globalConfig.ownershipCapEnabled && config.globalConfig.defaultOwnershipCapFormula) {
-        ownershipCap = this.evaluateFormula(config.globalConfig.defaultOwnershipCapFormula, player);
+      if (config.globalConfig.ownershipCapEnabled) {
+        // Si hay un valor directo, usarlo
+        if ((config.globalConfig as any).defaultOwnershipCap) {
+          ownershipCap = (config.globalConfig as any).defaultOwnershipCap;
+        } else if (config.globalConfig.defaultOwnershipCapFormula) {
+          ownershipCap = this.evaluateFormula(config.globalConfig.defaultOwnershipCapFormula, player);
+        }
       }
 
       // 2. Aplicar reglas estáticas

@@ -28,6 +28,7 @@ import { createAdminRouter } from './modules/admin/admin.routes.js';
 import { createModsRouter } from './modules/mods/mods.routes.js';
 import { createRankingsRouter } from './modules/rankings/rankings.routes.js';
 import { createPlayerShopRoutes } from './modules/player-shop/player-shop.routes.js';
+import { createPokemonGachaRouter } from './modules/pokemon-gacha/pokemon-gacha.routes.js';
 import { TransactionManager } from './shared/utils/transaction-manager.js';
 import { Listing, Bid, PendingDelivery } from './shared/types/player-shop.types.js';
 
@@ -245,6 +246,9 @@ export async function createApp(): Promise<Application> {
     transactionManager
   );
 
+  // Pokemon Gacha router
+  const pokemonGachaRouter = await createPokemonGachaRouter();
+
   // Registrar rutas
   app.use('/api/auth', authRouter);
   app.use('/api/players', playersRouter);
@@ -259,6 +263,7 @@ export async function createApp(): Promise<Application> {
   app.use('/api/mods', modsRouter);
   app.use('/api/rankings', rankingsRouter);
   app.use('/api/player-shop', playerShopRouter);
+  app.use('/api/pokemon-gacha', pokemonGachaRouter);
 
   // Alias para cuando el reverse proxy pasa el path completo
   // Esto soluciona los 404 cuando la request llega como /port/25617/api/...
@@ -276,6 +281,7 @@ export async function createApp(): Promise<Application> {
   apiRouter.use('/mods', modsRouter);
   apiRouter.use('/rankings', rankingsRouter);
   apiRouter.use('/player-shop', playerShopRouter);
+  apiRouter.use('/pokemon-gacha', pokemonGachaRouter);
 
   app.use('/port/25617/api', apiRouter);
 
