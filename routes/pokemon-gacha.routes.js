@@ -20,38 +20,42 @@ const crypto = require('crypto');
 const PULL_COSTS = { single: 500, multi: 4500 };
 const SHINY_RATE = 1 / 4096;
 
-// PITY SYSTEM - Gradual probability increase
-// Hard pity at 200 pulls (guaranteed epic)
-// Soft pity starts at 50 and increases gradually
-const SOFT_PITY_START = 50;
-const HARD_PITY = 200;
-// Each pull after soft pity adds this % to epic chance
-// At pull 50: +0%, at pull 100: +2.5%, at pull 150: +5%, at pull 199: +7.45%
-const SOFT_PITY_INCREASE = 0.0005; // 0.05% per pull after soft pity start
+// PITY SYSTEM - Genshin Impact style
+// Hard pity at 90 pulls (guaranteed epic+)
+// Soft pity starts at 75 and increases dramatically
+const SOFT_PITY_START = 75;
+const HARD_PITY = 90;
+// Each pull after soft pity adds 5% to epic chance (Genshin-style)
+// At pull 75: +0%, at pull 76: +5%, at pull 80: +25%, at pull 89: +70%, at pull 90: 100%
+const SOFT_PITY_INCREASE = 0.05; // 5% per pull after soft pity start
 
 // ============================================
-// SISTEMA DE FUSIÓN DE REPETIDOS
+// SISTEMA DE STARDUST POR DUPLICADOS
 // ============================================
-// 3 del mismo Pokémon = 1 de rareza superior
-// Los repetidos se convierten automáticamente en "Stardust" (polvo estelar)
+// Los Pokémon repetidos otorgan Stardust automáticamente
 // El Stardust se puede usar para:
-// - Comprar tiradas extra
-// - Mejorar probabilidades temporalmente
-// - Intercambiar por items
+// - Comprar items en la tienda de Stardust
+// - Intercambiar por CobbleDollars
+
+// Stardust por duplicado según rareza (NO fusión, cada duplicado da stardust)
+const STARDUST_BY_RARITY = {
+  common: 10,
+  uncommon: 25,
+  rare: 50,
+  epic: 100,
+  legendary: 250,
+  mythic: 500,
+};
+
+// Multiplicador para shiny duplicados
+const SHINY_STARDUST_MULTIPLIER = 5;
 
 const FUSION_CONFIG = {
-  // Cuántos repetidos necesitas para fusionar
+  // Cuántos repetidos necesitas para fusionar (legacy, no usado)
   DUPLICATES_TO_FUSE: 3,
   
-  // Stardust por rareza cuando se fusiona
-  STARDUST_PER_RARITY: {
-    common: 10,      // 3 comunes = 30 stardust
-    uncommon: 25,    // 3 uncommon = 75 stardust
-    rare: 100,       // 3 rare = 300 stardust
-    epic: 500,       // 3 epic = 1500 stardust
-    legendary: 2000, // 3 legendary = 6000 stardust
-    mythic: 10000,   // 3 mythic = 30000 stardust
-  },
+  // Stardust por rareza cuando se fusiona (legacy)
+  STARDUST_PER_RARITY: STARDUST_BY_RARITY,
   
   // Costo de tirada en stardust (alternativa a CD)
   PULL_COST_STARDUST: 100,
@@ -349,10 +353,10 @@ class PokemonGachaService {
   }
 
   // ============================================
-  // SISTEMA DE FUSIÓN DE REPETIDOS
+  // SISTEMA DE STARDUST POR DUPLICADOS
   // ============================================
 
-  async trackPokemonPull(discordId, pokemonId, rarity) {
+  async trackPokemonPull(discordId, pokemonId, rarity, isShiny = false) {
     // Incrementar contador de este Pokémon
     const result = await this.inventoryCollection.findOneAndUpdate(
       { discordId, pokemonId },
@@ -365,42 +369,35 @@ class PokemonGachaService {
     );
     
     const count = result?.count || 1;
+    const isNew = count === 1;
     
-    // Si tiene 3+ del mismo, auto-fusionar
-    if (count >= FUSION_CONFIG.DUPLICATES_TO_FUSE) {
-      return this.autoFuse(discordId, pokemonId, rarity, count);
+    // Si es duplicado (count > 1), dar Stardust
+    if (!isNew) {
+      let stardustAmount = STARDUST_BY_RARITY[rarity] || 10;
+      if (isShiny) {
+        stardustAmount *= SHINY_STARDUST_MULTIPLIER;
+      }
+      
+      await this.addStardust(discordId, stardustAmount, `duplicate_${pokemonId}${isShiny ? '_shiny' : ''}`);
+      
+      console.log(`[GACHA STARDUST] ${discordId} got duplicate #${pokemonId}${isShiny ? ' (SHINY)' : ''} → ${stardustAmount} stardust`);
+      
+      return { 
+        isDuplicate: true, 
+        isNew: false,
+        count, 
+        stardustGained: stardustAmount,
+        fused: false 
+      };
     }
     
-    return { fused: false, count };
+    return { isDuplicate: false, isNew: true, count, stardustGained: 0, fused: false };
   }
 
   async autoFuse(discordId, pokemonId, rarity, currentCount) {
-    // Calcular cuántas fusiones hacer
-    const fusionsToMake = Math.floor(currentCount / FUSION_CONFIG.DUPLICATES_TO_FUSE);
-    const remaining = currentCount % FUSION_CONFIG.DUPLICATES_TO_FUSE;
-    
-    // Calcular stardust ganado
-    const stardustPerFusion = FUSION_CONFIG.STARDUST_PER_RARITY[rarity] * FUSION_CONFIG.DUPLICATES_TO_FUSE;
-    const totalStardust = stardustPerFusion * fusionsToMake;
-    
-    // Actualizar inventario (reducir a los que quedan)
-    await this.inventoryCollection.updateOne(
-      { discordId, pokemonId },
-      { $set: { count: remaining } }
-    );
-    
-    // Dar stardust
-    await this.addStardust(discordId, totalStardust, `fusion_${pokemonId}_x${fusionsToMake}`);
-    
-    console.log(`[GACHA FUSION] ${discordId} fused ${fusionsToMake * FUSION_CONFIG.DUPLICATES_TO_FUSE}x Pokemon #${pokemonId} → ${totalStardust} stardust`);
-    
-    return {
-      fused: true,
-      fusionCount: fusionsToMake,
-      pokemonFused: fusionsToMake * FUSION_CONFIG.DUPLICATES_TO_FUSE,
-      stardustGained: totalStardust,
-      remaining
-    };
+    // Legacy function - kept for compatibility but not used
+    // Stardust is now given per duplicate, not per fusion
+    return { fused: false, count: currentCount };
   }
 
   async getInventory(discordId) {
@@ -480,6 +477,12 @@ class PokemonGachaService {
     );
   }
 
+  async getTotalPulls(playerId, bannerId) {
+    // Count total pulls from history
+    const count = await this.historyCollection.countDocuments({ playerId, bannerId });
+    return count;
+  }
+
   // Selección de rareza con precisión decimal alta (10^8)
   // allowedRarities: objeto con { epic: true/false, legendary: true/false, mythic: true/false }
   // hasLuckBoost: si tiene el boost de suerte activo (+50% a raros+)
@@ -520,20 +523,20 @@ class PokemonGachaService {
       rates.common = Math.max(0, rates.common - totalBoost);
     }
     
-    // HARD PITY: Garantiza epic SIEMPRE en tirada 200+
+    // HARD PITY: Garantiza epic SIEMPRE en tirada 90+
     // El hard pity ignora las restricciones de allowedRarities porque es un contador global
     // Si ya salió un epic en este x10, el pity se resetea de todas formas
     if (pityCount >= HARD_PITY) {
       return 'epic';
     }
     
-    // SOFT PITY: Aumenta gradualmente la probabilidad de epic desde tirada 50
-    // Cada tirada después de 50 añade +0.05% a la probabilidad de epic
-    // Tirada 50: +0%, Tirada 100: +2.5%, Tirada 150: +5%, Tirada 199: +7.45%
-    // Esto hace que sea más probable conseguir epic mientras más tires
+    // SOFT PITY: Aumenta dramáticamente la probabilidad de epic desde tirada 75
+    // Cada tirada después de 75 añade +5% a la probabilidad de epic (Genshin-style)
+    // Tirada 75: +0%, Tirada 76: +5%, Tirada 80: +25%, Tirada 85: +50%, Tirada 89: +70%
+    // Esto hace que sea MUY probable conseguir epic antes del hard pity
     if (pityCount >= SOFT_PITY_START) {
       const pullsIntoPity = pityCount - SOFT_PITY_START;
-      // Bonus gradual: cada pull añade 0.05% (50000 en precisión 10^8)
+      // Bonus dramático: cada pull añade 5% (5000000 en precisión 10^8)
       const bonusPrecise = Math.floor(pullsIntoPity * SOFT_PITY_INCREASE * PRECISION);
       
       // Restaurar rates.epic si fue deshabilitado, para que el soft pity funcione
@@ -663,15 +666,13 @@ class PokemonGachaService {
         sprite: getPokemonSprite(selected.data.pokemonId, isShiny),
       };
       
-      // AUTO-FUSIÓN: Trackear el Pokémon y fusionar si hay repetidos
-      // Solo fusionar comunes y uncommons (los raros+ son valiosos)
-      if (['common', 'uncommon'].includes(rarity) && !isShiny) {
-        const fusionResult = await this.trackPokemonPull(playerId, selected.data.pokemonId, rarity);
-        reward.fusionResult = fusionResult;
-        
-        if (fusionResult.fused) {
-          console.log(`[GACHA FUSION] Auto-fused for ${playerId}: ${fusionResult.stardustGained} stardust`);
-        }
+      // STARDUST: Trackear el Pokémon y dar Stardust si es duplicado
+      // Todos los Pokémon se trackean, duplicados dan Stardust
+      const trackResult = await this.trackPokemonPull(playerId, selected.data.pokemonId, rarity, isShiny);
+      reward.stardustResult = trackResult;
+      
+      if (trackResult.isDuplicate) {
+        console.log(`[GACHA STARDUST] Duplicate for ${playerId}: +${trackResult.stardustGained} stardust`);
       }
     } else {
       reward.item = {
@@ -700,28 +701,21 @@ class PokemonGachaService {
       pulledAt: new Date(),
     });
 
-    // Crear entrega pendiente (solo si NO fue fusionado o es shiny/raro+)
-    // Los comunes/uncommons fusionados NO se entregan (se convierten en stardust)
-    const shouldDeliver = !reward.fusionResult?.fused || isShiny || !['common', 'uncommon'].includes(rarity);
-    
-    if (shouldDeliver) {
-      await this.pendingCollection.insertOne({
-        rewardId,
-        playerId,
-        playerUuid,
-        type: reward.type,
-        pokemon: reward.pokemon,
-        item: reward.item,
-        rarity,
-        isShiny,
-        status: 'pending',
-        deliveryAttempts: 0,
-        createdAt: new Date(),
-      });
-    } else {
-      // Marcar como auto-fusionado (no se entrega)
-      reward.status = 'auto_fused';
-    }
+    // Crear entrega pendiente - SIEMPRE entregar el Pokémon
+    // (Stardust se da automáticamente por duplicados, pero el Pokémon siempre se entrega)
+    await this.pendingCollection.insertOne({
+      rewardId,
+      playerId,
+      playerUuid,
+      type: reward.type,
+      pokemon: reward.pokemon,
+      item: reward.item,
+      rarity,
+      isShiny,
+      status: 'pending',
+      deliveryAttempts: 0,
+      createdAt: new Date(),
+    });
 
     return reward;
   }
@@ -767,12 +761,29 @@ class PokemonGachaService {
 
     const reward = await this.executePull(playerId, playerUuid, bannerId);
     const newBalance = balance - cost;
+    
+    // Get full pity status including totalPulls
+    const currentPity = await this.getPityCount(playerId, bannerId);
+    const totalPulls = await this.getTotalPulls(playerId, bannerId);
+    const stardust = await this.getCredits(playerId);
 
     return {
       success: true,
       reward,
       newBalance,
-      pityStatus: { currentPity: await this.getPityCount(playerId, bannerId), softPityStart: SOFT_PITY_START, hardPity: HARD_PITY },
+      pityStatus: { 
+        currentPity, 
+        pullsSinceEpic: currentPity,
+        softPityStart: SOFT_PITY_START, 
+        hardPity: HARD_PITY,
+        totalPulls,
+        softPityActive: currentPity >= SOFT_PITY_START,
+        pullsUntilHardPity: Math.max(0, HARD_PITY - currentPity),
+      },
+      stardust: {
+        balance: stardust.stardust || 0,
+        gained: reward.stardustResult?.stardustGained || 0,
+      },
     };
   }
 
@@ -836,12 +847,30 @@ class PokemonGachaService {
       epicOrBetter: rewards.filter(r => ['epic', 'legendary', 'mythic'].includes(r.rarity)).length,
       shinies: rewards.filter(r => r.isShiny).length,
     };
+    
+    // Get full pity status including totalPulls
+    const currentPity = await this.getPityCount(playerId, bannerId);
+    const totalPulls = await this.getTotalPulls(playerId, bannerId);
+    const stardust = await this.getCredits(playerId);
+    const totalStardustGained = rewards.reduce((sum, r) => sum + (r.stardustResult?.stardustGained || 0), 0);
 
     return {
       success: true,
       rewards,
       newBalance,
-      pityStatus: { currentPity: await this.getPityCount(playerId, bannerId), softPityStart: SOFT_PITY_START, hardPity: HARD_PITY },
+      pityStatus: { 
+        currentPity, 
+        pullsSinceEpic: currentPity,
+        softPityStart: SOFT_PITY_START, 
+        hardPity: HARD_PITY,
+        totalPulls,
+        softPityActive: currentPity >= SOFT_PITY_START,
+        pullsUntilHardPity: Math.max(0, HARD_PITY - currentPity),
+      },
+      stardust: {
+        balance: stardust.stardust || 0,
+        gained: totalStardustGained,
+      },
       highlights,
     };
   }
@@ -1116,7 +1145,24 @@ function initPokemonGachaRoutes(app, db, usersCollection) {
       if (!playerId) return res.status(400).json({ success: false, error: 'discordId requerido' });
 
       const currentPity = await gachaService.getPityCount(playerId, req.params.bannerId);
-      res.json({ success: true, pityStatus: { currentPity, softPityStart: SOFT_PITY_START, hardPity: HARD_PITY } });
+      const totalPulls = await gachaService.getTotalPulls(playerId, req.params.bannerId);
+      const stardust = await gachaService.getCredits(playerId);
+      
+      res.json({ 
+        success: true, 
+        pityStatus: { 
+          currentPity, 
+          pullsSinceEpic: currentPity,
+          softPityStart: SOFT_PITY_START, 
+          hardPity: HARD_PITY,
+          totalPulls,
+          softPityActive: currentPity >= SOFT_PITY_START,
+          pullsUntilHardPity: Math.max(0, HARD_PITY - currentPity),
+        },
+        stardust: {
+          balance: stardust.stardust || 0,
+        },
+      });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
     }
@@ -1143,6 +1189,32 @@ function initPokemonGachaRoutes(app, db, usersCollection) {
 
       const stats = await gachaService.getStats(playerId);
       res.json({ success: true, stats });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // GET /api/pokemon-gacha/stardust - Obtener balance de Stardust
+  router.get('/stardust', async (req, res) => {
+    try {
+      const playerId = req.query.playerId || req.query.discordId;
+      if (!playerId) return res.status(400).json({ success: false, error: 'discordId requerido' });
+
+      const credits = await gachaService.getCredits(playerId);
+      const inventory = await gachaService.getInventoryStats(playerId);
+      
+      res.json({ 
+        success: true, 
+        stardust: {
+          balance: credits.stardust || 0,
+          totalEarned: credits.totalStardustEarned || credits.stardust || 0,
+        },
+        inventory: {
+          totalUnique: inventory.totalUnique,
+          totalPokemon: inventory.totalPokemon,
+          duplicates: inventory.duplicates,
+        },
+      });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
     }
