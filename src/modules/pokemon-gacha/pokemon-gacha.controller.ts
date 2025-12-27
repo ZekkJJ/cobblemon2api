@@ -8,6 +8,10 @@
 import { Request, Response } from 'express';
 import { PokemonGachaService } from './pokemon-gacha.service.js';
 import { BannerService } from './banner.service.js';
+import { DailyPullService } from './daily-pull.service.js';
+import { StardustService } from './stardust.service.js';
+import { GachaPokedexService } from './gacha-pokedex.service.js';
+import { EpitomizedPathService } from './epitomized-path.service.js';
 import { asyncHandler, Errors } from '../../shared/middleware/error-handler.js';
 import {
   PullRequestSchema,
@@ -21,7 +25,11 @@ import {
 export class PokemonGachaController {
   constructor(
     private gachaService: PokemonGachaService,
-    private bannerService: BannerService
+    private bannerService: BannerService,
+    private dailyPullService: DailyPullService,
+    private stardustService: StardustService,
+    private pokedexService: GachaPokedexService,
+    private epitomizedService: EpitomizedPathService
   ) {}
 
   // ============================================
@@ -143,6 +151,257 @@ export class PokemonGachaController {
     const stats = await this.gachaService.getStats(user.discordId);
 
     res.json({ success: true, stats });
+  });
+
+  // ============================================
+  // ENDPOINTS DE TIRADA DIARIA
+  // ============================================
+
+  /**
+   * GET /api/pokemon-gacha/daily-status
+   * Obtiene estado de tirada diaria
+   */
+  getDailyPullStatus = asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    if (!user?.discordId) {
+      throw Errors.unauthorized('Debes iniciar sesión');
+    }
+
+    const status = await this.dailyPullService.getDailyPullStatus(user.discordId);
+    const streakBonus = this.dailyPullService.getStreakBonus(status.currentStreak);
+
+    res.json({ 
+      success: true, 
+      dailyStatus: {
+        ...status,
+        streakBonus,
+      }
+    });
+  });
+
+  /**
+   * POST /api/pokemon-gacha/daily-pull
+   * Ejecuta tirada diaria gratuita
+   */
+  dailyPull = asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    if (!user?.discordId) {
+      throw Errors.unauthorized('Debes iniciar sesión');
+    }
+
+    // Verificar si puede reclamar
+    const canClaim = await this.dailyPullService.canClaimDailyPull(user.discordId);
+    if (!canClaim) {
+      const status = await this.dailyPullService.getDailyPullStatus(user.discordId);
+      throw Errors.badRequest(`Ya reclamaste tu tirada diaria. Próxima en ${Math.ceil(status.timeUntilNextPull / 3600000)} horas.`);
+    }
+
+    // Obtener banner estándar
+    const standardBanner = await this.bannerService.getStandardBanner();
+    if (!standardBanner) {
+      throw Errors.internal('Banner estándar no disponible');
+    }
+
+    // Generar idempotency key para tirada diaria
+    const idempotencyKey = `daily_${user.discordId}_${new Date().toISOString().split('T')[0]}`;
+
+    // Ejecutar tirada gratuita (sin costo)
+    const result = await this.gachaService.pull(
+      user.discordId,
+      standardBanner.bannerId,
+      idempotencyKey
+    );
+
+    // Registrar tirada diaria
+    const dailyResult = await this.dailyPullService.claimDailyPull(user.discordId);
+
+    res.json({
+      success: true,
+      ...result,
+      dailyPull: {
+        streak: dailyResult.newStreak,
+        message: dailyResult.message,
+      },
+    });
+  });
+
+  // ============================================
+  // ENDPOINTS DE STARDUST
+  // ============================================
+
+  /**
+   * GET /api/pokemon-gacha/stardust
+   * Obtiene balance de Stardust
+   */
+  getStardust = asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    if (!user?.discordId) {
+      throw Errors.unauthorized('Debes iniciar sesión');
+    }
+
+    const record = await this.stardustService.getStardustRecord(user.discordId);
+    const history = await this.stardustService.getTransactionHistory(user.discordId, 10);
+
+    res.json({
+      success: true,
+      stardust: {
+        balance: record?.balance || 0,
+        totalEarned: record?.totalEarned || 0,
+        totalSpent: record?.totalSpent || 0,
+      },
+      recentTransactions: history,
+    });
+  });
+
+  /**
+   * GET /api/pokemon-gacha/stardust/shop
+   * Obtiene items de la tienda de Stardust
+   */
+  getStardustShop = asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    if (!user?.discordId) {
+      throw Errors.unauthorized('Debes iniciar sesión');
+    }
+
+    const items = await this.stardustService.getShopItemsForPlayer(user.discordId);
+    const balance = await this.stardustService.getBalance(user.discordId);
+
+    res.json({
+      success: true,
+      balance,
+      items,
+    });
+  });
+
+  /**
+   * POST /api/pokemon-gacha/stardust/spend
+   * Compra item con Stardust
+   */
+  spendStardust = asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    if (!user?.discordId) {
+      throw Errors.unauthorized('Debes iniciar sesión');
+    }
+
+    const { itemId } = req.body;
+    if (!itemId) {
+      throw Errors.badRequest('itemId es requerido');
+    }
+
+    const result = await this.stardustService.purchaseShopItem(user.discordId, itemId);
+
+    if (!result.success) {
+      throw Errors.badRequest(result.message);
+    }
+
+    res.json({
+      success: true,
+      item: result.item,
+      newBalance: result.newBalance,
+      message: result.message,
+    });
+  });
+
+  // ============================================
+  // ENDPOINTS DE POKEDEX
+  // ============================================
+
+  /**
+   * GET /api/pokemon-gacha/pokedex
+   * Obtiene Pokédex del gacha
+   */
+  getPokedex = asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    if (!user?.discordId) {
+      throw Errors.unauthorized('Debes iniciar sesión');
+    }
+
+    const pokedex = await this.pokedexService.getPokedex(user.discordId);
+
+    res.json({
+      success: true,
+      pokedex: pokedex ? {
+        obtainedPokemon: pokedex.obtainedPokemon,
+        shinyObtained: pokedex.shinyObtained,
+        totalUnique: pokedex.totalUniqueCount,
+        totalShiny: pokedex.totalShinyCount,
+      } : {
+        obtainedPokemon: [],
+        shinyObtained: [],
+        totalUnique: 0,
+        totalShiny: 0,
+      },
+    });
+  });
+
+  /**
+   * GET /api/pokemon-gacha/pokedex/stats
+   * Obtiene estadísticas de Pokédex
+   */
+  getPokedexStats = asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    if (!user?.discordId) {
+      throw Errors.unauthorized('Debes iniciar sesión');
+    }
+
+    const stats = await this.pokedexService.getPokedexStats(user.discordId);
+
+    res.json({
+      success: true,
+      stats,
+    });
+  });
+
+  // ============================================
+  // ENDPOINTS DE CAMINO EPITOMIZADO
+  // ============================================
+
+  /**
+   * GET /api/pokemon-gacha/epitomized/:bannerId
+   * Obtiene estado del Camino Epitomizado
+   */
+  getEpitomizedStatus = asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    if (!user?.discordId) {
+      throw Errors.unauthorized('Debes iniciar sesión');
+    }
+
+    const { bannerId } = req.params;
+    const status = await this.epitomizedService.getEpitomizedStatus(user.discordId, bannerId);
+
+    res.json({
+      success: true,
+      epitomized: status,
+    });
+  });
+
+  /**
+   * POST /api/pokemon-gacha/epitomized
+   * Establece objetivo del Camino Epitomizado
+   */
+  setEpitomizedTarget = asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    if (!user?.discordId) {
+      throw Errors.unauthorized('Debes iniciar sesión');
+    }
+
+    const { bannerId, targetPokemonId, targetPokemonName } = req.body;
+    
+    if (!bannerId || !targetPokemonId || !targetPokemonName) {
+      throw Errors.badRequest('bannerId, targetPokemonId y targetPokemonName son requeridos');
+    }
+
+    const result = await this.epitomizedService.setTarget(
+      user.discordId,
+      bannerId,
+      targetPokemonId,
+      targetPokemonName
+    );
+
+    res.json({
+      success: true,
+      ...result,
+    });
   });
 
   // ============================================

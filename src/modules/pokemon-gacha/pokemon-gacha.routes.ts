@@ -11,6 +11,10 @@ import { PokemonGachaService } from './pokemon-gacha.service.js';
 import { BannerService } from './banner.service.js';
 import { PityManagerService } from './pity-manager.service.js';
 import { PoolBuilderService } from './pool-builder.service.js';
+import { DailyPullService, DailyPullRecord } from './daily-pull.service.js';
+import { StardustService, StardustRecord, StardustTransaction } from './stardust.service.js';
+import { GachaPokedexService, GachaPokedexEntry } from './gacha-pokedex.service.js';
+import { EpitomizedPathService, EpitomizedPathRecord } from './epitomized-path.service.js';
 import { getDb, getMongoClient, getUsersCollection } from '../../config/database.js';
 import { TransactionManager } from '../../shared/utils/transaction-manager.js';
 import { createRateLimiter } from '../../shared/utils/rate-limiter.js';
@@ -39,15 +43,34 @@ export async function createPokemonGachaRouter(): Promise<Router> {
   const pityCollection = db.collection<GachaPity>('gacha_pity');
   const pendingCollection = db.collection<PendingGachaReward>('gacha_pending');
   const idempotencyCollection = db.collection<{ key: string; result: any; createdAt: Date }>('gacha_idempotency');
+  const dailyPullsCollection = db.collection<DailyPullRecord>('gacha_daily_pulls');
+  const stardustCollection = db.collection<StardustRecord>('gacha_stardust');
+  const stardustTransactionsCollection = db.collection<StardustTransaction>('gacha_stardust_transactions');
+  const pokedexCollection = db.collection<GachaPokedexEntry>('gacha_pokedex');
+  const epitomizedCollection = db.collection<EpitomizedPathRecord>('gacha_epitomized');
 
   // Crear índices
-  await createIndexes(bannersCollection, historyCollection, pityCollection, pendingCollection, idempotencyCollection);
+  await createIndexes(
+    bannersCollection, 
+    historyCollection, 
+    pityCollection, 
+    pendingCollection, 
+    idempotencyCollection,
+    dailyPullsCollection,
+    stardustCollection,
+    pokedexCollection,
+    epitomizedCollection
+  );
 
   // Crear servicios
   const transactionManager = new TransactionManager(client);
   const pityManager = new PityManagerService(pityCollection);
   const poolBuilder = new PoolBuilderService();
   const bannerService = new BannerService(bannersCollection);
+  const dailyPullService = new DailyPullService(dailyPullsCollection);
+  const stardustService = new StardustService(stardustCollection, stardustTransactionsCollection);
+  const pokedexService = new GachaPokedexService(pokedexCollection);
+  const epitomizedService = new EpitomizedPathService(epitomizedCollection);
 
   // Asegurar que existe el banner estándar
   await bannerService.ensureStandardBanner();
@@ -63,7 +86,14 @@ export async function createPokemonGachaRouter(): Promise<Router> {
     bannerService
   );
 
-  const controller = new PokemonGachaController(gachaService, bannerService);
+  const controller = new PokemonGachaController(
+    gachaService, 
+    bannerService,
+    dailyPullService,
+    stardustService,
+    pokedexService,
+    epitomizedService
+  );
 
   // Rate limiters
   const pullLimiter = createRateLimiter({
@@ -127,6 +157,76 @@ export async function createPokemonGachaRouter(): Promise<Router> {
    * Obtiene estadísticas
    */
   router.get('/stats', readLimiter, requireAuth, controller.getStats);
+
+  // ============================================
+  // RUTAS DE TIRADA DIARIA
+  // ============================================
+
+  /**
+   * GET /api/pokemon-gacha/daily-status
+   * Obtiene estado de tirada diaria
+   */
+  router.get('/daily-status', readLimiter, requireAuth, controller.getDailyPullStatus);
+
+  /**
+   * POST /api/pokemon-gacha/daily-pull
+   * Ejecuta tirada diaria gratuita
+   */
+  router.post('/daily-pull', pullLimiter, requireAuth, controller.dailyPull);
+
+  // ============================================
+  // RUTAS DE STARDUST
+  // ============================================
+
+  /**
+   * GET /api/pokemon-gacha/stardust
+   * Obtiene balance de Stardust
+   */
+  router.get('/stardust', readLimiter, requireAuth, controller.getStardust);
+
+  /**
+   * GET /api/pokemon-gacha/stardust/shop
+   * Obtiene items de la tienda de Stardust
+   */
+  router.get('/stardust/shop', readLimiter, requireAuth, controller.getStardustShop);
+
+  /**
+   * POST /api/pokemon-gacha/stardust/spend
+   * Compra item con Stardust
+   */
+  router.post('/stardust/spend', readLimiter, requireAuth, controller.spendStardust);
+
+  // ============================================
+  // RUTAS DE POKEDEX
+  // ============================================
+
+  /**
+   * GET /api/pokemon-gacha/pokedex
+   * Obtiene Pokédex del gacha
+   */
+  router.get('/pokedex', readLimiter, requireAuth, controller.getPokedex);
+
+  /**
+   * GET /api/pokemon-gacha/pokedex/stats
+   * Obtiene estadísticas de Pokédex
+   */
+  router.get('/pokedex/stats', readLimiter, requireAuth, controller.getPokedexStats);
+
+  // ============================================
+  // RUTAS DE CAMINO EPITOMIZADO
+  // ============================================
+
+  /**
+   * GET /api/pokemon-gacha/epitomized/:bannerId
+   * Obtiene estado del Camino Epitomizado
+   */
+  router.get('/epitomized/:bannerId', readLimiter, requireAuth, controller.getEpitomizedStatus);
+
+  /**
+   * POST /api/pokemon-gacha/epitomized
+   * Establece objetivo del Camino Epitomizado
+   */
+  router.post('/epitomized', readLimiter, requireAuth, controller.setEpitomizedTarget);
 
   // ============================================
   // RUTAS PARA PLUGIN
@@ -195,7 +295,11 @@ async function createIndexes(
   historyCollection: any,
   pityCollection: any,
   pendingCollection: any,
-  idempotencyCollection: any
+  idempotencyCollection: any,
+  dailyPullsCollection: any,
+  stardustCollection: any,
+  pokedexCollection: any,
+  epitomizedCollection: any
 ): Promise<void> {
   try {
     // Índices de banners
@@ -219,6 +323,20 @@ async function createIndexes(
     // Índices de idempotencia (con TTL de 24 horas)
     await idempotencyCollection.createIndex({ key: 1 }, { unique: true });
     await idempotencyCollection.createIndex({ createdAt: 1 }, { expireAfterSeconds: 86400 });
+
+    // Índices de tirada diaria
+    await dailyPullsCollection.createIndex({ playerId: 1 }, { unique: true });
+    await dailyPullsCollection.createIndex({ lastPullDate: 1 });
+
+    // Índices de Stardust
+    await stardustCollection.createIndex({ playerId: 1 }, { unique: true });
+
+    // Índices de Pokédex
+    await pokedexCollection.createIndex({ playerId: 1 }, { unique: true });
+    await pokedexCollection.createIndex({ totalUniqueCount: -1 });
+
+    // Índices de Camino Epitomizado
+    await epitomizedCollection.createIndex({ playerId: 1, bannerId: 1 }, { unique: true });
 
     console.log('[POKEMON GACHA] Índices creados exitosamente');
   } catch (error) {
