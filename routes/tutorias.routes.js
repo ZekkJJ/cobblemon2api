@@ -34,7 +34,7 @@ const DEFAULT_PRICING = {
   pokebox: {
     basePrice: 0,
     perAccessPrice: 0,
-    dailyFreeAccesses: -1, // unlimited
+    dailyFreeAccesses: -1,
     maxAccessesPerDay: -1
   }
 };
@@ -51,255 +51,360 @@ const DEFAULT_COOLDOWNS = {
 function initTutoriasRoutes(getDb) {
   const router = express.Router();
 
-  // GET /api/tutorias/pricing - Get pricing configuration
+  // ============================================
+  // PRICING & COOLDOWNS
+  // ============================================
+
+  // GET /api/tutorias/pricing
   router.get('/pricing', async (req, res) => {
     try {
       const db = getDb();
-      
-      // Try to get pricing from database
       let pricing = await db.collection('tutorias_config').findOne({ type: 'pricing' });
-      
-      if (!pricing) {
-        // Return default pricing if not configured
-        pricing = { ...DEFAULT_PRICING };
-      } else {
-        pricing = pricing.config || DEFAULT_PRICING;
-      }
-
-      res.json({
-        success: true,
-        pricing
-      });
+      pricing = pricing?.config || DEFAULT_PRICING;
+      res.json({ success: true, pricing });
     } catch (error) {
       console.error('[TUTORIAS] Error getting pricing:', error);
-      res.json({
-        success: true,
-        pricing: DEFAULT_PRICING
-      });
+      res.json({ success: true, pricing: DEFAULT_PRICING });
     }
   });
 
-  // GET /api/tutorias/cooldowns - Get cooldown configuration
+  // GET /api/tutorias/cooldowns
   router.get('/cooldowns', async (req, res) => {
     try {
       const db = getDb();
-      
-      // Try to get cooldowns from database
       let cooldowns = await db.collection('tutorias_config').findOne({ type: 'cooldowns' });
-      
-      if (!cooldowns) {
-        // Return default cooldowns if not configured
-        cooldowns = { ...DEFAULT_COOLDOWNS };
-      } else {
-        cooldowns = cooldowns.config || DEFAULT_COOLDOWNS;
-      }
-
-      res.json({
-        success: true,
-        cooldowns
-      });
+      cooldowns = cooldowns?.config || DEFAULT_COOLDOWNS;
+      res.json({ success: true, cooldowns });
     } catch (error) {
       console.error('[TUTORIAS] Error getting cooldowns:', error);
-      res.json({
-        success: true,
-        cooldowns: DEFAULT_COOLDOWNS
-      });
+      res.json({ success: true, cooldowns: DEFAULT_COOLDOWNS });
     }
   });
 
-  // GET /api/tutorias/user/:discordId/usage - Get user's usage stats
-  router.get('/user/:discordId/usage', async (req, res) => {
+  // ============================================
+  // BATTLE ANALYSIS
+  // ============================================
+
+  // GET /api/tutorias/battle-analysis/history
+  router.get('/battle-analysis/history', async (req, res) => {
     try {
-      const { discordId } = req.params;
+      const { discordId } = req.query;
       const db = getDb();
       
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      // Get user's usage for today
-      const usage = await db.collection('tutorias_usage').findOne({
-        discordId,
-        date: { $gte: today }
-      });
+      const history = await db.collection('battle_analyses')
+        .find(discordId ? { discordId } : {})
+        .sort({ createdAt: -1 })
+        .limit(50)
+        .toArray();
 
-      if (!usage) {
-        res.json({
-          success: true,
-          usage: {
-            aiTutor: { count: 0, lastUsed: null },
-            battleAnalysis: { count: 0, lastUsed: null },
-            breedAdvisor: { count: 0, lastUsed: null },
-            evPlanner: { count: 0, lastUsed: null },
-            pokebox: { count: 0, lastUsed: null }
-          }
-        });
-      } else {
-        res.json({
-          success: true,
-          usage: usage.services || {}
-        });
-      }
+      res.json({ success: true, history });
     } catch (error) {
-      console.error('[TUTORIAS] Error getting user usage:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Error getting usage data'
-      });
+      console.error('[TUTORIAS] Error getting battle history:', error);
+      res.json({ success: true, history: [] });
     }
   });
 
-  // POST /api/tutorias/user/:discordId/use - Record service usage
-  router.post('/user/:discordId/use', async (req, res) => {
+  // POST /api/tutorias/battle-analysis/request
+  router.post('/battle-analysis/request', async (req, res) => {
     try {
-      const { discordId } = req.params;
-      const { service } = req.body;
-      const db = getDb();
+      const { battleId, discordId } = req.body;
       
-      if (!service) {
-        return res.status(400).json({
-          success: false,
-          error: 'Service name required'
-        });
-      }
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      // Update or create usage record
-      await db.collection('tutorias_usage').updateOne(
-        { discordId, date: { $gte: today } },
-        {
-          $inc: { [`services.${service}.count`]: 1 },
-          $set: { 
-            [`services.${service}.lastUsed`]: new Date(),
-            discordId,
-            updatedAt: new Date()
-          },
-          $setOnInsert: {
-            date: today,
-            createdAt: new Date()
-          }
-        },
-        { upsert: true }
-      );
-
       res.json({
         success: true,
-        message: 'Usage recorded'
+        analysis: {
+          battleId,
+          status: 'pending',
+          message: 'Análisis de batalla en cola. Estará disponible pronto.'
+        }
       });
     } catch (error) {
-      console.error('[TUTORIAS] Error recording usage:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Error recording usage'
-      });
+      console.error('[TUTORIAS] Error requesting battle analysis:', error);
+      res.status(500).json({ success: false, error: 'Error al solicitar análisis' });
     }
   });
 
-  // POST /api/tutorias/ai/ask - AI Tutor question
-  router.post('/ai/ask', async (req, res) => {
+  // GET /api/tutorias/battle-analysis/:battleId
+  router.get('/battle-analysis/:battleId', async (req, res) => {
     try {
-      const { question, discordId, context } = req.body;
+      const { battleId } = req.params;
+      const db = getDb();
+      
+      const analysis = await db.collection('battle_analyses').findOne({ battleId });
+      
+      if (!analysis) {
+        return res.json({
+          success: true,
+          analysis: {
+            battleId,
+            status: 'not_found',
+            summary: 'Análisis no disponible',
+            suggestions: [],
+            rating: 'N/A'
+          }
+        });
+      }
+
+      res.json({ success: true, analysis });
+    } catch (error) {
+      console.error('[TUTORIAS] Error getting battle analysis:', error);
+      res.status(500).json({ success: false, error: 'Error al obtener análisis' });
+    }
+  });
+
+  // ============================================
+  // AI TUTOR
+  // ============================================
+
+  // POST /api/tutorias/ai-tutor/ask
+  router.post('/ai-tutor/ask', async (req, res) => {
+    try {
+      const { question, includeTeamData, discordId } = req.body;
       
       if (!question) {
-        return res.status(400).json({
-          success: false,
-          error: 'Question required'
-        });
+        return res.status(400).json({ success: false, error: 'Pregunta requerida' });
       }
 
-      // For now, return a placeholder response
-      // In production, this would call the AI service
+      // Placeholder response - in production would call AI service
       res.json({
         success: true,
         response: {
-          answer: `Esta es una respuesta de prueba para: "${question}". El sistema de IA está en desarrollo.`,
-          confidence: 0.8,
-          sources: ['Cobblemon Wiki', 'Pokémon Database']
+          answer: `Gracias por tu pregunta sobre: "${question}". El sistema de IA está en desarrollo. Por ahora, te recomiendo consultar la wiki de Cobblemon o preguntar en Discord.`,
+          confidence: 0.7,
+          sources: ['Cobblemon Wiki', 'Pokémon Database', 'Smogon']
         }
       });
     } catch (error) {
       console.error('[TUTORIAS] Error in AI ask:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Error processing question'
-      });
+      res.status(500).json({ success: false, error: 'Error al procesar pregunta' });
     }
   });
 
-  // POST /api/tutorias/battle/analyze - Battle analysis
-  router.post('/battle/analyze', async (req, res) => {
+  // GET /api/tutorias/ai-tutor/history
+  router.get('/ai-tutor/history', async (req, res) => {
     try {
-      const { battleLog, discordId } = req.body;
+      const { discordId } = req.query;
+      const db = getDb();
       
-      if (!battleLog) {
-        return res.status(400).json({
-          success: false,
-          error: 'Battle log required'
-        });
-      }
+      const history = await db.collection('ai_tutor_history')
+        .find(discordId ? { discordId } : {})
+        .sort({ createdAt: -1 })
+        .limit(50)
+        .toArray();
 
-      // Placeholder response
-      res.json({
-        success: true,
-        analysis: {
-          summary: 'Análisis de batalla en desarrollo',
-          suggestions: [
-            'Considera usar movimientos más efectivos',
-            'Mejora la cobertura de tipos de tu equipo'
-          ],
-          rating: 'B'
-        }
-      });
+      res.json({ success: true, history });
     } catch (error) {
-      console.error('[TUTORIAS] Error in battle analysis:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Error analyzing battle'
-      });
+      console.error('[TUTORIAS] Error getting AI history:', error);
+      res.json({ success: true, history: [] });
     }
   });
 
-  // POST /api/tutorias/breed/advice - Breeding advice
-  router.post('/breed/advice', async (req, res) => {
+  // ============================================
+  // BREED ADVISOR
+  // ============================================
+
+  // POST /api/tutorias/breed-advisor/ask
+  router.post('/breed-advisor/ask', async (req, res) => {
     try {
-      const { pokemon1, pokemon2, targetStats, discordId } = req.body;
+      const { targetSpecies, targetIVs, targetNature, targetAbility, includeShinyAdvice } = req.body;
       
-      // Placeholder response
       res.json({
         success: true,
         advice: {
+          targetSpecies: targetSpecies || 'Any',
           compatibility: true,
-          eggGroup: 'Field',
-          estimatedIVs: {
-            hp: '20-31',
-            attack: '25-31',
-            defense: '15-31',
-            spAtk: '10-31',
-            spDef: '20-31',
-            speed: '25-31'
-          },
+          eggGroups: ['Field', 'Monster'],
+          estimatedIVs: targetIVs || { hp: '20-31', attack: '25-31', defense: '15-31', spAtk: '10-31', spDef: '20-31', speed: '25-31' },
+          recommendedNature: targetNature || 'Jolly',
           suggestions: [
             'Usa un Ditto con IVs altos para mejores resultados',
-            'Considera usar objetos de poder para pasar IVs específicos'
-          ]
+            'Considera usar objetos de poder para pasar IVs específicos',
+            'El Destiny Knot pasa 5 IVs aleatorios de los padres',
+            targetAbility ? `Para obtener ${targetAbility}, asegúrate de que uno de los padres la tenga` : null,
+            includeShinyAdvice ? 'Para aumentar probabilidad de shiny, usa el Método Masuda (padres de diferentes regiones)' : null
+          ].filter(Boolean),
+          shinyOdds: includeShinyAdvice ? '1/683 con Masuda Method' : null
         }
       });
     } catch (error) {
       console.error('[TUTORIAS] Error in breed advice:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Error getting breeding advice'
-      });
+      res.status(500).json({ success: false, error: 'Error al obtener consejos' });
     }
   });
 
-  // POST /api/tutorias/ev/plan - EV training plan
+  // ============================================
+  // POKEBOX
+  // ============================================
+
+  // GET /api/tutorias/pokebox
+  router.get('/pokebox', async (req, res) => {
+    try {
+      const { discordId, species, shiny, ivMin, ivMax, nature, ability, levelMin, levelMax } = req.query;
+      const db = getDb();
+      
+      // Get user by discord ID
+      let user = null;
+      if (discordId) {
+        user = await db.collection('users').findOne({ discordId });
+      }
+      
+      if (!user) {
+        return res.json({ success: true, pokemon: [], party: [] });
+      }
+
+      let pcStorage = user.pcStorage || [];
+      let party = user.party || [];
+
+      // Apply filters
+      if (species) {
+        const speciesLower = species.toLowerCase();
+        pcStorage = pcStorage.filter(p => p.species?.toLowerCase().includes(speciesLower));
+      }
+      if (shiny === 'true') {
+        pcStorage = pcStorage.filter(p => p.shiny === true);
+      }
+      if (nature) {
+        pcStorage = pcStorage.filter(p => p.nature?.toLowerCase() === nature.toLowerCase());
+      }
+      if (ability) {
+        pcStorage = pcStorage.filter(p => p.ability?.toLowerCase().includes(ability.toLowerCase()));
+      }
+      if (levelMin) {
+        pcStorage = pcStorage.filter(p => (p.level || 1) >= parseInt(levelMin));
+      }
+      if (levelMax) {
+        pcStorage = pcStorage.filter(p => (p.level || 1) <= parseInt(levelMax));
+      }
+
+      res.json({
+        success: true,
+        pokemon: pcStorage,
+        party: party,
+        total: pcStorage.length
+      });
+    } catch (error) {
+      console.error('[TUTORIAS] Error getting pokebox:', error);
+      res.status(500).json({ success: false, error: 'Error al obtener pokebox' });
+    }
+  });
+
+  // GET /api/tutorias/pokebox/duplicates
+  router.get('/pokebox/duplicates', async (req, res) => {
+    try {
+      const { discordId } = req.query;
+      const db = getDb();
+      
+      let user = null;
+      if (discordId) {
+        user = await db.collection('users').findOne({ discordId });
+      }
+      
+      if (!user || !user.pcStorage) {
+        return res.json({ success: true, duplicates: [] });
+      }
+
+      // Find duplicates by species
+      const speciesCount = {};
+      user.pcStorage.forEach(p => {
+        const species = p.species || 'Unknown';
+        if (!speciesCount[species]) {
+          speciesCount[species] = [];
+        }
+        speciesCount[species].push(p);
+      });
+
+      const duplicates = Object.entries(speciesCount)
+        .filter(([_, pokemon]) => pokemon.length > 1)
+        .map(([species, pokemon]) => ({
+          species,
+          count: pokemon.length,
+          pokemon
+        }));
+
+      res.json({ success: true, duplicates });
+    } catch (error) {
+      console.error('[TUTORIAS] Error getting duplicates:', error);
+      res.status(500).json({ success: false, error: 'Error al obtener duplicados' });
+    }
+  });
+
+  // POST /api/tutorias/pokebox/protect
+  router.post('/pokebox/protect', async (req, res) => {
+    try {
+      const { pokemonUuid, protected: isProtected, discordId } = req.body;
+      const db = getDb();
+      
+      // Update protection status in user's pcStorage
+      await db.collection('users').updateOne(
+        { discordId, 'pcStorage.uuid': pokemonUuid },
+        { $set: { 'pcStorage.$.protected': isProtected } }
+      );
+
+      res.json({ success: true, message: isProtected ? 'Pokémon protegido' : 'Protección removida' });
+    } catch (error) {
+      console.error('[TUTORIAS] Error updating protection:', error);
+      res.status(500).json({ success: false, error: 'Error al actualizar protección' });
+    }
+  });
+
+  // ============================================
+  // STAT PLANNER / EV PLANNER
+  // ============================================
+
+  // POST /api/tutorias/stat-planner/save
+  router.post('/stat-planner/save', async (req, res) => {
+    try {
+      const { pokemonUuid, pokemonSpecies, evDistribution, discordId } = req.body;
+      const db = getDb();
+      
+      await db.collection('ev_plans').updateOne(
+        { pokemonUuid },
+        {
+          $set: {
+            pokemonUuid,
+            pokemonSpecies,
+            evDistribution,
+            discordId,
+            updatedAt: new Date()
+          },
+          $setOnInsert: { createdAt: new Date() }
+        },
+        { upsert: true }
+      );
+
+      res.json({ success: true, message: 'Plan guardado' });
+    } catch (error) {
+      console.error('[TUTORIAS] Error saving EV plan:', error);
+      res.status(500).json({ success: false, error: 'Error al guardar plan' });
+    }
+  });
+
+  // GET /api/tutorias/stat-planner/:pokemonUuid
+  router.get('/stat-planner/:pokemonUuid', async (req, res) => {
+    try {
+      const { pokemonUuid } = req.params;
+      const db = getDb();
+      
+      const plan = await db.collection('ev_plans').findOne({ pokemonUuid });
+      
+      if (!plan) {
+        return res.json({
+          success: true,
+          plan: null
+        });
+      }
+
+      res.json({ success: true, plan });
+    } catch (error) {
+      console.error('[TUTORIAS] Error getting EV plan:', error);
+      res.status(500).json({ success: false, error: 'Error al obtener plan' });
+    }
+  });
+
+  // POST /api/tutorias/ev/plan (legacy endpoint)
   router.post('/ev/plan', async (req, res) => {
     try {
-      const { pokemon, targetSpread, discordId } = req.body;
+      const { pokemon, targetSpread } = req.body;
       
-      // Placeholder response
       res.json({
         success: true,
         plan: {
@@ -317,46 +422,15 @@ function initTutoriasRoutes(getDb) {
       });
     } catch (error) {
       console.error('[TUTORIAS] Error in EV plan:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Error creating EV plan'
-      });
+      res.status(500).json({ success: false, error: 'Error al crear plan' });
     }
   });
 
-  // GET /api/tutorias/pokebox/:discordId - Get user's pokebox
-  router.get('/pokebox/:discordId', async (req, res) => {
-    try {
-      const { discordId } = req.params;
-      const db = getDb();
-      
-      // Get user by discord ID
-      const user = await db.collection('users').findOne({ discordId });
-      
-      if (!user) {
-        return res.json({
-          success: true,
-          pokebox: [],
-          party: []
-        });
-      }
+  // ============================================
+  // ADMIN ENDPOINTS
+  // ============================================
 
-      res.json({
-        success: true,
-        pokebox: user.pcStorage || [],
-        party: user.party || []
-      });
-    } catch (error) {
-      console.error('[TUTORIAS] Error getting pokebox:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Error getting pokebox'
-      });
-    }
-  });
-
-  // Admin endpoints
-  // PUT /api/tutorias/admin/pricing - Update pricing (admin only)
+  // PUT /api/tutorias/admin/pricing
   router.put('/admin/pricing', async (req, res) => {
     try {
       const { pricing } = req.body;
@@ -365,32 +439,20 @@ function initTutoriasRoutes(getDb) {
       await db.collection('tutorias_config').updateOne(
         { type: 'pricing' },
         { 
-          $set: { 
-            config: pricing,
-            updatedAt: new Date()
-          },
-          $setOnInsert: {
-            type: 'pricing',
-            createdAt: new Date()
-          }
+          $set: { config: pricing, updatedAt: new Date() },
+          $setOnInsert: { type: 'pricing', createdAt: new Date() }
         },
         { upsert: true }
       );
 
-      res.json({
-        success: true,
-        message: 'Pricing updated'
-      });
+      res.json({ success: true, message: 'Pricing updated' });
     } catch (error) {
       console.error('[TUTORIAS] Error updating pricing:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Error updating pricing'
-      });
+      res.status(500).json({ success: false, error: 'Error updating pricing' });
     }
   });
 
-  // PUT /api/tutorias/admin/cooldowns - Update cooldowns (admin only)
+  // PUT /api/tutorias/admin/cooldowns
   router.put('/admin/cooldowns', async (req, res) => {
     try {
       const { cooldowns } = req.body;
@@ -399,28 +461,16 @@ function initTutoriasRoutes(getDb) {
       await db.collection('tutorias_config').updateOne(
         { type: 'cooldowns' },
         { 
-          $set: { 
-            config: cooldowns,
-            updatedAt: new Date()
-          },
-          $setOnInsert: {
-            type: 'cooldowns',
-            createdAt: new Date()
-          }
+          $set: { config: cooldowns, updatedAt: new Date() },
+          $setOnInsert: { type: 'cooldowns', createdAt: new Date() }
         },
         { upsert: true }
       );
 
-      res.json({
-        success: true,
-        message: 'Cooldowns updated'
-      });
+      res.json({ success: true, message: 'Cooldowns updated' });
     } catch (error) {
       console.error('[TUTORIAS] Error updating cooldowns:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Error updating cooldowns'
-      });
+      res.status(500).json({ success: false, error: 'Error updating cooldowns' });
     }
   });
 
