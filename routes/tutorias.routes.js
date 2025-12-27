@@ -91,16 +91,16 @@ function initTutoriasRoutes(getDb) {
       const { discordId } = req.query;
       const db = getDb();
       
-      const history = await db.collection('battle_analyses')
+      const battles = await db.collection('battle_analyses')
         .find(discordId ? { discordId } : {})
         .sort({ createdAt: -1 })
         .limit(50)
         .toArray();
 
-      res.json({ success: true, history });
+      res.json({ success: true, battles });
     } catch (error) {
       console.error('[TUTORIAS] Error getting battle history:', error);
-      res.json({ success: true, history: [] });
+      res.json({ success: true, battles: [] });
     }
   });
 
@@ -129,22 +129,20 @@ function initTutoriasRoutes(getDb) {
       const { battleId } = req.params;
       const db = getDb();
       
-      const analysis = await db.collection('battle_analyses').findOne({ battleId });
+      const battle = await db.collection('battle_analyses').findOne({ battleId });
       
-      if (!analysis) {
+      if (!battle) {
         return res.json({
           success: true,
-          analysis: {
+          battle: {
             battleId,
             status: 'not_found',
-            summary: 'Análisis no disponible',
-            suggestions: [],
-            rating: 'N/A'
+            analysisResult: null
           }
         });
       }
 
-      res.json({ success: true, analysis });
+      res.json({ success: true, battle });
     } catch (error) {
       console.error('[TUTORIAS] Error getting battle analysis:', error);
       res.status(500).json({ success: false, error: 'Error al obtener análisis' });
