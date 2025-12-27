@@ -18,6 +18,7 @@ const { initModsRoutes } = require('./routes/mods.routes');
 const { initEconomyRoutes } = require('./routes/economy.routes');
 const { initDiscordBot, generateVerificationCode, isPlayerVerified, getBotStatus } = require('./routes/discord-bot.routes');
 const { initPokemonGachaRoutes } = require('./routes/pokemon-gacha.routes');
+const { initTutoriasRoutes } = require('./routes/tutorias.routes');
 
 // Environment variables
 const PORT = process.env.PORT || 25617;
@@ -4555,6 +4556,12 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
   // ============================================
   app.use('/api/economy', initEconomyRoutes(getDb));
   console.log('💰 [ROUTES] Economy routes loaded');
+
+  // ============================================
+  // MODULAR ROUTES - Tutorías API
+  // ============================================
+  app.use('/api/tutorias', initTutoriasRoutes(getDb));
+  console.log('📚 [ROUTES] Tutorias routes loaded');
 
   // ============================================
   // MODULAR ROUTES - Announcements API
