@@ -503,13 +503,19 @@ router.post('/smart-remove-duplicates', async (req, res) => {
     
     const allPokemon = [];
     
-    // Debug: log raw data structure
-    console.log('[POKEMON-SYNC] party exists:', !!player.party, 'length:', player.party?.length || 0);
-    console.log('[POKEMON-SYNC] pcStorage exists:', !!player.pcStorage, 'length:', player.pcStorage?.length || 0);
+    // Debug: log raw data structure - check both field names
+    const partyData = player.party || player.pokemonParty || [];
+    const pcData = player.pcStorage || player.pokemonPcStorage || [];
     
-    // From party
-    if (player.party && Array.isArray(player.party)) {
-      player.party.forEach((p, index) => {
+    console.log('[POKEMON-SYNC] party field:', player.party ? `${player.party.length} items` : 'undefined');
+    console.log('[POKEMON-SYNC] pokemonParty field:', player.pokemonParty ? `${player.pokemonParty.length} items` : 'undefined');
+    console.log('[POKEMON-SYNC] pcStorage field:', player.pcStorage ? `${player.pcStorage.length} items` : 'undefined');
+    console.log('[POKEMON-SYNC] Using partyData length:', partyData.length);
+    console.log('[POKEMON-SYNC] Using pcData length:', pcData.length);
+    
+    // From party (check both field names)
+    if (partyData && Array.isArray(partyData)) {
+      partyData.forEach((p, index) => {
         const normalized = normalizePokemon(p, 'party', null, index);
         if (normalized && normalized.species !== 'Unknown') {
           allPokemon.push(normalized);
@@ -518,7 +524,7 @@ router.post('/smart-remove-duplicates', async (req, res) => {
     }
     
     // From PC storage
-    const pcPokemon = extractPokemonFromStorage(player.pcStorage || []);
+    const pcPokemon = extractPokemonFromStorage(pcData);
     pcPokemon.forEach(({ pokemon, boxIndex, slotIndex }) => {
       const normalized = normalizePokemon(pokemon, 'pc', boxIndex, slotIndex);
       if (normalized && normalized.species !== 'Unknown') {
