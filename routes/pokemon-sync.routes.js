@@ -430,52 +430,105 @@ router.post('/smart-remove-duplicates', async (req, res) => {
     
     console.log('[POKEMON-SYNC] Found player:', player.username || player.discordUsername, player.uuid);
     
-    // Collect all Pokemon from party and PC
+    // ============================================
+    // HELPER FUNCTIONS (same as tutorias)
+    // ============================================
+    
+    // Normalize stats - handle different formats
+    const normalizeStats = (stats) => {
+      if (!stats) return { hp: 0, attack: 0, defense: 0, specialAttack: 0, specialDefense: 0, speed: 0 };
+      return {
+        hp: stats.hp ?? stats.HP ?? stats.Hp ?? 0,
+        attack: stats.attack ?? stats.Attack ?? stats.atk ?? stats.ATK ?? 0,
+        defense: stats.defense ?? stats.Defense ?? stats.def ?? stats.DEF ?? 0,
+        specialAttack: stats.specialAttack ?? stats.spAttack ?? stats.special_attack ?? stats.SpAtk ?? stats.spAtk ?? stats.spa ?? 0,
+        specialDefense: stats.specialDefense ?? stats.spDefense ?? stats.special_defense ?? stats.SpDef ?? stats.spDef ?? stats.spd ?? 0,
+        speed: stats.speed ?? stats.Speed ?? stats.spe ?? stats.SPE ?? 0
+      };
+    };
+    
+    // Normalize Pokemon data
+    const normalizePokemon = (p, location, boxIndex = null, slotIndex = null) => {
+      if (!p) return null;
+      
+      const ivs = normalizeStats(p.ivs);
+      const evs = normalizeStats(p.evs);
+      
+      const ivTotal = ivs.hp + ivs.attack + ivs.defense + ivs.specialAttack + ivs.specialDefense + ivs.speed;
+      const ivPercentage = (ivTotal / 186) * 100;
+      
+      return {
+        uuid: p.uuid || p.id || `pokemon-${Date.now()}-${Math.random()}`,
+        species: p.species || p.name || 'Unknown',
+        nickname: p.nickname || null,
+        level: p.level || 1,
+        nature: p.nature || 'Hardy',
+        ability: p.ability || 'Unknown',
+        ivs,
+        evs,
+        ivPercentage,
+        shiny: p.shiny === true || p.isShiny === true,
+        isProtected: p.protected === true || p.isProtected === true,
+        location,
+        boxIndex,
+        slotIndex
+      };
+    };
+    
+    // Extract Pokemon from pcStorage (handles different formats)
+    const extractPokemonFromStorage = (pcStorage) => {
+      if (!Array.isArray(pcStorage)) return [];
+      
+      const allPokemon = [];
+      
+      for (const item of pcStorage) {
+        // Check if it's a box structure { boxNumber, pokemon: [...] }
+        if (item && Array.isArray(item.pokemon)) {
+          item.pokemon.forEach((p, slotIndex) => {
+            if (p) allPokemon.push({ pokemon: p, boxIndex: item.boxNumber || 0, slotIndex });
+          });
+        } 
+        // Check if it's a direct Pokemon object (has species or uuid)
+        else if (item && (item.species || item.uuid || item.name)) {
+          allPokemon.push({ pokemon: item, boxIndex: 0, slotIndex: allPokemon.length });
+        }
+      }
+      
+      return allPokemon;
+    };
+    
+    // ============================================
+    // COLLECT ALL POKEMON
+    // ============================================
+    
     const allPokemon = [];
     
-    // Debug: log first pokemon structure
-    if (player.party && player.party.length > 0) {
-      console.log('[POKEMON-SYNC] Sample party pokemon keys:', Object.keys(player.party[0] || {}));
-      console.log('[POKEMON-SYNC] Sample party pokemon:', JSON.stringify(player.party[0]).substring(0, 500));
-    }
-    if (player.pcStorage && player.pcStorage.length > 0) {
-      const firstBox = player.pcStorage[0];
-      if (firstBox && firstBox.pokemon && firstBox.pokemon.length > 0) {
-        console.log('[POKEMON-SYNC] Sample PC pokemon keys:', Object.keys(firstBox.pokemon[0] || {}));
-      }
-    }
+    // Debug: log raw data structure
+    console.log('[POKEMON-SYNC] party exists:', !!player.party, 'length:', player.party?.length || 0);
+    console.log('[POKEMON-SYNC] pcStorage exists:', !!player.pcStorage, 'length:', player.pcStorage?.length || 0);
     
-    // From party - check multiple possible field names for species
+    // From party
     if (player.party && Array.isArray(player.party)) {
-      player.party.forEach(p => {
-        if (p && p.uuid) {
-          const speciesName = p.species || p.name || p.pokemonName || '';
-          if (speciesName) {
-            allPokemon.push({ ...p, species: speciesName, location: 'party' });
-          }
+      player.party.forEach((p, index) => {
+        const normalized = normalizePokemon(p, 'party', null, index);
+        if (normalized && normalized.species !== 'Unknown') {
+          allPokemon.push(normalized);
         }
       });
     }
     
-    // From PC storage - check multiple possible field names for species
-    if (player.pcStorage && Array.isArray(player.pcStorage)) {
-      player.pcStorage.forEach((box, boxIndex) => {
-        if (box && box.pokemon && Array.isArray(box.pokemon)) {
-          box.pokemon.forEach((p, slotIndex) => {
-            if (p && p.uuid) {
-              const speciesName = p.species || p.name || p.pokemonName || '';
-              if (speciesName) {
-                allPokemon.push({ ...p, species: speciesName, location: 'pc', boxIndex, slotIndex });
-              }
-            }
-          });
-        }
-      });
-    }
+    // From PC storage
+    const pcPokemon = extractPokemonFromStorage(player.pcStorage || []);
+    pcPokemon.forEach(({ pokemon, boxIndex, slotIndex }) => {
+      const normalized = normalizePokemon(pokemon, 'pc', boxIndex, slotIndex);
+      if (normalized && normalized.species !== 'Unknown') {
+        allPokemon.push(normalized);
+      }
+    });
     
     console.log('[POKEMON-SYNC] Total pokemon collected:', allPokemon.length);
     if (allPokemon.length > 0) {
-      console.log('[POKEMON-SYNC] First pokemon species:', allPokemon[0].species);
+      console.log('[POKEMON-SYNC] Sample species:', allPokemon.slice(0, 5).map(p => p.species).join(', '));
     }
     
     // Group by species
@@ -488,21 +541,14 @@ router.post('/smart-remove-duplicates', async (req, res) => {
       speciesGroups[species].push(p);
     });
     
-    // Calculate IV percentage
-    const calcIVPercentage = (ivs) => {
-      if (!ivs) return 0;
-      const total = (ivs.hp || 0) + (ivs.attack || 0) + (ivs.defense || 0) + 
-                    (ivs.specialAttack || ivs.spAttack || 0) + 
-                    (ivs.specialDefense || ivs.spDefense || 0) + (ivs.speed || 0);
-      return (total / 186) * 100;
-    };
+    console.log('[POKEMON-SYNC] Unique species:', Object.keys(speciesGroups).length);
     
     // Score Pokemon for comparison (higher = better)
     const scorePokemon = (p) => {
       let score = 0;
       
       // IV percentage (0-100 points)
-      score += calcIVPercentage(p.ivs);
+      score += p.ivPercentage || 0;
       
       // Level (0-100 points)
       score += (p.level || 1);
@@ -547,10 +593,10 @@ router.post('/smart-remove-duplicates', async (req, res) => {
             uuid: pokemon.uuid,
             species: pokemon.species,
             level: pokemon.level,
-            ivPercentage: calcIVPercentage(pokemon.ivs).toFixed(1),
+            ivPercentage: (pokemon.ivPercentage || 0).toFixed(1),
             shiny: pokemon.shiny || false,
             location: pokemon.location,
-            reason: `Duplicate of ${best.species} (kept: Lv.${best.level}, ${calcIVPercentage(best.ivs).toFixed(1)}% IVs)`
+            reason: `Duplicate of ${best.species} (kept: Lv.${best.level}, ${(best.ivPercentage || 0).toFixed(1)}% IVs)`
           });
         }
       }
