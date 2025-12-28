@@ -4573,8 +4573,8 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
   // ============================================
   // MODULAR ROUTES - Pokemon Sync (Bidirectional)
   // ============================================
-  const pokemonSyncRoutes = require('./routes/pokemon-sync.routes');
-  app.use('/api/pokemon-sync', pokemonSyncRoutes);
+  const { initPokemonSyncRoutes } = require('./routes/pokemon-sync.routes');
+  app.use('/api/pokemon-sync', initPokemonSyncRoutes(getDb));
   console.log('🔄 [ROUTES] Pokemon Sync routes loaded');
 
   // ============================================

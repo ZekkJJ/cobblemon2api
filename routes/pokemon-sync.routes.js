@@ -696,4 +696,7 @@ router.post('/bulk-remove', async (req, res) => {
   }
 });
 
-module.exports = router;
+  return router;
+}
+
+module.exports = { initPokemonSyncRoutes };
