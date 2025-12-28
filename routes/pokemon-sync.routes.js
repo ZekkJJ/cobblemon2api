@@ -433,26 +433,49 @@ router.post('/smart-remove-duplicates', async (req, res) => {
     // Collect all Pokemon from party and PC
     const allPokemon = [];
     
-    // From party
+    // Debug: log first pokemon structure
+    if (player.party && player.party.length > 0) {
+      console.log('[POKEMON-SYNC] Sample party pokemon keys:', Object.keys(player.party[0] || {}));
+      console.log('[POKEMON-SYNC] Sample party pokemon:', JSON.stringify(player.party[0]).substring(0, 500));
+    }
+    if (player.pcStorage && player.pcStorage.length > 0) {
+      const firstBox = player.pcStorage[0];
+      if (firstBox && firstBox.pokemon && firstBox.pokemon.length > 0) {
+        console.log('[POKEMON-SYNC] Sample PC pokemon keys:', Object.keys(firstBox.pokemon[0] || {}));
+      }
+    }
+    
+    // From party - check multiple possible field names for species
     if (player.party && Array.isArray(player.party)) {
       player.party.forEach(p => {
-        if (p && p.uuid && p.species) {
-          allPokemon.push({ ...p, location: 'party' });
+        if (p && p.uuid) {
+          const speciesName = p.species || p.name || p.pokemonName || '';
+          if (speciesName) {
+            allPokemon.push({ ...p, species: speciesName, location: 'party' });
+          }
         }
       });
     }
     
-    // From PC storage
+    // From PC storage - check multiple possible field names for species
     if (player.pcStorage && Array.isArray(player.pcStorage)) {
       player.pcStorage.forEach((box, boxIndex) => {
         if (box && box.pokemon && Array.isArray(box.pokemon)) {
           box.pokemon.forEach((p, slotIndex) => {
-            if (p && p.uuid && p.species) {
-              allPokemon.push({ ...p, location: 'pc', boxIndex, slotIndex });
+            if (p && p.uuid) {
+              const speciesName = p.species || p.name || p.pokemonName || '';
+              if (speciesName) {
+                allPokemon.push({ ...p, species: speciesName, location: 'pc', boxIndex, slotIndex });
+              }
             }
           });
         }
       });
+    }
+    
+    console.log('[POKEMON-SYNC] Total pokemon collected:', allPokemon.length);
+    if (allPokemon.length > 0) {
+      console.log('[POKEMON-SYNC] First pokemon species:', allPokemon[0].species);
     }
     
     // Group by species
