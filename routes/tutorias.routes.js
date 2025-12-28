@@ -85,7 +85,7 @@ Limita tus respuestas a 300 palabras máximo.`;
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama-3.1-70b-versatile',
+        model: 'llama-3.3-70b-versatile',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage }
@@ -346,19 +346,20 @@ function initTutoriasRoutes(getDb) {
 
   /**
    * Normalize Pokemon data to ensure consistent structure
+   * Handles different field naming conventions from Cobblemon
    */
   function normalizePokemon(p) {
     if (!p) return null;
     
-    // Normalize IVs - handle different formats (HP vs hp, etc.)
+    // Normalize IVs - handle different formats (spAttack vs specialAttack, etc.)
     const normalizeStats = (stats) => {
       if (!stats) return { hp: 0, attack: 0, defense: 0, specialAttack: 0, specialDefense: 0, speed: 0 };
       return {
         hp: stats.hp ?? stats.HP ?? stats.Hp ?? 0,
         attack: stats.attack ?? stats.Attack ?? stats.atk ?? stats.ATK ?? 0,
         defense: stats.defense ?? stats.Defense ?? stats.def ?? stats.DEF ?? 0,
-        specialAttack: stats.specialAttack ?? stats.special_attack ?? stats.SpAtk ?? stats.spAtk ?? stats.spa ?? 0,
-        specialDefense: stats.specialDefense ?? stats.special_defense ?? stats.SpDef ?? stats.spDef ?? stats.spd ?? 0,
+        specialAttack: stats.specialAttack ?? stats.spAttack ?? stats.special_attack ?? stats.SpAtk ?? stats.spAtk ?? stats.spa ?? 0,
+        specialDefense: stats.specialDefense ?? stats.spDefense ?? stats.special_defense ?? stats.SpDef ?? stats.spDef ?? stats.spd ?? 0,
         speed: stats.speed ?? stats.Speed ?? stats.spe ?? stats.SPE ?? 0
       };
     };
@@ -374,6 +375,16 @@ function initTutoriasRoutes(getDb) {
     const evTotal = evs.hp + evs.attack + evs.defense + evs.specialAttack + evs.specialDefense + evs.speed;
     const evRemaining = 510 - evTotal;
 
+    // Normalize moves - can be array of strings or array of objects with name
+    const normalizeMoves = (moves) => {
+      if (!Array.isArray(moves)) return [];
+      return moves.map(m => {
+        if (typeof m === 'string') return m;
+        if (m && m.name) return m.name;
+        return 'Unknown';
+      });
+    };
+
     return {
       uuid: p.uuid || p.id || `pokemon-${Date.now()}-${Math.random()}`,
       species: p.species || p.name || 'Unknown',
@@ -381,7 +392,7 @@ function initTutoriasRoutes(getDb) {
       level: p.level || 1,
       nature: p.nature || 'Hardy',
       ability: p.ability || 'Unknown',
-      moves: Array.isArray(p.moves) ? p.moves : [],
+      moves: normalizeMoves(p.moves),
       ivs,
       evs,
       shiny: p.shiny === true || p.isShiny === true,
@@ -391,6 +402,31 @@ function initTutoriasRoutes(getDb) {
       heldItem: p.heldItem || p.held_item || null,
       gender: p.gender || 'Unknown'
     };
+  }
+
+  /**
+   * Extract all Pokemon from pcStorage structure
+   * pcStorage can be:
+   * - Array of Pokemon directly
+   * - Array of boxes: [{ boxNumber, pokemon: [...] }]
+   */
+  function extractPokemonFromStorage(pcStorage) {
+    if (!Array.isArray(pcStorage)) return [];
+    
+    const allPokemon = [];
+    
+    for (const item of pcStorage) {
+      // Check if it's a box structure { boxNumber, pokemon: [...] }
+      if (item && Array.isArray(item.pokemon)) {
+        allPokemon.push(...item.pokemon);
+      } 
+      // Check if it's a direct Pokemon object (has species or uuid)
+      else if (item && (item.species || item.uuid)) {
+        allPokemon.push(item);
+      }
+    }
+    
+    return allPokemon;
   }
 
   // GET /api/tutorias/pokebox
@@ -409,8 +445,9 @@ function initTutoriasRoutes(getDb) {
         return res.json({ success: true, pokemon: [], party: [] });
       }
 
-      // Normalize all pokemon data
-      let pcStorage = (user.pcStorage || []).map(normalizePokemon).filter(p => p !== null);
+      // Extract and normalize all pokemon data
+      const rawPcPokemon = extractPokemonFromStorage(user.pcStorage || []);
+      let pcStorage = rawPcPokemon.map(normalizePokemon).filter(p => p !== null);
       let party = (user.party || []).map(normalizePokemon).filter(p => p !== null);
 
       // Apply filters
@@ -461,8 +498,9 @@ function initTutoriasRoutes(getDb) {
         return res.json({ success: true, duplicates: [] });
       }
 
-      // Normalize all pokemon data
-      const normalizedPokemon = (user.pcStorage || []).map(normalizePokemon).filter(p => p !== null);
+      // Extract and normalize all pokemon data
+      const rawPcPokemon = extractPokemonFromStorage(user.pcStorage || []);
+      const normalizedPokemon = rawPcPokemon.map(normalizePokemon).filter(p => p !== null);
 
       // Find duplicates by species
       const speciesCount = {};
@@ -780,7 +818,7 @@ Responde en español, de forma concisa y útil.`;
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'llama-3.1-70b-versatile',
+            model: 'llama-3.3-70b-versatile',
             messages: [
               { role: 'system', content: 'Eres un experto analista de batallas Pokémon competitivas.' },
               { role: 'user', content: analysisPrompt }
