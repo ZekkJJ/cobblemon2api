@@ -344,6 +344,55 @@ function initTutoriasRoutes(getDb) {
   // POKEBOX
   // ============================================
 
+  /**
+   * Normalize Pokemon data to ensure consistent structure
+   */
+  function normalizePokemon(p) {
+    if (!p) return null;
+    
+    // Normalize IVs - handle different formats (HP vs hp, etc.)
+    const normalizeStats = (stats) => {
+      if (!stats) return { hp: 0, attack: 0, defense: 0, specialAttack: 0, specialDefense: 0, speed: 0 };
+      return {
+        hp: stats.hp ?? stats.HP ?? stats.Hp ?? 0,
+        attack: stats.attack ?? stats.Attack ?? stats.atk ?? stats.ATK ?? 0,
+        defense: stats.defense ?? stats.Defense ?? stats.def ?? stats.DEF ?? 0,
+        specialAttack: stats.specialAttack ?? stats.special_attack ?? stats.SpAtk ?? stats.spAtk ?? stats.spa ?? 0,
+        specialDefense: stats.specialDefense ?? stats.special_defense ?? stats.SpDef ?? stats.spDef ?? stats.spd ?? 0,
+        speed: stats.speed ?? stats.Speed ?? stats.spe ?? stats.SPE ?? 0
+      };
+    };
+
+    const ivs = normalizeStats(p.ivs);
+    const evs = normalizeStats(p.evs);
+    
+    // Calculate IV percentage
+    const ivTotal = ivs.hp + ivs.attack + ivs.defense + ivs.specialAttack + ivs.specialDefense + ivs.speed;
+    const ivPercentage = (ivTotal / 186) * 100;
+    
+    // Calculate EV remaining
+    const evTotal = evs.hp + evs.attack + evs.defense + evs.specialAttack + evs.specialDefense + evs.speed;
+    const evRemaining = 510 - evTotal;
+
+    return {
+      uuid: p.uuid || p.id || `pokemon-${Date.now()}-${Math.random()}`,
+      species: p.species || p.name || 'Unknown',
+      nickname: p.nickname || null,
+      level: p.level || 1,
+      nature: p.nature || 'Hardy',
+      ability: p.ability || 'Unknown',
+      moves: Array.isArray(p.moves) ? p.moves : [],
+      ivs,
+      evs,
+      shiny: p.shiny === true || p.isShiny === true,
+      ivPercentage,
+      evRemaining,
+      isProtected: p.protected === true || p.isProtected === true,
+      heldItem: p.heldItem || p.held_item || null,
+      gender: p.gender || 'Unknown'
+    };
+  }
+
   // GET /api/tutorias/pokebox
   router.get('/pokebox', async (req, res) => {
     try {
@@ -360,8 +409,9 @@ function initTutoriasRoutes(getDb) {
         return res.json({ success: true, pokemon: [], party: [] });
       }
 
-      let pcStorage = user.pcStorage || [];
-      let party = user.party || [];
+      // Normalize all pokemon data
+      let pcStorage = (user.pcStorage || []).map(normalizePokemon).filter(p => p !== null);
+      let party = (user.party || []).map(normalizePokemon).filter(p => p !== null);
 
       // Apply filters
       if (species) {
@@ -411,9 +461,12 @@ function initTutoriasRoutes(getDb) {
         return res.json({ success: true, duplicates: [] });
       }
 
+      // Normalize all pokemon data
+      const normalizedPokemon = (user.pcStorage || []).map(normalizePokemon).filter(p => p !== null);
+
       // Find duplicates by species
       const speciesCount = {};
-      user.pcStorage.forEach(p => {
+      normalizedPokemon.forEach(p => {
         const species = p.species || 'Unknown';
         if (!speciesCount[species]) {
           speciesCount[species] = [];
@@ -423,11 +476,16 @@ function initTutoriasRoutes(getDb) {
 
       const duplicates = Object.entries(speciesCount)
         .filter(([_, pokemon]) => pokemon.length > 1)
-        .map(([species, pokemon]) => ({
-          species,
-          count: pokemon.length,
-          pokemon
-        }));
+        .map(([species, pokemon]) => {
+          // Find the best one to keep (highest IV percentage)
+          const sorted = [...pokemon].sort((a, b) => b.ivPercentage - a.ivPercentage);
+          return {
+            species,
+            count: pokemon.length,
+            pokemon,
+            suggestedKeep: sorted[0]?.uuid
+          };
+        });
 
       res.json({ success: true, duplicates });
     } catch (error) {
