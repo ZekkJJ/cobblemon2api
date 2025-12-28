@@ -171,12 +171,20 @@ Responde en formato JSON estructurado.`;
    * Build prompt for battle analysis
    */
   private buildBattleAnalysisPrompt(battleLog: IBattleLogDocument): string {
+    // Determine winner and loser names
+    const winnerName = battleLog.winner === battleLog.player1Uuid 
+      ? battleLog.player1Username 
+      : battleLog.player2Username;
+    const loserName = battleLog.winner === battleLog.player1Uuid 
+      ? battleLog.player2Username 
+      : battleLog.player1Username;
+    
     const turnsDescription = battleLog.turns.map(turn => {
       return `Turno ${turn.turnNumber}:
-- Jugador 1: ${turn.player1Action.type} ${turn.player1Action.move || turn.player1Action.pokemon || ''}
+- ${battleLog.player1Username}: ${turn.player1Action.type} ${turn.player1Action.move || turn.player1Action.pokemon || ''}
   ${turn.player1Action.damage ? `Daño: ${turn.player1Action.damage}` : ''}
   ${turn.player1Action.effectiveness ? `Efectividad: ${turn.player1Action.effectiveness}` : ''}
-- Jugador 2: ${turn.player2Action.type} ${turn.player2Action.move || turn.player2Action.pokemon || ''}
+- ${battleLog.player2Username}: ${turn.player2Action.type} ${turn.player2Action.move || turn.player2Action.pokemon || ''}
   ${turn.player2Action.damage ? `Daño: ${turn.player2Action.damage}` : ''}
   ${turn.player2Action.effectiveness ? `Efectividad: ${turn.player2Action.effectiveness}` : ''}
 - Campo: ${turn.fieldState.weather || 'Normal'}, ${turn.fieldState.terrain || 'Sin terreno'}`;
@@ -185,23 +193,26 @@ Responde en formato JSON estructurado.`;
     return `Analiza esta batalla de Pokémon:
 
 **Jugadores:**
-- Jugador 1: ${battleLog.player1Username}
-- Jugador 2: ${battleLog.player2Username}
+- ${battleLog.player1Username}
+- ${battleLog.player2Username}
 
-**Resultado:** ${battleLog.winner === battleLog.player1Uuid ? battleLog.player1Username : battleLog.player2Username} ganó por ${battleLog.result}
+**Resultado:** ${winnerName} GANÓ la batalla. ${loserName} PERDIÓ.
+Método de victoria: ${battleLog.result}
 
 **Duración:** ${battleLog.turnCount} turnos
 
 **Equipos iniciales:**
-Jugador 1: ${JSON.stringify(battleLog.initialState.player1Team.map(p => p.species))}
-Jugador 2: ${JSON.stringify(battleLog.initialState.player2Team.map(p => p.species))}
+${battleLog.player1Username}: ${JSON.stringify(battleLog.initialState.player1Team.map((p: any) => p.species || p))}
+${battleLog.player2Username}: ${JSON.stringify(battleLog.initialState.player2Team.map((p: any) => p.species || p))}
 
 **Turnos:**
-${turnsDescription}
+${turnsDescription || 'No hay datos detallados de turnos disponibles.'}
+
+IMPORTANTE: El ganador es ${winnerName}. El perdedor es ${loserName}. No confundas esto.
 
 Responde con un JSON con esta estructura:
 {
-  "summary": "Resumen de la batalla en 2-3 oraciones",
+  "summary": "Resumen de la batalla en 2-3 oraciones. Menciona claramente que ${winnerName} ganó y ${loserName} perdió.",
   "turnByTurn": [{"turn": 1, "analysis": "...", "alternativePlay": "..."}],
   "keyMoments": [{"turn": 1, "description": "...", "impact": "POSITIVE|NEGATIVE|NEUTRAL"}],
   "recommendations": ["recomendación 1", "recomendación 2"],

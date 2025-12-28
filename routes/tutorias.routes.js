@@ -659,8 +659,24 @@ function initTutoriasRoutes(getDb) {
       }
 
       // Find discord IDs for players by their Minecraft UUIDs
-      const winner = await db.collection('users').findOne({ minecraftUuid: winnerUuid });
-      const loser = await db.collection('users').findOne({ minecraftUuid: loserUuid });
+      const winnerUser = await db.collection('users').findOne({ minecraftUuid: winnerUuid });
+      const loserUser = await db.collection('users').findOne({ minecraftUuid: loserUuid });
+
+      // Determine which player data corresponds to winner/loser
+      // The plugin sends player1.isWinner and player2.isWinner flags
+      let winnerTeam, loserTeam;
+      
+      if (player1?.uuid === winnerUuid || player1?.isWinner) {
+        winnerTeam = player1?.team || [];
+        loserTeam = player2?.team || [];
+      } else if (player2?.uuid === winnerUuid || player2?.isWinner) {
+        winnerTeam = player2?.team || [];
+        loserTeam = player1?.team || [];
+      } else {
+        // Fallback: use player1 as winner team, player2 as loser team
+        winnerTeam = player1?.team || [];
+        loserTeam = player2?.team || [];
+      }
 
       const battleLog = {
         battleId,
@@ -672,15 +688,15 @@ function initTutoriasRoutes(getDb) {
         result,
         winner: {
           uuid: winnerUuid,
-          discordId: winner?.discordId || player1?.discordId || null,
-          username: winner?.username || null,
-          team: player1?.team || []
+          discordId: winnerUser?.discordId || null,
+          username: winnerUser?.username || winnerUser?.minecraftUsername || null,
+          team: winnerTeam
         },
         loser: {
           uuid: loserUuid,
-          discordId: loser?.discordId || player2?.discordId || null,
-          username: loser?.username || null,
-          team: player2?.team || []
+          discordId: loserUser?.discordId || null,
+          username: loserUser?.username || loserUser?.minecraftUsername || null,
+          team: loserTeam
         },
         turns: turns || [],
         analyzed: false,
@@ -690,21 +706,44 @@ function initTutoriasRoutes(getDb) {
 
       await db.collection('battle_logs').insertOne(battleLog);
 
-      // Also create a battle_analyses entry for the frontend
-      await db.collection('battle_analyses').insertOne({
+      // Create battle_analyses entries for BOTH players so each can see the battle in their history
+      const winnerAnalysis = {
         battleId,
-        discordId: winner?.discordId || loser?.discordId,
+        discordId: winnerUser?.discordId,
+        minecraftUuid: winnerUuid,
         date: new Date(),
-        opponent: loser?.username || loserUuid,
+        opponent: loserUser?.username || loserUser?.minecraftUsername || loserUuid,
         opponentUuid: loserUuid,
-        result: result === 'KO' ? 'WIN' : result,
-        duration: Math.floor(duration / 1000), // Convert to seconds
+        result: 'WIN',
+        duration: Math.floor(duration / 1000),
         turns: totalTurns,
         analyzed: false,
         createdAt: new Date()
-      });
+      };
 
-      console.log(`[BATTLE LOG] Stored battle ${battleId}: ${winnerUuid} vs ${loserUuid} (${result})`);
+      const loserAnalysis = {
+        battleId,
+        discordId: loserUser?.discordId,
+        minecraftUuid: loserUuid,
+        date: new Date(),
+        opponent: winnerUser?.username || winnerUser?.minecraftUsername || winnerUuid,
+        opponentUuid: winnerUuid,
+        result: 'LOSS',
+        duration: Math.floor(duration / 1000),
+        turns: totalTurns,
+        analyzed: false,
+        createdAt: new Date()
+      };
+
+      // Insert both entries
+      if (winnerUser?.discordId) {
+        await db.collection('battle_analyses').insertOne(winnerAnalysis);
+      }
+      if (loserUser?.discordId) {
+        await db.collection('battle_analyses').insertOne(loserAnalysis);
+      }
+
+      console.log(`[BATTLE LOG] Stored battle ${battleId}: ${winnerUuid} (WIN) vs ${loserUuid} (LOSS) - ${result}`);
 
       res.json({ success: true, message: 'Battle log stored', battleId });
     } catch (error) {
@@ -789,26 +828,42 @@ function initTutoriasRoutes(getDb) {
         });
       }
 
-      const analysisPrompt = `Analiza esta batalla Pokémon y proporciona consejos:
+      // Determine who is requesting the analysis
+      const isRequesterWinner = discordId === battle.winner.discordId;
+      const requesterTeam = isRequesterWinner ? battle.winner : battle.loser;
+      const opponentTeam = isRequesterWinner ? battle.loser : battle.winner;
+      const requesterResult = isRequesterWinner ? 'GANÓ' : 'PERDIÓ';
 
-Ganador: ${battle.winner.username || battle.winner.uuid}
-Equipo ganador: ${JSON.stringify(battle.winner.team)}
+      const analysisPrompt = `Analiza esta batalla Pokémon y proporciona consejos para el jugador que solicita el análisis.
 
-Perdedor: ${battle.loser.username || battle.loser.uuid}  
-Equipo perdedor: ${JSON.stringify(battle.loser.team)}
+=== INFORMACIÓN IMPORTANTE ===
+El jugador que solicita el análisis es: ${requesterTeam.username || requesterTeam.uuid}
+Este jugador ${requesterResult} la batalla.
+
+=== DATOS DE LA BATALLA ===
+GANADOR de la batalla: ${battle.winner.username || battle.winner.uuid}
+Equipo del GANADOR: ${JSON.stringify(battle.winner.team?.map(p => p.species || p) || [])}
+
+PERDEDOR de la batalla: ${battle.loser.username || battle.loser.uuid}
+Equipo del PERDEDOR: ${JSON.stringify(battle.loser.team?.map(p => p.species || p) || [])}
 
 Resultado: ${battle.result}
 Turnos totales: ${battle.totalTurns}
 Duración: ${Math.floor(battle.duration / 1000)} segundos
 
+=== INSTRUCCIONES ===
+1. El GANADOR es ${battle.winner.username || battle.winner.uuid}. El PERDEDOR es ${battle.loser.username || battle.loser.uuid}. NO confundas esto.
+2. El jugador que solicita el análisis ${requesterResult} la batalla.
+3. Proporciona consejos personalizados para ${requesterTeam.username || requesterTeam.uuid}.
+
 Proporciona:
-1. Resumen de la batalla
-2. Momentos clave
-3. Errores del perdedor
-4. Consejos de mejora
+1. Resumen de la batalla (menciona claramente quién ganó y quién perdió)
+2. Momentos clave (si hay datos de turnos disponibles)
+3. ${isRequesterWinner ? 'Qué hizo bien el ganador' : 'Errores que cometió el perdedor'}
+4. Consejos de mejora para ${requesterTeam.username || requesterTeam.uuid}
 5. Puntuación general (1-10)
 
-Responde en español, de forma concisa y útil.`;
+Responde en español, de forma concisa y útil. RECUERDA: ${battle.winner.username || battle.winner.uuid} GANÓ, ${battle.loser.username || battle.loser.uuid} PERDIÓ.`;
 
       try {
         const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {

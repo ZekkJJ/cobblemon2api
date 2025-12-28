@@ -435,12 +435,65 @@ export class TutoriasController {
   // ============================================================================
   storeBattleLog = async (req: Request, res: Response) => {
     try {
-      const battleLog = req.body;
+      const data = req.body;
+      
+      // Map plugin format to service format
+      // Plugin sends: winnerUuid, loserUuid, player1, player2
+      // Service expects: winner, player1Uuid, player2Uuid, etc.
+      const battleLog = {
+        id: data.battleId,
+        player1Uuid: data.player1?.uuid,
+        player1Username: data.player1?.username || 'Jugador 1',
+        player2Uuid: data.player2?.uuid,
+        player2Username: data.player2?.username || 'Jugador 2',
+        winner: data.winnerUuid, // The UUID of the winner
+        result: data.result || 'KO',
+        startTime: data.startTime,
+        endTime: data.endTime,
+        duration: data.duration || (data.endTime - data.startTime),
+        turns: (data.turns || []).map((turn: any, index: number) => ({
+          turnNumber: turn.turn || index + 1,
+          player1Action: {
+            type: turn.player1Move?.includes('Switch') ? 'switch' : 'move',
+            move: turn.player1Move,
+            pokemon: turn.player1Pokemon
+          },
+          player2Action: {
+            type: turn.player2Move?.includes('Switch') ? 'switch' : 'move',
+            move: turn.player2Move,
+            pokemon: turn.player2Pokemon
+          },
+          fieldState: { weather: null, terrain: null }
+        })),
+        initialState: {
+          player1Team: data.player1?.team || [],
+          player2Team: data.player2?.team || []
+        }
+      };
+      
+      // If no turns were captured, create a minimal turn
+      if (!battleLog.turns || battleLog.turns.length === 0) {
+        battleLog.turns = [{
+          turnNumber: 1,
+          player1Action: { type: 'unknown', move: 'Unknown', pokemon: 'Unknown' },
+          player2Action: { type: 'unknown', move: 'Unknown', pokemon: 'Unknown' },
+          fieldState: { weather: null, terrain: null }
+        }];
+      }
+      
+      console.log('[TUTORIAS] Storing battle log:', {
+        id: battleLog.id,
+        player1: battleLog.player1Uuid,
+        player2: battleLog.player2Uuid,
+        winner: battleLog.winner,
+        turns: battleLog.turns.length
+      });
+      
       const battleId = await this.battleLogService.storeBattleLog(battleLog);
       res.json({ success: true, battleId });
     } catch (error) {
       console.error('Error in storeBattleLog:', error);
-      res.status(500).json({ error: 'Error al guardar log de batalla' });
+      res.status(500).json({ success: false, error: 'Error al guardar log de batalla' });
     }
   };
 
