@@ -410,17 +410,25 @@ router.post('/smart-remove-duplicates', async (req, res) => {
     console.log('[POKEMON-SYNC] Connected to MongoDB');
     const db = client.db();
     
-    // Find player
+    // Find player - try 'users' collection first (where pokebox data is stored)
     const query = playerUuid ? { uuid: playerUuid } : { discordId };
     console.log('[POKEMON-SYNC] Query:', JSON.stringify(query));
-    const player = await db.collection('players').findOne(query);
+    
+    // Try users collection first
+    let player = await db.collection('users').findOne(query);
+    
+    // If not found in users, try players collection
+    if (!player) {
+      console.log('[POKEMON-SYNC] Not found in users, trying players collection...');
+      player = await db.collection('players').findOne(query);
+    }
     
     if (!player) {
-      console.log('[POKEMON-SYNC] ERROR: Player not found');
+      console.log('[POKEMON-SYNC] ERROR: Player not found in users or players');
       return res.status(404).json({ error: 'Jugador no encontrado' });
     }
     
-    console.log('[POKEMON-SYNC] Found player:', player.username, player.uuid);
+    console.log('[POKEMON-SYNC] Found player:', player.username || player.discordUsername, player.uuid);
     
     // Collect all Pokemon from party and PC
     const allPokemon = [];
