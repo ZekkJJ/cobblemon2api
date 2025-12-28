@@ -613,10 +613,17 @@ router.post('/smart-remove-duplicates', async (req, res) => {
     
     // Actually queue the removals
     const queuedOperations = [];
+    const playerMinecraftUuid = player.minecraftUuid || player.uuid;
+    
+    if (!playerMinecraftUuid) {
+      console.log('[POKEMON-SYNC] ERROR: Player has no minecraftUuid or uuid');
+      return res.status(400).json({ error: 'Player has no Minecraft UUID' });
+    }
+    
     for (const pokemon of toRemove) {
       const operation = {
         id: Date.now().toString() + '_' + pokemon.uuid,
-        playerUuid: player.uuid,
+        playerUuid: playerMinecraftUuid,
         operation: 'REMOVE',
         pokemonUuid: pokemon.uuid,
         reason: `Smart duplicate removal: ${pokemon.reason}`,
@@ -628,7 +635,7 @@ router.post('/smart-remove-duplicates', async (req, res) => {
       queuedOperations.push(operation);
     }
     
-    console.log(`[POKEMON-SYNC] Smart duplicate removal: Queued ${queuedOperations.length} removals for ${player.uuid}`);
+    console.log(`[POKEMON-SYNC] Smart duplicate removal: Queued ${queuedOperations.length} removals for ${playerMinecraftUuid}`);
     
     res.json({
       success: true,
