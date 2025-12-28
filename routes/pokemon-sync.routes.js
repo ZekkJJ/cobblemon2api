@@ -5,10 +5,7 @@
  */
 
 const express = require('express');
-const router = express.Router();
-const { MongoClient, ObjectId } = require('mongodb');
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/cobblemon';
 const ADMIN_DISCORD_ID = '478742167557505034';
 
 // Queue for pending Pokemon operations (plugin polls this)
@@ -17,6 +14,13 @@ let pendingPokemonOperations = [];
 
 // Track last known Pokemon state per player (for change detection)
 let playerPokemonCache = new Map();
+
+/**
+ * Initialize Pokemon Sync Routes
+ * @param {Function} getDb - Function to get database connection
+ */
+function initPokemonSyncRoutes(getDb) {
+  const router = express.Router();
 
 /**
  * GET /api/pokemon-sync/poll/:uuid
@@ -170,14 +174,11 @@ router.post('/remove', async (req, res) => {
  * Called periodically by the backend or on-demand
  */
 router.post('/detect-changes', async (req, res) => {
-  let client;
   try {
-    client = new MongoClient(MONGODB_URI);
-    await client.connect();
-    const db = client.db();
+    const db = getDb();
     
     // Get all players with Pokemon data
-    const players = await db.collection('players').find({
+    const players = await db.collection('users').find({
       $or: [
         { 'party': { $exists: true, $ne: [] } },
         { 'pcStorage': { $exists: true, $ne: [] } }
@@ -280,8 +281,6 @@ router.post('/detect-changes', async (req, res) => {
   } catch (error) {
     console.error('[POKEMON-SYNC] Detect changes error:', error);
     res.status(500).json({ error: error.message });
-  } finally {
-    if (client) await client.close();
   }
 });
 
@@ -354,15 +353,11 @@ router.get('/version', (req, res) => {
  */
 router.get('/test-duplicates/:discordId', async (req, res) => {
   console.log('[POKEMON-SYNC] test-duplicates GET called for:', req.params.discordId);
-  let client;
   try {
     const { discordId } = req.params;
+    const db = getDb();
     
-    client = new MongoClient(MONGODB_URI);
-    await client.connect();
-    const db = client.db();
-    
-    const player = await db.collection('players').findOne({ discordId });
+    const player = await db.collection('users').findOne({ discordId });
     
     if (!player) {
       return res.status(404).json({ error: 'Jugador no encontrado', discordId });
@@ -371,16 +366,15 @@ router.get('/test-duplicates/:discordId', async (req, res) => {
     res.json({
       success: true,
       playerFound: true,
-      uuid: player.uuid,
-      username: player.username,
+      uuid: player.minecraftUuid || player.uuid,
+      username: player.minecraftUsername || player.username,
       partyCount: player.party?.length || 0,
+      pokemonPartyCount: player.pokemonParty?.length || 0,
       pcBoxes: player.pcStorage?.length || 0
     });
   } catch (error) {
     console.error('[POKEMON-SYNC] test-duplicates error:', error);
     res.status(500).json({ error: error.message });
-  } finally {
-    if (client) await client.close();
   }
 });
 
@@ -393,8 +387,6 @@ router.post('/smart-remove-duplicates', async (req, res) => {
   console.log('[POKEMON-SYNC] ========================================');
   console.log('[POKEMON-SYNC] smart-remove-duplicates POST received');
   console.log('[POKEMON-SYNC] Body:', JSON.stringify(req.body));
-  console.log('[POKEMON-SYNC] Headers:', JSON.stringify(req.headers));
-  let client;
   try {
     const { discordId, playerUuid, dryRun = true } = req.body;
     
@@ -405,30 +397,21 @@ router.post('/smart-remove-duplicates', async (req, res) => {
       return res.status(400).json({ error: 'discordId o playerUuid es requerido' });
     }
     
-    client = new MongoClient(MONGODB_URI);
-    await client.connect();
-    console.log('[POKEMON-SYNC] Connected to MongoDB');
-    const db = client.db();
+    const db = getDb();
+    console.log('[POKEMON-SYNC] Using shared database connection:', db.databaseName);
     
-    // Find player - try 'users' collection first (where pokebox data is stored)
-    const query = playerUuid ? { uuid: playerUuid } : { discordId };
+    // Find player - use 'users' collection (where pokebox data is stored)
+    const query = playerUuid ? { minecraftUuid: playerUuid } : { discordId };
     console.log('[POKEMON-SYNC] Query:', JSON.stringify(query));
     
-    // Try users collection first
     let player = await db.collection('users').findOne(query);
     
-    // If not found in users, try players collection
     if (!player) {
-      console.log('[POKEMON-SYNC] Not found in users, trying players collection...');
-      player = await db.collection('players').findOne(query);
-    }
-    
-    if (!player) {
-      console.log('[POKEMON-SYNC] ERROR: Player not found in users or players');
+      console.log('[POKEMON-SYNC] ERROR: Player not found');
       return res.status(404).json({ error: 'Jugador no encontrado' });
     }
     
-    console.log('[POKEMON-SYNC] Found player:', player.username || player.discordUsername, player.uuid);
+    console.log('[POKEMON-SYNC] Found player:', player.minecraftUsername || player.discordUsername, player.minecraftUuid);
     
     // ============================================
     // HELPER FUNCTIONS (same as tutorias)
@@ -663,8 +646,6 @@ router.post('/smart-remove-duplicates', async (req, res) => {
   } catch (error) {
     console.error('[POKEMON-SYNC] Smart remove duplicates error:', error);
     res.status(500).json({ error: error.message });
-  } finally {
-    if (client) await client.close();
   }
 });
 
