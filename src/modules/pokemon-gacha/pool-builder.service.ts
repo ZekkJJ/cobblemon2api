@@ -16,7 +16,7 @@ import {
   PITY_CONFIG,
   FeaturedItem,
 } from '../../shared/types/pokemon-gacha.types.js';
-import { POKEMON_POOL_BY_RARITY } from '../../shared/data/gacha-pokemon-pool.data.js';
+import { POKEMON_POOL_BY_RARITY } from '../../shared/data/gacha-pokemon-helpers.js';
 import { ITEMS_POOL_BY_RARITY } from '../../shared/data/gacha-items-pool.data.js';
 
 /**
@@ -84,7 +84,7 @@ export class PoolBuilderService {
     );
 
     // Agregar Pokémon al pool
-    for (const [rarity, pokemon] of Object.entries(pokemonPool)) {
+    for (const [rarity, pokemon] of Object.entries(pokemonPool) as [Rarity, PokemonPoolEntry[]][]) {
       const rarityKey = rarity as Rarity;
       const baseProb = BASE_PROBABILITIES[rarityKey];
 

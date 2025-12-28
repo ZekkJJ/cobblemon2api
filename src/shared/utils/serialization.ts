@@ -119,7 +119,7 @@ export function deserializePokemon(data: unknown): DeserializationResult<Pokemon
   
   return {
     success: true,
-    data: result.data,
+    data: result.data as Pokemon,
   };
 }
 

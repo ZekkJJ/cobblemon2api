@@ -20,13 +20,14 @@ export type Rarity = typeof RARITY_LEVELS[number];
 
 /**
  * Probabilidades base por rareza (suman 100%)
+ * AJUSTADO: Epic reducido de 4% a 1.5% para hacer pseudos más raros
  */
 export const BASE_PROBABILITIES: Record<Rarity, number> = {
-  common: 0.60,      // 60%
+  common: 0.62,      // 62% (aumentado para compensar)
   uncommon: 0.25,    // 25%
-  rare: 0.10,        // 10%
-  epic: 0.04,        // 4%
-  legendary: 0.006,  // 0.6%
+  rare: 0.11,        // 11% (ligeramente aumentado)
+  epic: 0.015,       // 1.5% (REDUCIDO de 4% - pseudos más raros)
+  legendary: 0.004,  // 0.4% (ligeramente reducido)
   mythic: 0.000001,  // 0.0001%
 };
 
@@ -52,11 +53,12 @@ export const PULL_COSTS = {
 
 /**
  * Configuración de pity
+ * AJUSTADO: Hard pity subido a 400 tiradas (era 90)
  */
 export const PITY_CONFIG = {
-  softPityStart: 75,
-  hardPity: 90,
-  softPityIncrement: 0.05, // 5% por tirada después de soft pity
+  softPityStart: 350,      // Soft pity empieza en 350 (era 75)
+  hardPity: 400,           // Hard pity garantiza Epic+ en 400 (era 90)
+  softPityIncrement: 0.02, // 2% por tirada después de soft pity (era 5%)
 } as const;
 
 /**
@@ -287,8 +289,8 @@ export interface GachaHistoryEntry {
 export interface HistoryFilters {
   bannerId?: string;
   rarity?: Rarity;
-  startDate?: Date;
-  endDate?: Date;
+  startDate?: string | Date;
+  endDate?: string | Date;
   limit?: number;
   offset?: number;
 }
@@ -399,8 +401,8 @@ export interface CreateBannerData {
   descriptionEs?: string;
   artwork: string;
   type: 'standard' | 'limited' | 'event';
-  startDate: Date;
-  endDate?: Date | null;
+  startDate: Date | string;
+  endDate?: Date | string | null;
   featuredPokemon?: FeaturedItem[];
   featuredItems?: FeaturedItem[];
   rateUpMultiplier?: number;
@@ -419,8 +421,8 @@ export interface UpdateBannerData {
   description?: string;
   descriptionEs?: string;
   artwork?: string;
-  startDate?: Date;
-  endDate?: Date | null;
+  startDate?: Date | string;
+  endDate?: Date | string | null;
   isActive?: boolean;
   featuredPokemon?: FeaturedItem[];
   featuredItems?: FeaturedItem[];

@@ -6,7 +6,7 @@
  */
 
 import { GachaReward, Rarity } from '../../shared/types/pokemon-gacha.types.js';
-import { getPokemonSprite, getPokemonArtwork } from '../../shared/data/gacha-pokemon-pool.data.js';
+import { getPokemonSprite, getPokemonArtwork } from '../../shared/data/gacha-pokemon-helpers.js';
 
 // Colores por rareza para embeds de Discord
 const RARITY_COLORS: Record<Rarity, number> = {

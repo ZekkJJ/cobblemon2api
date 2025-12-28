@@ -10,6 +10,7 @@ import { ModsService } from './mods.service.js';
 import { FileStorageService } from './file-storage.service.js';
 import { ZipGeneratorService } from './zip-generator.service.js';
 import { createModSchema, updateModSchema } from './mods.schema.js';
+import { CreateModInput } from '../../shared/types/mod.types.js';
 import { ZodError } from 'zod';
 
 /**
@@ -222,7 +223,7 @@ export class ModsController {
   createMod = async (req: Request, res: Response): Promise<void> => {
     try {
       // Validar datos
-      const validatedData = createModSchema.parse(req.body);
+      const validatedData = createModSchema.parse(req.body) as CreateModInput;
 
       // Verificar que hay archivo
       if (!req.file) {

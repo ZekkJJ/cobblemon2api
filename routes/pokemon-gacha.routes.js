@@ -20,14 +20,14 @@ const crypto = require('crypto');
 const PULL_COSTS = { single: 500, multi: 4500 };
 const SHINY_RATE = 1 / 4096;
 
-// PITY SYSTEM - Genshin Impact style
-// Hard pity at 90 pulls (guaranteed epic+)
-// Soft pity starts at 75 and increases dramatically
-const SOFT_PITY_START = 75;
-const HARD_PITY = 90;
-// Each pull after soft pity adds 5% to epic chance (Genshin-style)
-// At pull 75: +0%, at pull 76: +5%, at pull 80: +25%, at pull 89: +70%, at pull 90: 100%
-const SOFT_PITY_INCREASE = 0.05; // 5% per pull after soft pity start
+// PITY SYSTEM - Extended for Los Pitufos
+// Hard pity at 400 pulls (guaranteed epic+)
+// Soft pity starts at 350 and increases gradually
+const SOFT_PITY_START = 350;
+const HARD_PITY = 400;
+// Each pull after soft pity adds 2% to epic chance
+// At pull 350: +0%, at pull 375: +50%, at pull 400: 100%
+const SOFT_PITY_INCREASE = 0.02; // 2% per pull after soft pity start
 
 // ============================================
 // SISTEMA DE STARDUST POR DUPLICADOS
@@ -71,15 +71,15 @@ const FUSION_CONFIG = {
 const PRECISION = 100000000; // 10^8
 
 // Probabilidades base por rareza (en formato de alta precisión)
-// ULTRA MEGA NERFED - Todo es MUY raro
-// common=70%, uncommon=25%, rare=4.9%, epic=0.099%, legendary=0.0009%, mythic=0.0001%
+// SUPER NERFED - Epic (pseudos) al 1% máximo
+// common=63%, uncommon=25%, rare=10.5%, epic=1%, legendary=0.4%, mythic=0.1%
 const BASE_RATES_PRECISE = {
-  common:    70000000,  // 70.000000%
+  common:    63000000,  // 63.000000%
   uncommon:  25000000,  // 25.000000%
-  rare:       4900000,  //  4.900000%
-  epic:         99000,  //  0.099000% (1 en 1,010 - pseudos tier 1)
-  legendary:      900,  //  0.000900% (1 en 111,111 - CASI IMPOSIBLE)
-  mythic:         100,  //  0.000100% (1 en 1,000,000 - IMPOSIBLE)
+  rare:      10500000,  // 10.500000%
+  epic:       1000000,  //  1.000000% (pseudos - MÁXIMO 1%)
+  legendary:   400000,  //  0.400000% (legendarios)
+  mythic:      100000,  //  0.100000% (míticos)
 };
 
 // Convertir a decimales para compatibilidad

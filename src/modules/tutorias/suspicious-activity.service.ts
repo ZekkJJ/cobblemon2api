@@ -255,8 +255,8 @@ export class SuspiciousActivityService {
           tutoriasWarnings: {
             message,
             timestamp: new Date()
-          } as any
-        } 
+          }
+        } as any
       }
     );
 

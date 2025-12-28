@@ -177,7 +177,7 @@ export const COMMON_POKEMON: PokemonPoolEntry[] = [
   { pokemonId: 659, name: 'Bunnelby', nameEs: 'Bunnelby', rarity: 'common', baseWeight: 1, types: ['Normal'] },
   { pokemonId: 661, name: 'Fletchling', nameEs: 'Fletchling', rarity: 'common', baseWeight: 1, types: ['Normal', 'Flying'] },
   { pokemonId: 664, name: 'Scatterbug', nameEs: 'Scatterbug', rarity: 'common', baseWeight: 1, types: ['Bug'] },
-  { pokemonId: 669, name: 'Flabébé', nameEs: 'Flabébé', rarity: 'common', baseWeight: 1, types: ['Fairy'] },
+  { pokemonId: 669, name: 'Flabebe', nameEs: 'Flabebe', rarity: 'common', baseWeight: 1, types: ['Fairy'] },
   { pokemonId: 672, name: 'Skiddo', nameEs: 'Skiddo', rarity: 'common', baseWeight: 1, types: ['Grass'] },
   { pokemonId: 674, name: 'Pancham', nameEs: 'Pancham', rarity: 'common', baseWeight: 1, types: ['Fighting'] },
   { pokemonId: 677, name: 'Espurr', nameEs: 'Espurr', rarity: 'common', baseWeight: 1, types: ['Psychic'] },
@@ -220,7 +220,6 @@ export const COMMON_POKEMON: PokemonPoolEntry[] = [
   { pokemonId: 878, name: 'Cufant', nameEs: 'Cufant', rarity: 'common', baseWeight: 1, types: ['Steel'] },
   { pokemonId: 885, name: 'Dreepy', nameEs: 'Dreepy', rarity: 'common', baseWeight: 1, types: ['Dragon', 'Ghost'] },
 ];
-
 
 /**
  * Pokémon Poco Comunes (25% probabilidad base) - ~100 Pokemon
@@ -381,42 +380,6 @@ export const UNCOMMON_POKEMON: PokemonPoolEntry[] = [
   { pokemonId: 608, name: 'Lampent', nameEs: 'Lampent', rarity: 'uncommon', baseWeight: 1, types: ['Ghost', 'Fire'] },
   { pokemonId: 614, name: 'Beartic', nameEs: 'Beartic', rarity: 'uncommon', baseWeight: 1, types: ['Ice'] },
   { pokemonId: 620, name: 'Mienshao', nameEs: 'Mienshao', rarity: 'uncommon', baseWeight: 1, types: ['Fighting'] },
-  { pokemonId: 660, name: 'Diggersby', nameEs: 'Diggersby', rarity: 'uncommon', baseWeight: 1, types: ['Normal', 'Ground'] },
-  { pokemonId: 662, name: 'Fletchinder', nameEs: 'Fletchinder', rarity: 'uncommon', baseWeight: 1, types: ['Fire', 'Flying'] },
-  { pokemonId: 670, name: 'Floette', nameEs: 'Floette', rarity: 'uncommon', baseWeight: 1, types: ['Fairy'] },
-  { pokemonId: 673, name: 'Gogoat', nameEs: 'Gogoat', rarity: 'uncommon', baseWeight: 1, types: ['Grass'] },
-  { pokemonId: 678, name: 'Meowstic', nameEs: 'Meowstic', rarity: 'uncommon', baseWeight: 1, types: ['Psychic'] },
-  { pokemonId: 687, name: 'Malamar', nameEs: 'Malamar', rarity: 'uncommon', baseWeight: 1, types: ['Dark', 'Psychic'] },
-  { pokemonId: 689, name: 'Barbaracle', nameEs: 'Barbaracle', rarity: 'uncommon', baseWeight: 1, types: ['Rock', 'Water'] },
-  { pokemonId: 691, name: 'Dragalge', nameEs: 'Dragalge', rarity: 'uncommon', baseWeight: 1, types: ['Poison', 'Dragon'] },
-  { pokemonId: 693, name: 'Clawitzer', nameEs: 'Clawitzer', rarity: 'uncommon', baseWeight: 1, types: ['Water'] },
-  { pokemonId: 695, name: 'Heliolisk', nameEs: 'Heliolisk', rarity: 'uncommon', baseWeight: 1, types: ['Electric', 'Normal'] },
-  { pokemonId: 705, name: 'Sliggoo', nameEs: 'Sliggoo', rarity: 'uncommon', baseWeight: 1, types: ['Dragon'] },
-  { pokemonId: 715, name: 'Noivern', nameEs: 'Noivern', rarity: 'uncommon', baseWeight: 1, types: ['Flying', 'Dragon'] },
-  { pokemonId: 732, name: 'Trumbeak', nameEs: 'Trumbeak', rarity: 'uncommon', baseWeight: 1, types: ['Normal', 'Flying'] },
-  { pokemonId: 735, name: 'Gumshoos', nameEs: 'Gumshoos', rarity: 'uncommon', baseWeight: 1, types: ['Normal'] },
-  { pokemonId: 743, name: 'Ribombee', nameEs: 'Ribombee', rarity: 'uncommon', baseWeight: 1, types: ['Bug', 'Fairy'] },
-  { pokemonId: 745, name: 'Lycanroc', nameEs: 'Lycanroc', rarity: 'uncommon', baseWeight: 1, types: ['Rock'] },
-  { pokemonId: 748, name: 'Toxapex', nameEs: 'Toxapex', rarity: 'uncommon', baseWeight: 1, types: ['Poison', 'Water'] },
-  { pokemonId: 752, name: 'Araquanid', nameEs: 'Araquanid', rarity: 'uncommon', baseWeight: 1, types: ['Water', 'Bug'] },
-  { pokemonId: 754, name: 'Lurantis', nameEs: 'Lurantis', rarity: 'uncommon', baseWeight: 1, types: ['Grass'] },
-  { pokemonId: 758, name: 'Salazzle', nameEs: 'Salazzle', rarity: 'uncommon', baseWeight: 1, types: ['Poison', 'Fire'] },
-  { pokemonId: 760, name: 'Bewear', nameEs: 'Bewear', rarity: 'uncommon', baseWeight: 1, types: ['Normal', 'Fighting'] },
-  { pokemonId: 762, name: 'Steenee', nameEs: 'Steenee', rarity: 'uncommon', baseWeight: 1, types: ['Grass'] },
-  { pokemonId: 822, name: 'Corvisquire', nameEs: 'Corvisquire', rarity: 'uncommon', baseWeight: 1, types: ['Flying'] },
-  { pokemonId: 825, name: 'Dottler', nameEs: 'Dottler', rarity: 'uncommon', baseWeight: 1, types: ['Bug', 'Psychic'] },
-  { pokemonId: 828, name: 'Thievul', nameEs: 'Thievul', rarity: 'uncommon', baseWeight: 1, types: ['Dark'] },
-  { pokemonId: 830, name: 'Eldegoss', nameEs: 'Eldegoss', rarity: 'uncommon', baseWeight: 1, types: ['Grass'] },
-  { pokemonId: 832, name: 'Dubwool', nameEs: 'Dubwool', rarity: 'uncommon', baseWeight: 1, types: ['Normal'] },
-  { pokemonId: 834, name: 'Drednaw', nameEs: 'Drednaw', rarity: 'uncommon', baseWeight: 1, types: ['Water', 'Rock'] },
-  { pokemonId: 836, name: 'Boltund', nameEs: 'Boltund', rarity: 'uncommon', baseWeight: 1, types: ['Electric'] },
-  { pokemonId: 851, name: 'Centiskorch', nameEs: 'Centiskorch', rarity: 'uncommon', baseWeight: 1, types: ['Fire', 'Bug'] },
-  { pokemonId: 855, name: 'Polteageist', nameEs: 'Polteageist', rarity: 'uncommon', baseWeight: 1, types: ['Ghost'] },
-  { pokemonId: 857, name: 'Hattrem', nameEs: 'Hattrem', rarity: 'uncommon', baseWeight: 1, types: ['Psychic'] },
-  { pokemonId: 860, name: 'Morgrem', nameEs: 'Morgrem', rarity: 'uncommon', baseWeight: 1, types: ['Dark', 'Fairy'] },
-  { pokemonId: 873, name: 'Frosmoth', nameEs: 'Frosmoth', rarity: 'uncommon', baseWeight: 1, types: ['Ice', 'Bug'] },
-  { pokemonId: 879, name: 'Copperajah', nameEs: 'Copperajah', rarity: 'uncommon', baseWeight: 1, types: ['Steel'] },
-  { pokemonId: 886, name: 'Drakloak', nameEs: 'Drakloak', rarity: 'uncommon', baseWeight: 1, types: ['Dragon', 'Ghost'] },
 ];
 
 
@@ -440,9 +403,11 @@ export const RARE_POKEMON: PokemonPoolEntry[] = [
   { pokemonId: 45, name: 'Vileplume', nameEs: 'Vileplume', rarity: 'rare', baseWeight: 1, types: ['Grass', 'Poison'] },
   { pokemonId: 59, name: 'Arcanine', nameEs: 'Arcanine', rarity: 'rare', baseWeight: 1, types: ['Fire'] },
   { pokemonId: 62, name: 'Poliwrath', nameEs: 'Poliwrath', rarity: 'rare', baseWeight: 1, types: ['Water', 'Fighting'] },
-  { pokemonId: 64, name: 'Kadabra', nameEs: 'Kadabra', rarity: 'rare', baseWeight: 1, types: ['Psychic'] },
+  { pokemonId: 65, name: 'Alakazam', nameEs: 'Alakazam', rarity: 'rare', baseWeight: 1, types: ['Psychic'] },
+  { pokemonId: 68, name: 'Machamp', nameEs: 'Machamp', rarity: 'rare', baseWeight: 1, types: ['Fighting'] },
   { pokemonId: 71, name: 'Victreebel', nameEs: 'Victreebel', rarity: 'rare', baseWeight: 1, types: ['Grass', 'Poison'] },
   { pokemonId: 73, name: 'Tentacruel', nameEs: 'Tentacruel', rarity: 'rare', baseWeight: 1, types: ['Water', 'Poison'] },
+  { pokemonId: 76, name: 'Golem', nameEs: 'Golem', rarity: 'rare', baseWeight: 1, types: ['Rock', 'Ground'] },
   { pokemonId: 78, name: 'Rapidash', nameEs: 'Rapidash', rarity: 'rare', baseWeight: 1, types: ['Fire'] },
   { pokemonId: 91, name: 'Cloyster', nameEs: 'Cloyster', rarity: 'rare', baseWeight: 1, types: ['Water', 'Ice'] },
   { pokemonId: 94, name: 'Gengar', nameEs: 'Gengar', rarity: 'rare', baseWeight: 1, types: ['Ghost', 'Poison'] },
@@ -454,11 +419,13 @@ export const RARE_POKEMON: PokemonPoolEntry[] = [
   { pokemonId: 115, name: 'Kangaskhan', nameEs: 'Kangaskhan', rarity: 'rare', baseWeight: 1, types: ['Normal'] },
   { pokemonId: 121, name: 'Starmie', nameEs: 'Starmie', rarity: 'rare', baseWeight: 1, types: ['Water', 'Psychic'] },
   { pokemonId: 130, name: 'Gyarados', nameEs: 'Gyarados', rarity: 'rare', baseWeight: 1, types: ['Water', 'Flying'] },
+  { pokemonId: 131, name: 'Lapras', nameEs: 'Lapras', rarity: 'rare', baseWeight: 1, types: ['Water', 'Ice'] },
   { pokemonId: 134, name: 'Vaporeon', nameEs: 'Vaporeon', rarity: 'rare', baseWeight: 1, types: ['Water'] },
   { pokemonId: 135, name: 'Jolteon', nameEs: 'Jolteon', rarity: 'rare', baseWeight: 1, types: ['Electric'] },
   { pokemonId: 136, name: 'Flareon', nameEs: 'Flareon', rarity: 'rare', baseWeight: 1, types: ['Fire'] },
   { pokemonId: 139, name: 'Omastar', nameEs: 'Omastar', rarity: 'rare', baseWeight: 1, types: ['Rock', 'Water'] },
   { pokemonId: 141, name: 'Kabutops', nameEs: 'Kabutops', rarity: 'rare', baseWeight: 1, types: ['Rock', 'Water'] },
+  { pokemonId: 143, name: 'Snorlax', nameEs: 'Snorlax', rarity: 'rare', baseWeight: 1, types: ['Normal'] },
   // Gen 2 Final evolutions
   { pokemonId: 154, name: 'Meganium', nameEs: 'Meganium', rarity: 'rare', baseWeight: 1, types: ['Grass'] },
   { pokemonId: 157, name: 'Typhlosion', nameEs: 'Typhlosion', rarity: 'rare', baseWeight: 1, types: ['Fire'] },
@@ -468,7 +435,6 @@ export const RARE_POKEMON: PokemonPoolEntry[] = [
   { pokemonId: 182, name: 'Bellossom', nameEs: 'Bellossom', rarity: 'rare', baseWeight: 1, types: ['Grass'] },
   { pokemonId: 186, name: 'Politoed', nameEs: 'Politoed', rarity: 'rare', baseWeight: 1, types: ['Water'] },
   { pokemonId: 189, name: 'Jumpluff', nameEs: 'Jumpluff', rarity: 'rare', baseWeight: 1, types: ['Grass', 'Flying'] },
-  { pokemonId: 192, name: 'Sunflora', nameEs: 'Sunflora', rarity: 'rare', baseWeight: 1, types: ['Grass'] },
   { pokemonId: 196, name: 'Espeon', nameEs: 'Espeon', rarity: 'rare', baseWeight: 1, types: ['Psychic'] },
   { pokemonId: 197, name: 'Umbreon', nameEs: 'Umbreon', rarity: 'rare', baseWeight: 1, types: ['Dark'] },
   { pokemonId: 199, name: 'Slowking', nameEs: 'Slowking', rarity: 'rare', baseWeight: 1, types: ['Water', 'Psychic'] },
@@ -490,64 +456,572 @@ export const RARE_POKEMON: PokemonPoolEntry[] = [
   { pokemonId: 334, name: 'Altaria', nameEs: 'Altaria', rarity: 'rare', baseWeight: 1, types: ['Dragon', 'Flying'] },
   { pokemonId: 350, name: 'Milotic', nameEs: 'Milotic', rarity: 'rare', baseWeight: 1, types: ['Water'] },
   { pokemonId: 365, name: 'Walrein', nameEs: 'Walrein', rarity: 'rare', baseWeight: 1, types: ['Ice', 'Water'] },
+  // Gen 4 Final evolutions
+  { pokemonId: 389, name: 'Torterra', nameEs: 'Torterra', rarity: 'rare', baseWeight: 1, types: ['Grass', 'Ground'] },
   { pokemonId: 392, name: 'Infernape', nameEs: 'Infernape', rarity: 'rare', baseWeight: 1, types: ['Fire', 'Fighting'] },
   { pokemonId: 395, name: 'Empoleon', nameEs: 'Empoleon', rarity: 'rare', baseWeight: 1, types: ['Water', 'Steel'] },
   { pokemonId: 398, name: 'Staraptor', nameEs: 'Staraptor', rarity: 'rare', baseWeight: 1, types: ['Normal', 'Flying'] },
   { pokemonId: 405, name: 'Luxray', nameEs: 'Luxray', rarity: 'rare', baseWeight: 1, types: ['Electric'] },
   { pokemonId: 407, name: 'Roserade', nameEs: 'Roserade', rarity: 'rare', baseWeight: 1, types: ['Grass', 'Poison'] },
-  { pokemonId: 416, name: 'Vespiquen', nameEs: 'Vespiquen', rarity: 'rare', baseWeight: 1, types: ['Bug', 'Flying'] },
   { pokemonId: 430, name: 'Honchkrow', nameEs: 'Honchkrow', rarity: 'rare', baseWeight: 1, types: ['Dark', 'Flying'] },
   { pokemonId: 429, name: 'Mismagius', nameEs: 'Mismagius', rarity: 'rare', baseWeight: 1, types: ['Ghost'] },
   { pokemonId: 461, name: 'Weavile', nameEs: 'Weavile', rarity: 'rare', baseWeight: 1, types: ['Dark', 'Ice'] },
   { pokemonId: 462, name: 'Magnezone', nameEs: 'Magnezone', rarity: 'rare', baseWeight: 1, types: ['Electric', 'Steel'] },
-  { pokemonId: 463, name: 'Lickilicky', nameEs: 'Lickilicky', rarity: 'rare', baseWeight: 1, types: ['Normal'] },
   { pokemonId: 464, name: 'Rhyperior', nameEs: 'Rhyperior', rarity: 'rare', baseWeight: 1, types: ['Ground', 'Rock'] },
-  { pokemonId: 465, name: 'Tangrowth', nameEs: 'Tangrowth', rarity: 'rare', baseWeight: 1, types: ['Grass'] },
   { pokemonId: 466, name: 'Electivire', nameEs: 'Electivire', rarity: 'rare', baseWeight: 1, types: ['Electric'] },
   { pokemonId: 467, name: 'Magmortar', nameEs: 'Magmortar', rarity: 'rare', baseWeight: 1, types: ['Fire'] },
   { pokemonId: 468, name: 'Togekiss', nameEs: 'Togekiss', rarity: 'rare', baseWeight: 1, types: ['Fairy', 'Flying'] },
-  { pokemonId: 469, name: 'Yanmega', nameEs: 'Yanmega', rarity: 'rare', baseWeight: 1, types: ['Bug', 'Flying'] },
   { pokemonId: 470, name: 'Leafeon', nameEs: 'Leafeon', rarity: 'rare', baseWeight: 1, types: ['Grass'] },
   { pokemonId: 471, name: 'Glaceon', nameEs: 'Glaceon', rarity: 'rare', baseWeight: 1, types: ['Ice'] },
   { pokemonId: 472, name: 'Gliscor', nameEs: 'Gliscor', rarity: 'rare', baseWeight: 1, types: ['Ground', 'Flying'] },
   { pokemonId: 473, name: 'Mamoswine', nameEs: 'Mamoswine', rarity: 'rare', baseWeight: 1, types: ['Ice', 'Ground'] },
   { pokemonId: 474, name: 'Porygon-Z', nameEs: 'Porygon-Z', rarity: 'rare', baseWeight: 1, types: ['Normal'] },
   { pokemonId: 475, name: 'Gallade', nameEs: 'Gallade', rarity: 'rare', baseWeight: 1, types: ['Psychic', 'Fighting'] },
-  { pokemonId: 476, name: 'Probopass', nameEs: 'Probopass', rarity: 'rare', baseWeight: 1, types: ['Rock', 'Steel'] },
   { pokemonId: 477, name: 'Dusknoir', nameEs: 'Dusknoir', rarity: 'rare', baseWeight: 1, types: ['Ghost'] },
   { pokemonId: 478, name: 'Froslass', nameEs: 'Froslass', rarity: 'rare', baseWeight: 1, types: ['Ice', 'Ghost'] },
+  // Gen 5+ Final evolutions
+  { pokemonId: 497, name: 'Serperior', nameEs: 'Serperior', rarity: 'rare', baseWeight: 1, types: ['Grass'] },
+  { pokemonId: 500, name: 'Emboar', nameEs: 'Emboar', rarity: 'rare', baseWeight: 1, types: ['Fire', 'Fighting'] },
+  { pokemonId: 503, name: 'Samurott', nameEs: 'Samurott', rarity: 'rare', baseWeight: 1, types: ['Water'] },
   { pokemonId: 508, name: 'Stoutland', nameEs: 'Stoutland', rarity: 'rare', baseWeight: 1, types: ['Normal'] },
-  { pokemonId: 521, name: 'Unfezant', nameEs: 'Unfezant', rarity: 'rare', baseWeight: 1, types: ['Normal', 'Flying'] },
   { pokemonId: 530, name: 'Excadrill', nameEs: 'Excadrill', rarity: 'rare', baseWeight: 1, types: ['Ground', 'Steel'] },
-  { pokemonId: 537, name: 'Seismitoad', nameEs: 'Seismitoad', rarity: 'rare', baseWeight: 1, types: ['Water', 'Ground'] },
-  { pokemonId: 542, name: 'Leavanny', nameEs: 'Leavanny', rarity: 'rare', baseWeight: 1, types: ['Bug', 'Grass'] },
-  { pokemonId: 545, name: 'Scolipede', nameEs: 'Scolipede', rarity: 'rare', baseWeight: 1, types: ['Bug', 'Poison'] },
-  { pokemonId: 547, name: 'Whimsicott', nameEs: 'Whimsicott', rarity: 'rare', baseWeight: 1, types: ['Grass', 'Fairy'] },
-  { pokemonId: 549, name: 'Lilligant', nameEs: 'Lilligant', rarity: 'rare', baseWeight: 1, types: ['Grass'] },
   { pokemonId: 553, name: 'Krookodile', nameEs: 'Krookodile', rarity: 'rare', baseWeight: 1, types: ['Ground', 'Dark'] },
-  { pokemonId: 563, name: 'Cofagrigus', nameEs: 'Cofagrigus', rarity: 'rare', baseWeight: 1, types: ['Ghost'] },
   { pokemonId: 579, name: 'Reuniclus', nameEs: 'Reuniclus', rarity: 'rare', baseWeight: 1, types: ['Psychic'] },
-  { pokemonId: 593, name: 'Jellicent', nameEs: 'Jellicent', rarity: 'rare', baseWeight: 1, types: ['Water', 'Ghost'] },
   { pokemonId: 598, name: 'Ferrothorn', nameEs: 'Ferrothorn', rarity: 'rare', baseWeight: 1, types: ['Grass', 'Steel'] },
-  { pokemonId: 604, name: 'Eelektross', nameEs: 'Eelektross', rarity: 'rare', baseWeight: 1, types: ['Electric'] },
-  { pokemonId: 606, name: 'Beheeyem', nameEs: 'Beheeyem', rarity: 'rare', baseWeight: 1, types: ['Psychic'] },
   { pokemonId: 609, name: 'Chandelure', nameEs: 'Chandelure', rarity: 'rare', baseWeight: 1, types: ['Ghost', 'Fire'] },
-  { pokemonId: 617, name: 'Accelgor', nameEs: 'Accelgor', rarity: 'rare', baseWeight: 1, types: ['Bug'] },
-  { pokemonId: 618, name: 'Stunfisk', nameEs: 'Stunfisk', rarity: 'rare', baseWeight: 1, types: ['Ground', 'Electric'] },
-  { pokemonId: 623, name: 'Golurk', nameEs: 'Golurk', rarity: 'rare', baseWeight: 1, types: ['Ground', 'Ghost'] },
   { pokemonId: 625, name: 'Bisharp', nameEs: 'Bisharp', rarity: 'rare', baseWeight: 1, types: ['Dark', 'Steel'] },
   { pokemonId: 663, name: 'Talonflame', nameEs: 'Talonflame', rarity: 'rare', baseWeight: 1, types: ['Fire', 'Flying'] },
-  { pokemonId: 671, name: 'Florges', nameEs: 'Florges', rarity: 'rare', baseWeight: 1, types: ['Fairy'] },
-  { pokemonId: 675, name: 'Pangoro', nameEs: 'Pangoro', rarity: 'rare', baseWeight: 1, types: ['Fighting', 'Dark'] },
-  { pokemonId: 683, name: 'Aromatisse', nameEs: 'Aromatisse', rarity: 'rare', baseWeight: 1, types: ['Fairy'] },
-  { pokemonId: 685, name: 'Slurpuff', nameEs: 'Slurpuff', rarity: 'rare', baseWeight: 1, types: ['Fairy'] },
   { pokemonId: 700, name: 'Sylveon', nameEs: 'Sylveon', rarity: 'rare', baseWeight: 1, types: ['Fairy'] },
-  { pokemonId: 733, name: 'Toucannon', nameEs: 'Toucannon', rarity: 'rare', baseWeight: 1, types: ['Normal', 'Flying'] },
-  { pokemonId: 763, name: 'Tsareena', nameEs: 'Tsareena', rarity: 'rare', baseWeight: 1, types: ['Grass'] },
+  { pokemonId: 706, name: 'Goodra', nameEs: 'Goodra', rarity: 'rare', baseWeight: 1, types: ['Dragon'] },
   { pokemonId: 768, name: 'Golisopod', nameEs: 'Golisopod', rarity: 'rare', baseWeight: 1, types: ['Bug', 'Water'] },
   { pokemonId: 823, name: 'Corviknight', nameEs: 'Corviknight', rarity: 'rare', baseWeight: 1, types: ['Flying', 'Steel'] },
-  { pokemonId: 826, name: 'Orbeetle', nameEs: 'Orbeetle', rarity: 'rare', baseWeight: 1, types: ['Bug', 'Psychic'] },
   { pokemonId: 858, name: 'Hatterene', nameEs: 'Hatterene', rarity: 'rare', baseWeight: 1, types: ['Psychic', 'Fairy'] },
   { pokemonId: 861, name: 'Grimmsnarl', nameEs: 'Grimmsnarl', rarity: 'rare', baseWeight: 1, types: ['Dark', 'Fairy'] },
-  { pokemonId: 869, name: 'Alcremie', nameEs: 'Alcremie', rarity: 'rare', baseWeight: 1, types: ['Fairy'] },
+  { pokemonId: 887, name: 'Dragapult', nameEs: 'Dragapult', rarity: 'rare', baseWeight: 1, types: ['Dragon', 'Ghost'] },
 ];
+
+
+/**
+ * Pokémon Épicos (4% probabilidad base) - ~50 Pokemon
+ * Evoluciones finales fuertes y pseudo-legendarios pre-evolución
+ */
+export const EPIC_POKEMON: PokemonPoolEntry[] = [
+  // Pseudo-legendary pre-evolutions
+  { pokemonId: 147, name: 'Dratini', nameEs: 'Dratini', rarity: 'epic', baseWeight: 1, types: ['Dragon'] },
+  { pokemonId: 148, name: 'Dragonair', nameEs: 'Dragonair', rarity: 'epic', baseWeight: 1, types: ['Dragon'] },
+  { pokemonId: 246, name: 'Larvitar', nameEs: 'Larvitar', rarity: 'epic', baseWeight: 1, types: ['Rock', 'Ground'] },
+  { pokemonId: 247, name: 'Pupitar', nameEs: 'Pupitar', rarity: 'epic', baseWeight: 1, types: ['Rock', 'Ground'] },
+  { pokemonId: 371, name: 'Bagon', nameEs: 'Bagon', rarity: 'epic', baseWeight: 1, types: ['Dragon'] },
+  { pokemonId: 372, name: 'Shelgon', nameEs: 'Shelgon', rarity: 'epic', baseWeight: 1, types: ['Dragon'] },
+  { pokemonId: 374, name: 'Beldum', nameEs: 'Beldum', rarity: 'epic', baseWeight: 1, types: ['Steel', 'Psychic'] },
+  { pokemonId: 375, name: 'Metang', nameEs: 'Metang', rarity: 'epic', baseWeight: 1, types: ['Steel', 'Psychic'] },
+  { pokemonId: 443, name: 'Gible', nameEs: 'Gible', rarity: 'epic', baseWeight: 1, types: ['Dragon', 'Ground'] },
+  { pokemonId: 444, name: 'Gabite', nameEs: 'Gabite', rarity: 'epic', baseWeight: 1, types: ['Dragon', 'Ground'] },
+  { pokemonId: 633, name: 'Deino', nameEs: 'Deino', rarity: 'epic', baseWeight: 1, types: ['Dark', 'Dragon'] },
+  { pokemonId: 634, name: 'Zweilous', nameEs: 'Zweilous', rarity: 'epic', baseWeight: 1, types: ['Dark', 'Dragon'] },
+  { pokemonId: 782, name: 'Jangmo-o', nameEs: 'Jangmo-o', rarity: 'epic', baseWeight: 1, types: ['Dragon'] },
+  { pokemonId: 783, name: 'Hakamo-o', nameEs: 'Hakamo-o', rarity: 'epic', baseWeight: 1, types: ['Dragon', 'Fighting'] },
+  // Strong final evolutions
+  { pokemonId: 248, name: 'Tyranitar', nameEs: 'Tyranitar', rarity: 'epic', baseWeight: 1, types: ['Rock', 'Dark'] },
+  { pokemonId: 373, name: 'Salamence', nameEs: 'Salamence', rarity: 'epic', baseWeight: 1, types: ['Dragon', 'Flying'] },
+  { pokemonId: 376, name: 'Metagross', nameEs: 'Metagross', rarity: 'epic', baseWeight: 1, types: ['Steel', 'Psychic'] },
+  { pokemonId: 445, name: 'Garchomp', nameEs: 'Garchomp', rarity: 'epic', baseWeight: 1, types: ['Dragon', 'Ground'] },
+  { pokemonId: 635, name: 'Hydreigon', nameEs: 'Hydreigon', rarity: 'epic', baseWeight: 1, types: ['Dark', 'Dragon'] },
+  { pokemonId: 784, name: 'Kommo-o', nameEs: 'Kommo-o', rarity: 'epic', baseWeight: 1, types: ['Dragon', 'Fighting'] },
+  // Dragonite line
+  { pokemonId: 149, name: 'Dragonite', nameEs: 'Dragonite', rarity: 'epic', baseWeight: 1, types: ['Dragon', 'Flying'] },
+  // Other strong Pokemon
+  { pokemonId: 145, name: 'Zapdos', nameEs: 'Zapdos', rarity: 'epic', baseWeight: 0.5, types: ['Electric', 'Flying'] },
+  { pokemonId: 144, name: 'Articuno', nameEs: 'Articuno', rarity: 'epic', baseWeight: 0.5, types: ['Ice', 'Flying'] },
+  { pokemonId: 146, name: 'Moltres', nameEs: 'Moltres', rarity: 'epic', baseWeight: 0.5, types: ['Fire', 'Flying'] },
+  { pokemonId: 243, name: 'Raikou', nameEs: 'Raikou', rarity: 'epic', baseWeight: 0.5, types: ['Electric'] },
+  { pokemonId: 244, name: 'Entei', nameEs: 'Entei', rarity: 'epic', baseWeight: 0.5, types: ['Fire'] },
+  { pokemonId: 245, name: 'Suicune', nameEs: 'Suicune', rarity: 'epic', baseWeight: 0.5, types: ['Water'] },
+  { pokemonId: 377, name: 'Regirock', nameEs: 'Regirock', rarity: 'epic', baseWeight: 0.5, types: ['Rock'] },
+  { pokemonId: 378, name: 'Regice', nameEs: 'Regice', rarity: 'epic', baseWeight: 0.5, types: ['Ice'] },
+  { pokemonId: 379, name: 'Registeel', nameEs: 'Registeel', rarity: 'epic', baseWeight: 0.5, types: ['Steel'] },
+  { pokemonId: 380, name: 'Latias', nameEs: 'Latias', rarity: 'epic', baseWeight: 0.5, types: ['Dragon', 'Psychic'] },
+  { pokemonId: 381, name: 'Latios', nameEs: 'Latios', rarity: 'epic', baseWeight: 0.5, types: ['Dragon', 'Psychic'] },
+  { pokemonId: 480, name: 'Uxie', nameEs: 'Uxie', rarity: 'epic', baseWeight: 0.5, types: ['Psychic'] },
+  { pokemonId: 481, name: 'Mesprit', nameEs: 'Mesprit', rarity: 'epic', baseWeight: 0.5, types: ['Psychic'] },
+  { pokemonId: 482, name: 'Azelf', nameEs: 'Azelf', rarity: 'epic', baseWeight: 0.5, types: ['Psychic'] },
+  { pokemonId: 485, name: 'Heatran', nameEs: 'Heatran', rarity: 'epic', baseWeight: 0.5, types: ['Fire', 'Steel'] },
+  { pokemonId: 486, name: 'Regigigas', nameEs: 'Regigigas', rarity: 'epic', baseWeight: 0.5, types: ['Normal'] },
+  { pokemonId: 488, name: 'Cresselia', nameEs: 'Cresselia', rarity: 'epic', baseWeight: 0.5, types: ['Psychic'] },
+  { pokemonId: 638, name: 'Cobalion', nameEs: 'Cobalion', rarity: 'epic', baseWeight: 0.5, types: ['Steel', 'Fighting'] },
+  { pokemonId: 639, name: 'Terrakion', nameEs: 'Terrakion', rarity: 'epic', baseWeight: 0.5, types: ['Rock', 'Fighting'] },
+  { pokemonId: 640, name: 'Virizion', nameEs: 'Virizion', rarity: 'epic', baseWeight: 0.5, types: ['Grass', 'Fighting'] },
+  { pokemonId: 641, name: 'Tornadus', nameEs: 'Tornadus', rarity: 'epic', baseWeight: 0.5, types: ['Flying'] },
+  { pokemonId: 642, name: 'Thundurus', nameEs: 'Thundurus', rarity: 'epic', baseWeight: 0.5, types: ['Electric', 'Flying'] },
+  { pokemonId: 645, name: 'Landorus', nameEs: 'Landorus', rarity: 'epic', baseWeight: 0.5, types: ['Ground', 'Flying'] },
+  { pokemonId: 785, name: 'Tapu Koko', nameEs: 'Tapu Koko', rarity: 'epic', baseWeight: 0.5, types: ['Electric', 'Fairy'] },
+  { pokemonId: 786, name: 'Tapu Lele', nameEs: 'Tapu Lele', rarity: 'epic', baseWeight: 0.5, types: ['Psychic', 'Fairy'] },
+  { pokemonId: 787, name: 'Tapu Bulu', nameEs: 'Tapu Bulu', rarity: 'epic', baseWeight: 0.5, types: ['Grass', 'Fairy'] },
+  { pokemonId: 788, name: 'Tapu Fini', nameEs: 'Tapu Fini', rarity: 'epic', baseWeight: 0.5, types: ['Water', 'Fairy'] },
+];
+
+/**
+ * Pokémon Legendarios (0.6% probabilidad base) - ~30 Pokemon
+ * Pseudo-legendarios finales y legendarios menores
+ */
+export const LEGENDARY_POKEMON_POOL: PokemonPoolEntry[] = [
+  // Box Legendaries (lower tier)
+  { pokemonId: 150, name: 'Mewtwo', nameEs: 'Mewtwo', rarity: 'legendary', baseWeight: 1, types: ['Psychic'] },
+  { pokemonId: 249, name: 'Lugia', nameEs: 'Lugia', rarity: 'legendary', baseWeight: 1, types: ['Psychic', 'Flying'] },
+  { pokemonId: 250, name: 'Ho-Oh', nameEs: 'Ho-Oh', rarity: 'legendary', baseWeight: 1, types: ['Fire', 'Flying'] },
+  { pokemonId: 382, name: 'Kyogre', nameEs: 'Kyogre', rarity: 'legendary', baseWeight: 1, types: ['Water'] },
+  { pokemonId: 383, name: 'Groudon', nameEs: 'Groudon', rarity: 'legendary', baseWeight: 1, types: ['Ground'] },
+  { pokemonId: 384, name: 'Rayquaza', nameEs: 'Rayquaza', rarity: 'legendary', baseWeight: 1, types: ['Dragon', 'Flying'] },
+  { pokemonId: 483, name: 'Dialga', nameEs: 'Dialga', rarity: 'legendary', baseWeight: 1, types: ['Steel', 'Dragon'] },
+  { pokemonId: 484, name: 'Palkia', nameEs: 'Palkia', rarity: 'legendary', baseWeight: 1, types: ['Water', 'Dragon'] },
+  { pokemonId: 487, name: 'Giratina', nameEs: 'Giratina', rarity: 'legendary', baseWeight: 1, types: ['Ghost', 'Dragon'] },
+  { pokemonId: 643, name: 'Reshiram', nameEs: 'Reshiram', rarity: 'legendary', baseWeight: 1, types: ['Dragon', 'Fire'] },
+  { pokemonId: 644, name: 'Zekrom', nameEs: 'Zekrom', rarity: 'legendary', baseWeight: 1, types: ['Dragon', 'Electric'] },
+  { pokemonId: 646, name: 'Kyurem', nameEs: 'Kyurem', rarity: 'legendary', baseWeight: 1, types: ['Dragon', 'Ice'] },
+  { pokemonId: 716, name: 'Xerneas', nameEs: 'Xerneas', rarity: 'legendary', baseWeight: 1, types: ['Fairy'] },
+  { pokemonId: 717, name: 'Yveltal', nameEs: 'Yveltal', rarity: 'legendary', baseWeight: 1, types: ['Dark', 'Flying'] },
+  { pokemonId: 718, name: 'Zygarde', nameEs: 'Zygarde', rarity: 'legendary', baseWeight: 1, types: ['Dragon', 'Ground'] },
+  { pokemonId: 791, name: 'Solgaleo', nameEs: 'Solgaleo', rarity: 'legendary', baseWeight: 1, types: ['Psychic', 'Steel'] },
+  { pokemonId: 792, name: 'Lunala', nameEs: 'Lunala', rarity: 'legendary', baseWeight: 1, types: ['Psychic', 'Ghost'] },
+  { pokemonId: 800, name: 'Necrozma', nameEs: 'Necrozma', rarity: 'legendary', baseWeight: 1, types: ['Psychic'] },
+  { pokemonId: 888, name: 'Zacian', nameEs: 'Zacian', rarity: 'legendary', baseWeight: 1, types: ['Fairy'] },
+  { pokemonId: 889, name: 'Zamazenta', nameEs: 'Zamazenta', rarity: 'legendary', baseWeight: 1, types: ['Fighting'] },
+  { pokemonId: 890, name: 'Eternatus', nameEs: 'Eternatus', rarity: 'legendary', baseWeight: 1, types: ['Poison', 'Dragon'] },
+  { pokemonId: 891, name: 'Kubfu', nameEs: 'Kubfu', rarity: 'legendary', baseWeight: 1, types: ['Fighting'] },
+  { pokemonId: 892, name: 'Urshifu', nameEs: 'Urshifu', rarity: 'legendary', baseWeight: 1, types: ['Fighting', 'Dark'] },
+  { pokemonId: 894, name: 'Regieleki', nameEs: 'Regieleki', rarity: 'legendary', baseWeight: 1, types: ['Electric'] },
+  { pokemonId: 895, name: 'Regidrago', nameEs: 'Regidrago', rarity: 'legendary', baseWeight: 1, types: ['Dragon'] },
+  { pokemonId: 896, name: 'Glastrier', nameEs: 'Glastrier', rarity: 'legendary', baseWeight: 1, types: ['Ice'] },
+  { pokemonId: 897, name: 'Spectrier', nameEs: 'Spectrier', rarity: 'legendary', baseWeight: 1, types: ['Ghost'] },
+  { pokemonId: 898, name: 'Calyrex', nameEs: 'Calyrex', rarity: 'legendary', baseWeight: 1, types: ['Psychic', 'Grass'] },
+];
+
+
+/**
+ * Pokémon Míticos (0.0001% probabilidad base) - ~25 Pokemon
+ * Pokémon míticos de todas las generaciones
+ */
+export const MYTHIC_POKEMON: PokemonPoolEntry[] = [
+  // Gen 1
+  { pokemonId: 151, name: 'Mew', nameEs: 'Mew', rarity: 'mythic', baseWeight: 1, types: ['Psychic'] },
+  // Gen 2
+  { pokemonId: 251, name: 'Celebi', nameEs: 'Celebi', rarity: 'mythic', baseWeight: 1, types: ['Psychic', 'Grass'] },
+  // Gen 3
+  { pokemonId: 385, name: 'Jirachi', nameEs: 'Jirachi', rarity: 'mythic', baseWeight: 1, types: ['Steel', 'Psychic'] },
+  { pokemonId: 386, name: 'Deoxys', nameEs: 'Deoxys', rarity: 'mythic', baseWeight: 1, types: ['Psychic'] },
+  // Gen 4
+  { pokemonId: 489, name: 'Phione', nameEs: 'Phione', rarity: 'mythic', baseWeight: 1, types: ['Water'] },
+  { pokemonId: 490, name: 'Manaphy', nameEs: 'Manaphy', rarity: 'mythic', baseWeight: 1, types: ['Water'] },
+  { pokemonId: 491, name: 'Darkrai', nameEs: 'Darkrai', rarity: 'mythic', baseWeight: 1, types: ['Dark'] },
+  { pokemonId: 492, name: 'Shaymin', nameEs: 'Shaymin', rarity: 'mythic', baseWeight: 1, types: ['Grass'] },
+  { pokemonId: 493, name: 'Arceus', nameEs: 'Arceus', rarity: 'mythic', baseWeight: 0.5, types: ['Normal'] },
+  // Gen 5
+  { pokemonId: 494, name: 'Victini', nameEs: 'Victini', rarity: 'mythic', baseWeight: 1, types: ['Psychic', 'Fire'] },
+  { pokemonId: 647, name: 'Keldeo', nameEs: 'Keldeo', rarity: 'mythic', baseWeight: 1, types: ['Water', 'Fighting'] },
+  { pokemonId: 648, name: 'Meloetta', nameEs: 'Meloetta', rarity: 'mythic', baseWeight: 1, types: ['Normal', 'Psychic'] },
+  { pokemonId: 649, name: 'Genesect', nameEs: 'Genesect', rarity: 'mythic', baseWeight: 1, types: ['Bug', 'Steel'] },
+  // Gen 6
+  { pokemonId: 719, name: 'Diancie', nameEs: 'Diancie', rarity: 'mythic', baseWeight: 1, types: ['Rock', 'Fairy'] },
+  { pokemonId: 720, name: 'Hoopa', nameEs: 'Hoopa', rarity: 'mythic', baseWeight: 1, types: ['Psychic', 'Ghost'] },
+  { pokemonId: 721, name: 'Volcanion', nameEs: 'Volcanion', rarity: 'mythic', baseWeight: 1, types: ['Fire', 'Water'] },
+  // Gen 7
+  { pokemonId: 801, name: 'Magearna', nameEs: 'Magearna', rarity: 'mythic', baseWeight: 1, types: ['Steel', 'Fairy'] },
+  { pokemonId: 802, name: 'Marshadow', nameEs: 'Marshadow', rarity: 'mythic', baseWeight: 1, types: ['Fighting', 'Ghost'] },
+  { pokemonId: 807, name: 'Zeraora', nameEs: 'Zeraora', rarity: 'mythic', baseWeight: 1, types: ['Electric'] },
+  { pokemonId: 808, name: 'Meltan', nameEs: 'Meltan', rarity: 'mythic', baseWeight: 1, types: ['Steel'] },
+  { pokemonId: 809, name: 'Melmetal', nameEs: 'Melmetal', rarity: 'mythic', baseWeight: 1, types: ['Steel'] },
+  // Gen 8
+  { pokemonId: 893, name: 'Zarude', nameEs: 'Zarude', rarity: 'mythic', baseWeight: 1, types: ['Dark', 'Grass'] },
+];
+
+// ============================================
+// POOL COMBINADO Y UTILIDADES
+// ============================================
+
+/**
+ * Pool completo de Pokémon
+ */
+export const ALL_POKEMON_POOL: PokemonPoolEntry[] = [
+  ...COMMON_POKEMON,
+  ...UNCOMMON_POKEMON,
+  ...RARE_POKEMON,
+  ...EPIC_POKEMON,
+  ...LEGENDARY_POKEMON_POOL,
+  ...MYTHIC_POKEMON,
+];
+
+/**
+ * Obtiene el pool de Pokémon por rareza
+ */
+export function getPokemonPoolByRarity(rarity: Rarity): PokemonPoolEntry[] {
+  switch (rarity) {
+    case 'common': return COMMON_POKEMON;
+    case 'uncommon': return UNCOMMON_POKEMON;
+    case 'rare': return RARE_POKEMON;
+    case 'epic': return EPIC_POKEMON;
+    case 'legendary': return LEGENDARY_POKEMON_POOL;
+    case 'mythic': return MYTHIC_POKEMON;
+    default: return [];
+  }
+}
+
+/**
+ * Busca un Pokémon por ID
+ */
+export function findPokemonById(pokemonId: number): PokemonPoolEntry | undefined {
+  return ALL_POKEMON_POOL.find(p => p.pokemonId === pokemonId);
+}
+
+/**
+ * Busca un Pokémon por nombre
+ */
+export function findPokemonByName(name: string): PokemonPoolEntry | undefined {
+  const normalizedName = name.toLowerCase();
+  return ALL_POKEMON_POOL.find(
+    p => p.name.toLowerCase() === normalizedName || 
+         (p.nameEs && p.nameEs.toLowerCase() === normalizedName)
+  );
+}
+
+/**
+ * Obtiene la URL del sprite de un Pokémon
+ */
+export function getPokemonSprite(pokemonId: number, isShiny: boolean = false): string {
+  const baseUrl = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon';
+  if (isShiny) {
+    return `${baseUrl}/shiny/${pokemonId}.png`;
+  }
+  return `${baseUrl}/${pokemonId}.png`;
+}
+
+/**
+ * Obtiene la URL del artwork oficial de un Pokémon
+ */
+export function getPokemonArtwork(pokemonId: number): string {
+  return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${pokemonId}.png`;
+}
+
+/**
+ * Pool completo de Pokémon por rareza
+ */
+export const POKEMON_POOL_BY_RARITY: Record<Rarity, PokemonPoolEntry[]> = {
+  common: COMMON_POKEMON,
+  uncommon: UNCOMMON_POKEMON,
+  rare: RARE_POKEMON,
+  epic: EPIC_POKEMON,
+  legendary: LEGENDARY_POKEMON_POOL,
+  mythic: MYTHIC_POKEMON,
+};
+
+/**
+ * Estadísticas del pool
+ */
+export const POOL_STATS = {
+  common: COMMON_POKEMON.length,
+  uncommon: UNCOMMON_POKEMON.length,
+  rare: RARE_POKEMON.length,
+  epic: EPIC_POKEMON.length,
+  legendary: LEGENDARY_POKEMON_POOL.length,
+  mythic: MYTHIC_POKEMON.length,
+  total: ALL_POKEMON_POOL.length,
+};
+];
+
+/**
+ * Pokémon Legendarios (0.5% probabilidad base)
+ */
+export const LEGENDARY_POKEMON_POOL: PokemonPoolEntry[] = [
+  { pokemonId: 144, name: 'Articuno', nameEs: 'Articuno', rarity: 'legendary', baseWeight: 0.3, types: ['Ice', 'Flying'] },
+  { pokemonId: 145, name: 'Zapdos', nameEs: 'Zapdos', rarity: 'legendary', baseWeight: 0.3, types: ['Electric', 'Flying'] },
+  { pokemonId: 146, name: 'Moltres', nameEs: 'Moltres', rarity: 'legendary', baseWeight: 0.3, types: ['Fire', 'Flying'] },
+  { pokemonId: 150, name: 'Mewtwo', nameEs: 'Mewtwo', rarity: 'legendary', baseWeight: 0.2, types: ['Psychic'] },
+  { pokemonId: 243, name: 'Raikou', nameEs: 'Raikou', rarity: 'legendary', baseWeight: 0.3, types: ['Electric'] },
+  { pokemonId: 244, name: 'Entei', nameEs: 'Entei', rarity: 'legendary', baseWeight: 0.3, types: ['Fire'] },
+  { pokemonId: 245, name: 'Suicune', nameEs: 'Suicune', rarity: 'legendary', baseWeight: 0.3, types: ['Water'] },
+  { pokemonId: 249, name: 'Lugia', nameEs: 'Lugia', rarity: 'legendary', baseWeight: 0.2, types: ['Psychic', 'Flying'] },
+  { pokemonId: 250, name: 'Ho-Oh', nameEs: 'Ho-Oh', rarity: 'legendary', baseWeight: 0.2, types: ['Fire', 'Flying'] },
+  { pokemonId: 382, name: 'Kyogre', nameEs: 'Kyogre', rarity: 'legendary', baseWeight: 0.2, types: ['Water'] },
+  { pokemonId: 383, name: 'Groudon', nameEs: 'Groudon', rarity: 'legendary', baseWeight: 0.2, types: ['Ground'] },
+  { pokemonId: 384, name: 'Rayquaza', nameEs: 'Rayquaza', rarity: 'legendary', baseWeight: 0.15, types: ['Dragon', 'Flying'] },
+  { pokemonId: 483, name: 'Dialga', nameEs: 'Dialga', rarity: 'legendary', baseWeight: 0.2, types: ['Steel', 'Dragon'] },
+  { pokemonId: 484, name: 'Palkia', nameEs: 'Palkia', rarity: 'legendary', baseWeight: 0.2, types: ['Water', 'Dragon'] },
+  { pokemonId: 487, name: 'Giratina', nameEs: 'Giratina', rarity: 'legendary', baseWeight: 0.2, types: ['Ghost', 'Dragon'] },
+  { pokemonId: 643, name: 'Reshiram', nameEs: 'Reshiram', rarity: 'legendary', baseWeight: 0.2, types: ['Dragon', 'Fire'] },
+  { pokemonId: 644, name: 'Zekrom', nameEs: 'Zekrom', rarity: 'legendary', baseWeight: 0.2, types: ['Dragon', 'Electric'] },
+  { pokemonId: 646, name: 'Kyurem', nameEs: 'Kyurem', rarity: 'legendary', baseWeight: 0.2, types: ['Dragon', 'Ice'] },
+  { pokemonId: 716, name: 'Xerneas', nameEs: 'Xerneas', rarity: 'legendary', baseWeight: 0.2, types: ['Fairy'] },
+  { pokemonId: 717, name: 'Yveltal', nameEs: 'Yveltal', rarity: 'legendary', baseWeight: 0.2, types: ['Dark', 'Flying'] },
+  { pokemonId: 718, name: 'Zygarde', nameEs: 'Zygarde', rarity: 'legendary', baseWeight: 0.2, types: ['Dragon', 'Ground'] },
+  { pokemonId: 791, name: 'Solgaleo', nameEs: 'Solgaleo', rarity: 'legendary', baseWeight: 0.2, types: ['Psychic', 'Steel'] },
+  { pokemonId: 792, name: 'Lunala', nameEs: 'Lunala', rarity: 'legendary', baseWeight: 0.2, types: ['Psychic', 'Ghost'] },
+  { pokemonId: 800, name: 'Necrozma', nameEs: 'Necrozma', rarity: 'legendary', baseWeight: 0.2, types: ['Psychic'] },
+  { pokemonId: 888, name: 'Zacian', nameEs: 'Zacian', rarity: 'legendary', baseWeight: 0.2, types: ['Fairy'] },
+  { pokemonId: 889, name: 'Zamazenta', nameEs: 'Zamazenta', rarity: 'legendary', baseWeight: 0.2, types: ['Fighting'] },
+  { pokemonId: 890, name: 'Eternatus', nameEs: 'Eternatus', rarity: 'legendary', baseWeight: 0.2, types: ['Poison', 'Dragon'] },
+];
+
+/**
+ * Pokémon Míticos (0.1% probabilidad base)
+ */
+export const MYTHIC_POKEMON: PokemonPoolEntry[] = [
+  { pokemonId: 151, name: 'Mew', nameEs: 'Mew', rarity: 'mythic', baseWeight: 0.1, types: ['Psychic'] },
+  { pokemonId: 251, name: 'Celebi', nameEs: 'Celebi', rarity: 'mythic', baseWeight: 0.1, types: ['Psychic', 'Grass'] },
+  { pokemonId: 385, name: 'Jirachi', nameEs: 'Jirachi', rarity: 'mythic', baseWeight: 0.1, types: ['Steel', 'Psychic'] },
+  { pokemonId: 386, name: 'Deoxys', nameEs: 'Deoxys', rarity: 'mythic', baseWeight: 0.1, types: ['Psychic'] },
+  { pokemonId: 489, name: 'Phione', nameEs: 'Phione', rarity: 'mythic', baseWeight: 0.15, types: ['Water'] },
+  { pokemonId: 490, name: 'Manaphy', nameEs: 'Manaphy', rarity: 'mythic', baseWeight: 0.1, types: ['Water'] },
+  { pokemonId: 491, name: 'Darkrai', nameEs: 'Darkrai', rarity: 'mythic', baseWeight: 0.1, types: ['Dark'] },
+  { pokemonId: 492, name: 'Shaymin', nameEs: 'Shaymin', rarity: 'mythic', baseWeight: 0.1, types: ['Grass'] },
+  { pokemonId: 493, name: 'Arceus', nameEs: 'Arceus', rarity: 'mythic', baseWeight: 0.05, types: ['Normal'] },
+  { pokemonId: 494, name: 'Victini', nameEs: 'Victini', rarity: 'mythic', baseWeight: 0.1, types: ['Psychic', 'Fire'] },
+  { pokemonId: 647, name: 'Keldeo', nameEs: 'Keldeo', rarity: 'mythic', baseWeight: 0.1, types: ['Water', 'Fighting'] },
+  { pokemonId: 648, name: 'Meloetta', nameEs: 'Meloetta', rarity: 'mythic', baseWeight: 0.1, types: ['Normal', 'Psychic'] },
+  { pokemonId: 649, name: 'Genesect', nameEs: 'Genesect', rarity: 'mythic', baseWeight: 0.1, types: ['Bug', 'Steel'] },
+  { pokemonId: 719, name: 'Diancie', nameEs: 'Diancie', rarity: 'mythic', baseWeight: 0.1, types: ['Rock', 'Fairy'] },
+  { pokemonId: 720, name: 'Hoopa', nameEs: 'Hoopa', rarity: 'mythic', baseWeight: 0.1, types: ['Psychic', 'Ghost'] },
+  { pokemonId: 721, name: 'Volcanion', nameEs: 'Volcanion', rarity: 'mythic', baseWeight: 0.1, types: ['Fire', 'Water'] },
+  { pokemonId: 801, name: 'Magearna', nameEs: 'Magearna', rarity: 'mythic', baseWeight: 0.1, types: ['Steel', 'Fairy'] },
+  { pokemonId: 802, name: 'Marshadow', nameEs: 'Marshadow', rarity: 'mythic', baseWeight: 0.1, types: ['Fighting', 'Ghost'] },
+  { pokemonId: 807, name: 'Zeraora', nameEs: 'Zeraora', rarity: 'mythic', baseWeight: 0.1, types: ['Electric'] },
+  { pokemonId: 808, name: 'Meltan', nameEs: 'Meltan', rarity: 'mythic', baseWeight: 0.15, types: ['Steel'] },
+  { pokemonId: 809, name: 'Melmetal', nameEs: 'Melmetal', rarity: 'mythic', baseWeight: 0.1, types: ['Steel'] },
+  { pokemonId: 893, name: 'Zarude', nameEs: 'Zarude', rarity: 'mythic', baseWeight: 0.1, types: ['Dark', 'Grass'] },
+];
+
+/**
+ * Pool completo de todos los Pokémon
+ */
+export const ALL_POKEMON_POOL: PokemonPoolEntry[] = [
+  ...COMMON_POKEMON,
+  ...UNCOMMON_POKEMON,
+  ...RARE_POKEMON,
+  ...EPIC_POKEMON,
+  ...LEGENDARY_POKEMON_POOL,
+  ...MYTHIC_POKEMON,
+];
+
+/**
+ * Obtiene el pool de Pokémon por rareza
+ */
+export function getPokemonPoolByRarity(rarity: Rarity): PokemonPoolEntry[] {
+  switch (rarity) {
+    case 'common': return COMMON_POKEMON;
+    case 'uncommon': return UNCOMMON_POKEMON;
+    case 'rare': return RARE_POKEMON;
+    case 'epic': return EPIC_POKEMON;
+    case 'legendary': return LEGENDARY_POKEMON_POOL;
+    case 'mythic': return MYTHIC_POKEMON;
+    default: return [];
+  }
+}
+
+/**
+ * Busca un Pokémon por ID
+ */
+export function findPokemonById(pokemonId: number): PokemonPoolEntry | undefined {
+  return ALL_POKEMON_POOL.find(p => p.pokemonId === pokemonId);
+}
+
+/**
+ * Busca un Pokémon por nombre
+ */
+export function findPokemonByName(name: string): PokemonPoolEntry | undefined {
+  const normalizedName = name.toLowerCase();
+  return ALL_POKEMON_POOL.find(
+    p => p.name.toLowerCase() === normalizedName || 
+         (p.nameEs && p.nameEs.toLowerCase() === normalizedName)
+  );
+}
+
+/**
+ * Obtiene la URL del sprite de un Pokémon
+ */
+export function getPokemonSprite(pokemonId: number, isShiny: boolean = false): string {
+  const baseUrl = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon';
+  if (isShiny) {
+    return `${baseUrl}/shiny/${pokemonId}.png`;
+  }
+  return `${baseUrl}/${pokemonId}.png`;
+}
+
+/**
+ * Obtiene la URL del artwork oficial de un Pokémon
+ */
+export function getPokemonArtwork(pokemonId: number): string {
+  return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${pokemonId}.png`;
+}
+
+/**
+ * Pool completo de Pokémon por rareza
+ */
+export const POKEMON_POOL_BY_RARITY: Record<Rarity, PokemonPoolEntry[]> = {
+  common: COMMON_POKEMON,
+  uncommon: UNCOMMON_POKEMON,
+  rare: RARE_POKEMON,
+  epic: EPIC_POKEMON,
+  legendary: LEGENDARY_POKEMON_POOL,
+  mythic: MYTHIC_POKEMON,
+};
+
+/**
+ * Estadísticas del pool
+ */
+export const POOL_STATS = {
+  common: COMMON_POKEMON.length,
+  uncommon: UNCOMMON_POKEMON.length,
+  rare: RARE_POKEMON.length,
+  epic: EPIC_POKEMON.length,
+  legendary: LEGENDARY_POKEMON_POOL.length,
+  mythic: MYTHIC_POKEMON.length,
+  total: ALL_POKEMON_POOL.length,
+};
+];
+
+/**
+ * Pokémon Legendarios (0.5% probabilidad base)
+ */
+export const LEGENDARY_POKEMON_POOL: PokemonPoolEntry[] = [
+  { pokemonId: 144, name: 'Articuno', nameEs: 'Articuno', rarity: 'legendary', baseWeight: 0.3, types: ['Ice', 'Flying'] },
+  { pokemonId: 145, name: 'Zapdos', nameEs: 'Zapdos', rarity: 'legendary', baseWeight: 0.3, types: ['Electric', 'Flying'] },
+  { pokemonId: 146, name: 'Moltres', nameEs: 'Moltres', rarity: 'legendary', baseWeight: 0.3, types: ['Fire', 'Flying'] },
+  { pokemonId: 150, name: 'Mewtwo', nameEs: 'Mewtwo', rarity: 'legendary', baseWeight: 0.2, types: ['Psychic'] },
+  { pokemonId: 243, name: 'Raikou', nameEs: 'Raikou', rarity: 'legendary', baseWeight: 0.3, types: ['Electric'] },
+  { pokemonId: 244, name: 'Entei', nameEs: 'Entei', rarity: 'legendary', baseWeight: 0.3, types: ['Fire'] },
+  { pokemonId: 245, name: 'Suicune', nameEs: 'Suicune', rarity: 'legendary', baseWeight: 0.3, types: ['Water'] },
+  { pokemonId: 249, name: 'Lugia', nameEs: 'Lugia', rarity: 'legendary', baseWeight: 0.2, types: ['Psychic', 'Flying'] },
+  { pokemonId: 250, name: 'Ho-Oh', nameEs: 'Ho-Oh', rarity: 'legendary', baseWeight: 0.2, types: ['Fire', 'Flying'] },
+  { pokemonId: 382, name: 'Kyogre', nameEs: 'Kyogre', rarity: 'legendary', baseWeight: 0.2, types: ['Water'] },
+  { pokemonId: 383, name: 'Groudon', nameEs: 'Groudon', rarity: 'legendary', baseWeight: 0.2, types: ['Ground'] },
+  { pokemonId: 384, name: 'Rayquaza', nameEs: 'Rayquaza', rarity: 'legendary', baseWeight: 0.15, types: ['Dragon', 'Flying'] },
+  { pokemonId: 483, name: 'Dialga', nameEs: 'Dialga', rarity: 'legendary', baseWeight: 0.2, types: ['Steel', 'Dragon'] },
+  { pokemonId: 484, name: 'Palkia', nameEs: 'Palkia', rarity: 'legendary', baseWeight: 0.2, types: ['Water', 'Dragon'] },
+  { pokemonId: 487, name: 'Giratina', nameEs: 'Giratina', rarity: 'legendary', baseWeight: 0.2, types: ['Ghost', 'Dragon'] },
+  { pokemonId: 643, name: 'Reshiram', nameEs: 'Reshiram', rarity: 'legendary', baseWeight: 0.2, types: ['Dragon', 'Fire'] },
+  { pokemonId: 644, name: 'Zekrom', nameEs: 'Zekrom', rarity: 'legendary', baseWeight: 0.2, types: ['Dragon', 'Electric'] },
+  { pokemonId: 646, name: 'Kyurem', nameEs: 'Kyurem', rarity: 'legendary', baseWeight: 0.2, types: ['Dragon', 'Ice'] },
+  { pokemonId: 716, name: 'Xerneas', nameEs: 'Xerneas', rarity: 'legendary', baseWeight: 0.2, types: ['Fairy'] },
+  { pokemonId: 717, name: 'Yveltal', nameEs: 'Yveltal', rarity: 'legendary', baseWeight: 0.2, types: ['Dark', 'Flying'] },
+  { pokemonId: 718, name: 'Zygarde', nameEs: 'Zygarde', rarity: 'legendary', baseWeight: 0.2, types: ['Dragon', 'Ground'] },
+  { pokemonId: 791, name: 'Solgaleo', nameEs: 'Solgaleo', rarity: 'legendary', baseWeight: 0.2, types: ['Psychic', 'Steel'] },
+  { pokemonId: 792, name: 'Lunala', nameEs: 'Lunala', rarity: 'legendary', baseWeight: 0.2, types: ['Psychic', 'Ghost'] },
+  { pokemonId: 800, name: 'Necrozma', nameEs: 'Necrozma', rarity: 'legendary', baseWeight: 0.2, types: ['Psychic'] },
+  { pokemonId: 888, name: 'Zacian', nameEs: 'Zacian', rarity: 'legendary', baseWeight: 0.2, types: ['Fairy'] },
+  { pokemonId: 889, name: 'Zamazenta', nameEs: 'Zamazenta', rarity: 'legendary', baseWeight: 0.2, types: ['Fighting'] },
+  { pokemonId: 890, name: 'Eternatus', nameEs: 'Eternatus', rarity: 'legendary', baseWeight: 0.2, types: ['Poison', 'Dragon'] },
+];
+
+/**
+ * Pokémon Míticos (0.1% probabilidad base)
+ */
+export const MYTHIC_POKEMON: PokemonPoolEntry[] = [
+  { pokemonId: 151, name: 'Mew', nameEs: 'Mew', rarity: 'mythic', baseWeight: 0.1, types: ['Psychic'] },
+  { pokemonId: 251, name: 'Celebi', nameEs: 'Celebi', rarity: 'mythic', baseWeight: 0.1, types: ['Psychic', 'Grass'] },
+  { pokemonId: 385, name: 'Jirachi', nameEs: 'Jirachi', rarity: 'mythic', baseWeight: 0.1, types: ['Steel', 'Psychic'] },
+  { pokemonId: 386, name: 'Deoxys', nameEs: 'Deoxys', rarity: 'mythic', baseWeight: 0.1, types: ['Psychic'] },
+  { pokemonId: 489, name: 'Phione', nameEs: 'Phione', rarity: 'mythic', baseWeight: 0.15, types: ['Water'] },
+  { pokemonId: 490, name: 'Manaphy', nameEs: 'Manaphy', rarity: 'mythic', baseWeight: 0.1, types: ['Water'] },
+  { pokemonId: 491, name: 'Darkrai', nameEs: 'Darkrai', rarity: 'mythic', baseWeight: 0.1, types: ['Dark'] },
+  { pokemonId: 492, name: 'Shaymin', nameEs: 'Shaymin', rarity: 'mythic', baseWeight: 0.1, types: ['Grass'] },
+  { pokemonId: 493, name: 'Arceus', nameEs: 'Arceus', rarity: 'mythic', baseWeight: 0.05, types: ['Normal'] },
+  { pokemonId: 494, name: 'Victini', nameEs: 'Victini', rarity: 'mythic', baseWeight: 0.1, types: ['Psychic', 'Fire'] },
+  { pokemonId: 647, name: 'Keldeo', nameEs: 'Keldeo', rarity: 'mythic', baseWeight: 0.1, types: ['Water', 'Fighting'] },
+  { pokemonId: 648, name: 'Meloetta', nameEs: 'Meloetta', rarity: 'mythic', baseWeight: 0.1, types: ['Normal', 'Psychic'] },
+  { pokemonId: 649, name: 'Genesect', nameEs: 'Genesect', rarity: 'mythic', baseWeight: 0.1, types: ['Bug', 'Steel'] },
+  { pokemonId: 719, name: 'Diancie', nameEs: 'Diancie', rarity: 'mythic', baseWeight: 0.1, types: ['Rock', 'Fairy'] },
+  { pokemonId: 720, name: 'Hoopa', nameEs: 'Hoopa', rarity: 'mythic', baseWeight: 0.1, types: ['Psychic', 'Ghost'] },
+  { pokemonId: 721, name: 'Volcanion', nameEs: 'Volcanion', rarity: 'mythic', baseWeight: 0.1, types: ['Fire', 'Water'] },
+  { pokemonId: 801, name: 'Magearna', nameEs: 'Magearna', rarity: 'mythic', baseWeight: 0.1, types: ['Steel', 'Fairy'] },
+  { pokemonId: 802, name: 'Marshadow', nameEs: 'Marshadow', rarity: 'mythic', baseWeight: 0.1, types: ['Fighting', 'Ghost'] },
+  { pokemonId: 807, name: 'Zeraora', nameEs: 'Zeraora', rarity: 'mythic', baseWeight: 0.1, types: ['Electric'] },
+  { pokemonId: 808, name: 'Meltan', nameEs: 'Meltan', rarity: 'mythic', baseWeight: 0.15, types: ['Steel'] },
+  { pokemonId: 809, name: 'Melmetal', nameEs: 'Melmetal', rarity: 'mythic', baseWeight: 0.1, types: ['Steel'] },
+  { pokemonId: 893, name: 'Zarude', nameEs: 'Zarude', rarity: 'mythic', baseWeight: 0.1, types: ['Dark', 'Grass'] },
+];
+
+/**
+ * Pool completo de todos los Pokémon
+ */
+export const ALL_POKEMON_POOL: PokemonPoolEntry[] = [
+  ...COMMON_POKEMON,
+  ...UNCOMMON_POKEMON,
+  ...RARE_POKEMON,
+  ...EPIC_POKEMON,
+  ...LEGENDARY_POKEMON_POOL,
+  ...MYTHIC_POKEMON,
+];
+
+/**
+ * Obtiene el pool de Pokémon por rareza
+ */
+export function getPokemonPoolByRarity(rarity: Rarity): PokemonPoolEntry[] {
+  switch (rarity) {
+    case 'common': return COMMON_POKEMON;
+    case 'uncommon': return UNCOMMON_POKEMON;
+    case 'rare': return RARE_POKEMON;
+    case 'epic': return EPIC_POKEMON;
+    case 'legendary': return LEGENDARY_POKEMON_POOL;
+    case 'mythic': return MYTHIC_POKEMON;
+    default: return [];
+  }
+}
+
+/**
+ * Busca un Pokémon por ID
+ */
+export function findPokemonById(pokemonId: number): PokemonPoolEntry | undefined {
+  return ALL_POKEMON_POOL.find(p => p.pokemonId === pokemonId);
+}
+
+/**
+ * Busca un Pokémon por nombre
+ */
+export function findPokemonByName(name: string): PokemonPoolEntry | undefined {
+  const normalizedName = name.toLowerCase();
+  return ALL_POKEMON_POOL.find(
+    p => p.name.toLowerCase() === normalizedName || 
+         (p.nameEs && p.nameEs.toLowerCase() === normalizedName)
+  );
+}
+
+/**
+ * Obtiene la URL del sprite de un Pokémon
+ */
+export function getPokemonSprite(pokemonId: number, isShiny: boolean = false): string {
+  const baseUrl = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon';
+  if (isShiny) {
+    return `${baseUrl}/shiny/${pokemonId}.png`;
+  }
+  return `${baseUrl}/${pokemonId}.png`;
+}
+
+/**
+ * Obtiene la URL del artwork oficial de un Pokémon
+ */
+export function getPokemonArtwork(pokemonId: number): string {
+  return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${pokemonId}.png`;
+}
+
+/**
+ * Pool completo de Pokémon por rareza
+ */
+export const POKEMON_POOL_BY_RARITY: Record<Rarity, PokemonPoolEntry[]> = {
+  common: COMMON_POKEMON,
+  uncommon: UNCOMMON_POKEMON,
+  rare: RARE_POKEMON,
+  epic: EPIC_POKEMON,
+  legendary: LEGENDARY_POKEMON_POOL,
+  mythic: MYTHIC_POKEMON,
+};
+
+/**
+ * Estadísticas del pool
+ */
+export const POOL_STATS = {
+  common: COMMON_POKEMON.length,
+  uncommon: UNCOMMON_POKEMON.length,
+  rare: RARE_POKEMON.length,
+  epic: EPIC_POKEMON.length,
+  legendary: LEGENDARY_POKEMON_POOL.length,
+  mythic: MYTHIC_POKEMON.length,
+  total: ALL_POKEMON_POOL.length,
+};

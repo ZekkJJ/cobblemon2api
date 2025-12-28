@@ -6,7 +6,7 @@
  */
 
 import { Collection, Db, ObjectId } from 'mongodb';
-import { Mod, ModListResponse, ModVersionsResponse, CreateModInput, UpdateModInput } from '../../shared/types/mod.types.js';
+import { Mod, ModListResponse, ModVersionsResponse, CreateModInput, UpdateModInput, ModCategory } from '../../shared/types/mod.types.js';
 import { FileStorageService } from './file-storage.service.js';
 import { ZipGeneratorService } from './zip-generator.service.js';
 
@@ -355,7 +355,7 @@ export class ModsService {
   /**
    * Obtiene mods por categoría
    */
-  async getModsByCategory(category: string): Promise<Mod[]> {
+  async getModsByCategory(category: ModCategory): Promise<Mod[]> {
     return this.collection
       .find({ category, isActive: true })
       .sort({ name: 1 })

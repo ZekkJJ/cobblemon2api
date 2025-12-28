@@ -24,7 +24,7 @@ import {
 } from '../../shared/types/player-shop.types.js';
 import { PitufipuntosService } from './pitufipuntos.service.js';
 import { TransactionManager } from '../../shared/utils/transaction-manager.js';
-import { AppError, Errors } from '../../shared/middleware/error-handler.js';
+import { AppError, Errors, ErrorCode } from '../../shared/middleware/error-handler.js';
 
 export class PlayerShopService {
   private pitufipuntosService: PitufipuntosService;
@@ -69,7 +69,7 @@ export class PlayerShopService {
       const { pokemon, location } = this.findPokemonInStorage(user, pokemonUuid);
 
       if (!pokemon) {
-        throw new AppError('POKEMON_NOT_FOUND', 'Pokémon no encontrado en tu almacenamiento', 404);
+        throw new AppError('Pokémon no encontrado en tu almacenamiento', 404, ErrorCode.POKEMON_NOT_FOUND);
       }
 
       // 3. Verificar que no está ya en escrow (listado)
@@ -79,7 +79,7 @@ export class PlayerShopService {
       );
 
       if (existingListing) {
-        throw new AppError('POKEMON_IN_ESCROW', 'Este Pokémon ya está listado en el mercado', 400);
+        throw new AppError('Este Pokémon ya está listado en el mercado', 400, ErrorCode.POKEMON_IN_ESCROW);
       }
 
       // 4. Crear snapshot del Pokémon para el listing
@@ -217,7 +217,7 @@ export class PlayerShopService {
     });
 
     if (!listing) {
-      throw new AppError('LISTING_NOT_FOUND', 'Listing no encontrado', 404);
+      throw new AppError('Listing no encontrado', 404, ErrorCode.LISTING_NOT_FOUND);
     }
 
     // Incrementar contador de vistas
@@ -264,20 +264,20 @@ export class PlayerShopService {
       );
 
       if (!listing) {
-        throw new AppError('LISTING_NOT_FOUND', 'Listing no encontrado', 404);
+        throw new AppError('Listing no encontrado', 404, ErrorCode.LISTING_NOT_FOUND);
       }
 
       if (listing.sellerId !== userId) {
-        throw new AppError('NOT_LISTING_OWNER', 'No eres el dueño de este listing', 403);
+        throw new AppError('No eres el dueño de este listing', 403, ErrorCode.NOT_LISTING_OWNER);
       }
 
       if (listing.status !== 'active') {
-        throw new AppError('LISTING_NOT_ACTIVE', 'Este listing ya no está activo', 400);
+        throw new AppError('Este listing ya no está activo', 400, ErrorCode.LISTING_NOT_ACTIVE);
       }
 
       // No permitir cancelar subastas con pujas
       if (listing.saleMethod === 'bidding' && listing.bidCount > 0) {
-        throw new AppError('CANNOT_CANCEL_WITH_BIDS', 'No puedes cancelar una subasta con pujas activas', 400);
+        throw new AppError('No puedes cancelar una subasta con pujas activas', 400, ErrorCode.CANNOT_CANCEL_WITH_BIDS);
       }
 
       // Actualizar estado del listing
@@ -317,12 +317,12 @@ export class PlayerShopService {
       );
 
       if (!listing) {
-        throw new AppError('LISTING_NOT_FOUND', 'Listing no encontrado o no disponible', 404);
+        throw new AppError('Listing no encontrado o no disponible', 404, ErrorCode.LISTING_NOT_FOUND);
       }
 
       // 2. Verificar que no es el propio vendedor
       if (listing.sellerId === buyerId) {
-        throw new AppError('CANNOT_BUY_OWN_LISTING', 'No puedes comprar tu propio listing', 400);
+        throw new AppError('No puedes comprar tu propio listing', 400, ErrorCode.CANNOT_BUY_OWN_LISTING);
       }
 
       // 3. Obtener comprador y verificar balance
@@ -347,7 +347,7 @@ export class PlayerShopService {
       );
 
       if (!seller) {
-        throw new AppError('SELLER_NOT_FOUND', 'Vendedor no encontrado', 404);
+        throw new AppError('Vendedor no encontrado', 404, ErrorCode.SELLER_NOT_FOUND);
       }
 
       // 5. Transferir fondos
@@ -420,17 +420,17 @@ export class PlayerShopService {
       );
 
       if (!listing) {
-        throw new AppError('LISTING_NOT_FOUND', 'Subasta no encontrada o no disponible', 404);
+        throw new AppError('Subasta no encontrada o no disponible', 404, ErrorCode.LISTING_NOT_FOUND);
       }
 
       // 2. Verificar que no ha expirado
       if (listing.expiresAt && listing.expiresAt < new Date()) {
-        throw new AppError('AUCTION_ENDED', 'Esta subasta ya ha terminado', 400);
+        throw new AppError('Esta subasta ya ha terminado', 400, ErrorCode.AUCTION_ENDED);
       }
 
       // 3. Verificar que no es el propio vendedor
       if (listing.sellerId === bidderId) {
-        throw new AppError('CANNOT_BID_OWN_LISTING', 'No puedes pujar en tu propia subasta', 400);
+        throw new AppError('No puedes pujar en tu propia subasta', 400, ErrorCode.CANNOT_BID_OWN_LISTING);
       }
 
       // 4. Verificar monto mínimo (5% más que la puja actual)
@@ -438,7 +438,7 @@ export class PlayerShopService {
       const minBid = Math.ceil(currentBid * (1 + AUCTION_CONFIG.MIN_BID_INCREMENT_PERCENT / 100));
 
       if (amount < minBid) {
-        throw new AppError('BID_TOO_LOW', `La puja mínima es ${minBid} CobbleDollars (+5%)`, 400);
+        throw new AppError(`La puja mínima es ${minBid} CobbleDollars (+5%)`, 400, ErrorCode.BID_TOO_LOW);
       }
 
       // 5. Obtener pujador y verificar balance
@@ -682,7 +682,7 @@ export class PlayerShopService {
     );
 
     if (result.matchedCount === 0) {
-      throw new AppError('DELIVERY_NOT_FOUND', 'Entrega no encontrada o ya procesada', 404);
+      throw new AppError('Entrega no encontrada o ya procesada', 404, ErrorCode.DELIVERY_NOT_FOUND);
     }
 
     console.log(`[PLAYER SHOP] Delivery marked as completed: ${deliveryId}`);
@@ -726,14 +726,14 @@ export class PlayerShopService {
   private validateListingOptions(options: CreateListingOptions): void {
     if (options.saleMethod === 'direct') {
       if (!options.price || options.price < PRICE_LIMITS.MIN || options.price > PRICE_LIMITS.MAX) {
-        throw new AppError('INVALID_PRICE', `Precio debe estar entre ${PRICE_LIMITS.MIN} y ${PRICE_LIMITS.MAX.toLocaleString()}`, 400);
+        throw new AppError(`Precio debe estar entre ${PRICE_LIMITS.MIN} y ${PRICE_LIMITS.MAX.toLocaleString()}`, 400, ErrorCode.INVALID_PRICE);
       }
     } else if (options.saleMethod === 'bidding') {
       if (!options.startingBid || options.startingBid < PRICE_LIMITS.MIN) {
-        throw new AppError('INVALID_STARTING_BID', `Puja inicial mínima es ${PRICE_LIMITS.MIN}`, 400);
+        throw new AppError(`Puja inicial mínima es ${PRICE_LIMITS.MIN}`, 400, ErrorCode.INVALID_STARTING_BID);
       }
       if (!options.duration || options.duration < AUCTION_CONFIG.MIN_DURATION_HOURS || options.duration > AUCTION_CONFIG.MAX_DURATION_HOURS) {
-        throw new AppError('INVALID_DURATION', `Duración debe estar entre ${AUCTION_CONFIG.MIN_DURATION_HOURS} y ${AUCTION_CONFIG.MAX_DURATION_HOURS} horas`, 400);
+        throw new AppError(`Duración debe estar entre ${AUCTION_CONFIG.MIN_DURATION_HOURS} y ${AUCTION_CONFIG.MAX_DURATION_HOURS} horas`, 400, ErrorCode.INVALID_DURATION);
       }
     }
   }
@@ -807,3 +807,4 @@ export class PlayerShopService {
     }
   }
 }
+

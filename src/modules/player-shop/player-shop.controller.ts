@@ -15,7 +15,7 @@ import {
   markDeliveredSchema,
   playerUuidSchema,
 } from './player-shop.schema.js';
-import { AppError } from '../../shared/middleware/error-handler.js';
+import { AppError, Errors } from '../../shared/middleware/error-handler.js';
 
 export class PlayerShopController {
   constructor(private playerShopService: PlayerShopService) {}
@@ -264,6 +264,6 @@ export class PlayerShopController {
       return queryUuid;
     }
 
-    throw new AppError('UNAUTHORIZED', 'Usuario no autenticado', 401);
+    throw Errors.unauthorized('Usuario no autenticado');
   }
 }

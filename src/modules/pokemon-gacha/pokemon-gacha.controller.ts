@@ -20,6 +20,9 @@ import {
   CreateBannerSchema,
   UpdateBannerSchema,
   ClaimRewardSchema,
+  CreateBannerData,
+  UpdateBannerData,
+  HistoryFilters,
 } from '../../shared/types/pokemon-gacha.types.js';
 
 export class PokemonGachaController {
@@ -132,7 +135,7 @@ export class PokemonGachaController {
       throw Errors.unauthorized('Debes iniciar sesión');
     }
 
-    const filters = HistoryFiltersSchema.parse(req.query);
+    const filters = HistoryFiltersSchema.parse(req.query) as HistoryFilters;
     const history = await this.gachaService.getHistory(user.discordId, filters);
 
     res.json({ success: true, history, count: history.length });
@@ -479,7 +482,7 @@ export class PokemonGachaController {
       throw Errors.forbidden('Solo administradores pueden crear banners');
     }
 
-    const validated = CreateBannerSchema.parse(req.body);
+    const validated = CreateBannerSchema.parse(req.body) as CreateBannerData;
     const banner = await this.bannerService.createBanner(validated, user.discordId);
 
     res.status(201).json({ success: true, banner });
@@ -496,7 +499,7 @@ export class PokemonGachaController {
     }
 
     const { id } = req.params;
-    const validated = UpdateBannerSchema.parse(req.body);
+    const validated = UpdateBannerSchema.parse(req.body) as UpdateBannerData;
     const banner = await this.bannerService.updateBanner(id, validated);
 
     res.json({ success: true, banner });

@@ -34,7 +34,7 @@ import { PityManagerService } from './pity-manager.service.js';
 import { PoolBuilderService, SelectedReward } from './pool-builder.service.js';
 import { BannerService } from './banner.service.js';
 import { IVGeneratorService, ivGenerator } from './iv-generator.service.js';
-import { getPokemonSprite, getPokemonArtwork } from '../../shared/data/gacha-pokemon-pool.data.js';
+import { getPokemonSprite, getPokemonArtwork } from '../../shared/data/gacha-pokemon-helpers.js';
 import { getItemSprite } from '../../shared/data/gacha-items-pool.data.js';
 import { POKEMON_NATURES } from '../../shared/types/pokemon.types.js';
 

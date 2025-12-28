@@ -34,6 +34,23 @@ export enum ErrorCode {
   STARTER_NOT_FOUND = 'STARTER_NOT_FOUND',
   TOURNAMENT_NOT_FOUND = 'TOURNAMENT_NOT_FOUND',
   
+  // Player Shop
+  POKEMON_NOT_FOUND = 'POKEMON_NOT_FOUND',
+  POKEMON_IN_ESCROW = 'POKEMON_IN_ESCROW',
+  LISTING_NOT_FOUND = 'LISTING_NOT_FOUND',
+  NOT_LISTING_OWNER = 'NOT_LISTING_OWNER',
+  LISTING_NOT_ACTIVE = 'LISTING_NOT_ACTIVE',
+  CANNOT_CANCEL_WITH_BIDS = 'CANNOT_CANCEL_WITH_BIDS',
+  CANNOT_BUY_OWN_LISTING = 'CANNOT_BUY_OWN_LISTING',
+  SELLER_NOT_FOUND = 'SELLER_NOT_FOUND',
+  AUCTION_ENDED = 'AUCTION_ENDED',
+  CANNOT_BID_OWN_LISTING = 'CANNOT_BID_OWN_LISTING',
+  DELIVERY_NOT_FOUND = 'DELIVERY_NOT_FOUND',
+  INVALID_PRICE = 'INVALID_PRICE',
+  INVALID_STARTING_BID = 'INVALID_STARTING_BID',
+  INVALID_DURATION = 'INVALID_DURATION',
+  BID_TOO_LOW = 'BID_TOO_LOW',
+  
   // Torneos
   REGISTRATION_CLOSED = 'REGISTRATION_CLOSED',
   TOURNAMENT_FULL = 'TOURNAMENT_FULL',
@@ -44,6 +61,10 @@ export enum ErrorCode {
   ALREADY_ROLLED = 'ALREADY_ROLLED',
   NO_STARTERS_AVAILABLE = 'NO_STARTERS_AVAILABLE',
   STARTER_ALREADY_CLAIMED = 'STARTER_ALREADY_CLAIMED',
+  BANNER_NOT_FOUND = 'BANNER_NOT_FOUND',
+  BANNER_EXPIRED = 'BANNER_EXPIRED',
+  BANNER_NOT_STARTED = 'BANNER_NOT_STARTED',
+  PLAYER_NOT_FOUND = 'PLAYER_NOT_FOUND',
   
   // Tienda
   INSUFFICIENT_BALANCE = 'INSUFFICIENT_BALANCE',
@@ -70,14 +91,14 @@ export enum ErrorCode {
  */
 export class AppError extends Error {
   public readonly statusCode: number;
-  public readonly code: ErrorCode;
+  public readonly code: ErrorCode | string;
   public readonly isOperational: boolean;
   public readonly field?: string;
 
   constructor(
     message: string,
     statusCode: number = 500,
-    code: ErrorCode = ErrorCode.INTERNAL_ERROR,
+    code: ErrorCode | string = ErrorCode.INTERNAL_ERROR,
     field?: string
   ) {
     super(message);
@@ -95,12 +116,12 @@ export class AppError extends Error {
  */
 export const Errors = {
   // Autenticación
-  unauthorized: () => new AppError('No autenticado', 401, ErrorCode.UNAUTHORIZED),
+  unauthorized: (message?: string) => new AppError(message || 'No autenticado', 401, ErrorCode.UNAUTHORIZED),
   invalidToken: () => new AppError('Token inválido', 401, ErrorCode.INVALID_TOKEN),
   tokenExpired: () => new AppError('Token expirado', 401, ErrorCode.TOKEN_EXPIRED),
   
   // Autorización
-  forbidden: () => new AppError('Acceso denegado', 403, ErrorCode.FORBIDDEN),
+  forbidden: (message?: string) => new AppError(message || 'Acceso denegado', 403, ErrorCode.FORBIDDEN),
   adminRequired: () => new AppError('Se requieren permisos de administrador', 403, ErrorCode.ADMIN_REQUIRED),
   ipNotAuthorized: () => new AppError('IP no autorizada', 403, ErrorCode.IP_NOT_AUTHORIZED),
   
@@ -132,6 +153,7 @@ export const Errors = {
   
   // Validación
   validationError: (message: string, field?: string) => new AppError(message, 400, ErrorCode.VALIDATION_ERROR, field),
+  badRequest: (message: string) => new AppError(message, 400, ErrorCode.INVALID_INPUT),
   
   // Servidor
   internal: (message: string = 'Error interno del servidor') => new AppError(message, 500, ErrorCode.INTERNAL_ERROR),
@@ -146,7 +168,7 @@ export const Errors = {
 export interface ErrorResponse {
   success: false;
   error: string;
-  code?: ErrorCode;
+  code?: ErrorCode | string;
   field?: string;
   stack?: string;
 }

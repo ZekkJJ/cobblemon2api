@@ -6,18 +6,18 @@
  */
 
 import { connectToDatabase, getUsersCollection } from '../config/database.js';
-import { MongoClient } from 'mongodb';
+import { MongoClient, Db } from 'mongodb';
 import { env } from '../config/env.js';
 
 async function createIndexes() {
   console.log('🔧 Iniciando creación de índices...\n');
 
-  let client: MongoClient | null = null;
+  let connection: { client: MongoClient; db: Db } | null = null;
 
   try {
     // Conectar a la base de datos
-    client = await connectToDatabase();
-    const db = client.db();
+    connection = await connectToDatabase();
+    const db = connection.db;
 
     // ============================================
     // ÍNDICES PARA COLECCIÓN: users (players)
@@ -172,8 +172,8 @@ async function createIndexes() {
     console.error('❌ Error creando índices:', error);
     process.exit(1);
   } finally {
-    if (client) {
-      await client.close();
+    if (connection) {
+      await connection.client.close();
       console.log('🔌 Conexión a MongoDB cerrada');
     }
   }

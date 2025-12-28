@@ -114,17 +114,20 @@ export class BannerService {
    * Actualiza un banner existente
    */
   async updateBanner(bannerId: string, data: UpdateBannerData): Promise<GachaBanner> {
+    // Extract dates to handle separately
+    const { startDate, endDate, ...restData } = data;
+    
     const updateData: Partial<GachaBanner> = {
-      ...data,
+      ...restData,
       updatedAt: new Date(),
     };
 
     // Convertir fechas si se proporcionan
-    if (data.startDate) {
-      updateData.startDate = new Date(data.startDate);
+    if (startDate) {
+      updateData.startDate = new Date(startDate);
     }
-    if (data.endDate !== undefined) {
-      updateData.endDate = data.endDate ? new Date(data.endDate) : null;
+    if (endDate !== undefined) {
+      updateData.endDate = endDate ? new Date(endDate) : null;
     }
 
     const result = await this.bannersCollection.findOneAndUpdate(

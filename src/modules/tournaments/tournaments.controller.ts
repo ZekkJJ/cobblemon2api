@@ -11,6 +11,9 @@ import {
   UpdateTournamentSchema,
   RegisterParticipantSchema,
   MatchResultSchema,
+  CreateTournamentData,
+  RegisterParticipantData,
+  MatchResultData,
 } from '../../shared/types/tournament.types.js';
 
 export class TournamentsController {
@@ -71,7 +74,7 @@ export class TournamentsController {
     }
 
     const createdBy = (req as any).user?.discordUsername || 'Admin';
-    const tournament = await this.tournamentsService.createTournament(validationResult.data, createdBy);
+    const tournament = await this.tournamentsService.createTournament(validationResult.data as CreateTournamentData, createdBy);
     
     res.status(201).json({
       success: true,
@@ -169,7 +172,7 @@ export class TournamentsController {
 
     const { participant, tournament } = await this.tournamentsService.registerParticipant(
       req.params['id'] ?? '',
-      validationResult.data
+      validationResult.data as RegisterParticipantData
     );
     
     res.status(201).json({
@@ -197,7 +200,7 @@ export class TournamentsController {
 
     const { participant, tournament } = await this.tournamentsService.registerParticipantByCode(
       code,
-      validationResult.data
+      validationResult.data as RegisterParticipantData
     );
     
     res.status(201).json({
@@ -236,7 +239,7 @@ export class TournamentsController {
 
     const { tournament, match } = await this.tournamentsService.recordMatchResult(
       req.params['matchId'] ?? '',
-      validationResult.data,
+      validationResult.data as MatchResultData,
       req.body.tournamentId
     );
     

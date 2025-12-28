@@ -175,7 +175,6 @@ export class DailyLimitService {
       case 'BATTLE_ANALYSIS': return 'battleAnalysis';
       case 'AI_TUTOR': return 'aiTutor';
       case 'BREED_ADVISOR': return 'breedAdvisor';
-      default: return serviceType.toLowerCase();
     }
   }
 }
