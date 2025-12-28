@@ -335,4 +335,236 @@ router.get('/queue-status', (req, res) => {
   });
 });
 
+/**
+ * POST /api/pokemon-sync/smart-remove-duplicates
+ * Intelligently remove duplicate Pokemon, keeping the best one of each species
+ * Criteria: Higher IVs > Higher Level > Shiny > Protected
+ */
+router.post('/smart-remove-duplicates', async (req, res) => {
+  let client;
+  try {
+    const { discordId, playerUuid, dryRun = true } = req.body;
+    
+    if (!discordId && !playerUuid) {
+      return res.status(400).json({ error: 'discordId o playerUuid es requerido' });
+    }
+    
+    client = new MongoClient(MONGODB_URI);
+    await client.connect();
+    const db = client.db();
+    
+    // Find player
+    const query = playerUuid ? { uuid: playerUuid } : { discordId };
+    const player = await db.collection('players').findOne(query);
+    
+    if (!player) {
+      return res.status(404).json({ error: 'Jugador no encontrado' });
+    }
+    
+    // Collect all Pokemon from party and PC
+    const allPokemon = [];
+    
+    // From party
+    if (player.party && Array.isArray(player.party)) {
+      player.party.forEach(p => {
+        if (p && p.uuid && p.species) {
+          allPokemon.push({ ...p, location: 'party' });
+        }
+      });
+    }
+    
+    // From PC storage
+    if (player.pcStorage && Array.isArray(player.pcStorage)) {
+      player.pcStorage.forEach((box, boxIndex) => {
+        if (box && box.pokemon && Array.isArray(box.pokemon)) {
+          box.pokemon.forEach((p, slotIndex) => {
+            if (p && p.uuid && p.species) {
+              allPokemon.push({ ...p, location: 'pc', boxIndex, slotIndex });
+            }
+          });
+        }
+      });
+    }
+    
+    // Group by species
+    const speciesGroups = {};
+    allPokemon.forEach(p => {
+      const species = p.species.toLowerCase();
+      if (!speciesGroups[species]) {
+        speciesGroups[species] = [];
+      }
+      speciesGroups[species].push(p);
+    });
+    
+    // Calculate IV percentage
+    const calcIVPercentage = (ivs) => {
+      if (!ivs) return 0;
+      const total = (ivs.hp || 0) + (ivs.attack || 0) + (ivs.defense || 0) + 
+                    (ivs.specialAttack || ivs.spAttack || 0) + 
+                    (ivs.specialDefense || ivs.spDefense || 0) + (ivs.speed || 0);
+      return (total / 186) * 100;
+    };
+    
+    // Score Pokemon for comparison (higher = better)
+    const scorePokemon = (p) => {
+      let score = 0;
+      
+      // IV percentage (0-100 points)
+      score += calcIVPercentage(p.ivs);
+      
+      // Level (0-100 points)
+      score += (p.level || 1);
+      
+      // Shiny bonus (50 points)
+      if (p.shiny) score += 50;
+      
+      // Protected bonus (1000 points - never remove protected)
+      if (p.isProtected) score += 1000;
+      
+      // Party bonus (10 points - prefer keeping party Pokemon)
+      if (p.location === 'party') score += 10;
+      
+      return score;
+    };
+    
+    // Find duplicates to remove
+    const toRemove = [];
+    const toKeep = [];
+    
+    for (const [species, group] of Object.entries(speciesGroups)) {
+      if (group.length <= 1) {
+        // No duplicates
+        toKeep.push(...group);
+        continue;
+      }
+      
+      // Sort by score (highest first)
+      group.sort((a, b) => scorePokemon(b) - scorePokemon(a));
+      
+      // Keep the best one
+      const best = group[0];
+      toKeep.push(best);
+      
+      // Mark others for removal (except protected ones)
+      for (let i = 1; i < group.length; i++) {
+        const pokemon = group[i];
+        if (pokemon.isProtected) {
+          toKeep.push(pokemon);
+        } else {
+          toRemove.push({
+            uuid: pokemon.uuid,
+            species: pokemon.species,
+            level: pokemon.level,
+            ivPercentage: calcIVPercentage(pokemon.ivs).toFixed(1),
+            shiny: pokemon.shiny || false,
+            location: pokemon.location,
+            reason: `Duplicate of ${best.species} (kept: Lv.${best.level}, ${calcIVPercentage(best.ivs).toFixed(1)}% IVs)`
+          });
+        }
+      }
+    }
+    
+    // If dry run, just return what would be removed
+    if (dryRun) {
+      return res.json({
+        success: true,
+        dryRun: true,
+        summary: {
+          totalPokemon: allPokemon.length,
+          uniqueSpecies: Object.keys(speciesGroups).length,
+          duplicatesFound: toRemove.length,
+          wouldKeep: toKeep.length
+        },
+        toRemove,
+        message: `Se encontraron ${toRemove.length} duplicados que serían eliminados`
+      });
+    }
+    
+    // Actually queue the removals
+    const queuedOperations = [];
+    for (const pokemon of toRemove) {
+      const operation = {
+        id: Date.now().toString() + '_' + pokemon.uuid,
+        playerUuid: player.uuid,
+        operation: 'REMOVE',
+        pokemonUuid: pokemon.uuid,
+        reason: `Smart duplicate removal: ${pokemon.reason}`,
+        createdAt: new Date().toISOString(),
+        source: 'smart_duplicate_removal'
+      };
+      
+      pendingPokemonOperations.push(operation);
+      queuedOperations.push(operation);
+    }
+    
+    console.log(`[POKEMON-SYNC] Smart duplicate removal: Queued ${queuedOperations.length} removals for ${player.uuid}`);
+    
+    res.json({
+      success: true,
+      dryRun: false,
+      summary: {
+        totalPokemon: allPokemon.length,
+        uniqueSpecies: Object.keys(speciesGroups).length,
+        duplicatesRemoved: toRemove.length,
+        kept: toKeep.length
+      },
+      removed: toRemove,
+      queuedOperations: queuedOperations.length,
+      message: `${toRemove.length} duplicados serán eliminados cuando el jugador esté online`
+    });
+  } catch (error) {
+    console.error('[POKEMON-SYNC] Smart remove duplicates error:', error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    if (client) await client.close();
+  }
+});
+
+/**
+ * POST /api/pokemon-sync/bulk-remove
+ * Remove multiple Pokemon at once (for user-selected removal)
+ */
+router.post('/bulk-remove', async (req, res) => {
+  try {
+    const { discordId, playerUuid, pokemonUuids, reason } = req.body;
+    
+    if (!discordId && !playerUuid) {
+      return res.status(400).json({ error: 'discordId o playerUuid es requerido' });
+    }
+    
+    if (!pokemonUuids || !Array.isArray(pokemonUuids) || pokemonUuids.length === 0) {
+      return res.status(400).json({ error: 'pokemonUuids array es requerido' });
+    }
+    
+    const targetUuid = playerUuid || discordId;
+    const queuedOperations = [];
+    
+    for (const pokemonUuid of pokemonUuids) {
+      const operation = {
+        id: Date.now().toString() + '_' + pokemonUuid,
+        playerUuid: targetUuid,
+        operation: 'REMOVE',
+        pokemonUuid,
+        reason: reason || 'Bulk removal by user',
+        createdAt: new Date().toISOString(),
+        source: 'bulk_removal'
+      };
+      
+      pendingPokemonOperations.push(operation);
+      queuedOperations.push(operation);
+    }
+    
+    console.log(`[POKEMON-SYNC] Bulk removal: Queued ${queuedOperations.length} removals for ${targetUuid}`);
+    
+    res.json({
+      success: true,
+      queuedOperations: queuedOperations.length,
+      message: `${queuedOperations.length} Pokemon serán eliminados cuando estés online`
+    });
+  } catch (error) {
+    console.error('[POKEMON-SYNC] Bulk remove error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
