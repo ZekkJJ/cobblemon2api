@@ -342,10 +342,46 @@ router.get('/queue-status', (req, res) => {
 router.get('/version', (req, res) => {
   res.json({
     success: true,
-    version: '2.0.0',
+    version: '2.0.1',
     features: ['poll', 'add', 'remove', 'smart-remove-duplicates', 'bulk-remove'],
     loadedAt: new Date().toISOString()
   });
+});
+
+/**
+ * GET /api/pokemon-sync/test-duplicates/:discordId
+ * Test endpoint to verify the route works (GET version for debugging)
+ */
+router.get('/test-duplicates/:discordId', async (req, res) => {
+  console.log('[POKEMON-SYNC] test-duplicates GET called for:', req.params.discordId);
+  let client;
+  try {
+    const { discordId } = req.params;
+    
+    client = new MongoClient(MONGODB_URI);
+    await client.connect();
+    const db = client.db();
+    
+    const player = await db.collection('players').findOne({ discordId });
+    
+    if (!player) {
+      return res.status(404).json({ error: 'Jugador no encontrado', discordId });
+    }
+    
+    res.json({
+      success: true,
+      playerFound: true,
+      uuid: player.uuid,
+      username: player.username,
+      partyCount: player.party?.length || 0,
+      pcBoxes: player.pcStorage?.length || 0
+    });
+  } catch (error) {
+    console.error('[POKEMON-SYNC] test-duplicates error:', error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    if (client) await client.close();
+  }
 });
 
 /**
@@ -354,6 +390,7 @@ router.get('/version', (req, res) => {
  * Criteria: Higher IVs > Higher Level > Shiny > Protected
  */
 router.post('/smart-remove-duplicates', async (req, res) => {
+  console.log('[POKEMON-SYNC] smart-remove-duplicates called with body:', JSON.stringify(req.body));
   let client;
   try {
     const { discordId, playerUuid, dryRun = true } = req.body;
