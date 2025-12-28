@@ -390,26 +390,37 @@ router.get('/test-duplicates/:discordId', async (req, res) => {
  * Criteria: Higher IVs > Higher Level > Shiny > Protected
  */
 router.post('/smart-remove-duplicates', async (req, res) => {
-  console.log('[POKEMON-SYNC] smart-remove-duplicates called with body:', JSON.stringify(req.body));
+  console.log('[POKEMON-SYNC] ========================================');
+  console.log('[POKEMON-SYNC] smart-remove-duplicates POST received');
+  console.log('[POKEMON-SYNC] Body:', JSON.stringify(req.body));
+  console.log('[POKEMON-SYNC] Headers:', JSON.stringify(req.headers));
   let client;
   try {
     const { discordId, playerUuid, dryRun = true } = req.body;
     
+    console.log('[POKEMON-SYNC] Parsed: discordId=', discordId, 'playerUuid=', playerUuid, 'dryRun=', dryRun);
+    
     if (!discordId && !playerUuid) {
+      console.log('[POKEMON-SYNC] ERROR: Missing discordId and playerUuid');
       return res.status(400).json({ error: 'discordId o playerUuid es requerido' });
     }
     
     client = new MongoClient(MONGODB_URI);
     await client.connect();
+    console.log('[POKEMON-SYNC] Connected to MongoDB');
     const db = client.db();
     
     // Find player
     const query = playerUuid ? { uuid: playerUuid } : { discordId };
+    console.log('[POKEMON-SYNC] Query:', JSON.stringify(query));
     const player = await db.collection('players').findOne(query);
     
     if (!player) {
+      console.log('[POKEMON-SYNC] ERROR: Player not found');
       return res.status(404).json({ error: 'Jugador no encontrado' });
     }
+    
+    console.log('[POKEMON-SYNC] Found player:', player.username, player.uuid);
     
     // Collect all Pokemon from party and PC
     const allPokemon = [];
@@ -516,7 +527,9 @@ router.post('/smart-remove-duplicates', async (req, res) => {
     
     // If dry run, just return what would be removed
     if (dryRun) {
-      return res.json({
+      console.log('[POKEMON-SYNC] DRY RUN - returning preview');
+      console.log('[POKEMON-SYNC] toRemove count:', toRemove.length);
+      const response = {
         success: true,
         dryRun: true,
         summary: {
@@ -527,7 +540,9 @@ router.post('/smart-remove-duplicates', async (req, res) => {
         },
         toRemove,
         message: `Se encontraron ${toRemove.length} duplicados que serían eliminados`
-      });
+      };
+      console.log('[POKEMON-SYNC] Sending response:', JSON.stringify(response).substring(0, 500));
+      return res.json(response);
     }
     
     // Actually queue the removals
