@@ -5,31 +5,31 @@
 
 const express = require('express');
 
-// Default pricing configuration
+// Default pricing configuration - PRECIOS MÁS ALTOS
 const DEFAULT_PRICING = {
   aiTutor: {
-    basePrice: 500,
-    perQuestionPrice: 100,
-    dailyFreeQuestions: 3,
-    maxQuestionsPerDay: 20
+    basePrice: 2000,        // Subido de 500 a 2000
+    perQuestionPrice: 500,  // Subido de 100 a 500
+    dailyFreeQuestions: 2,  // Reducido de 3 a 2
+    maxQuestionsPerDay: 15
   },
   battleAnalysis: {
-    basePrice: 1000,
-    perAnalysisPrice: 250,
+    basePrice: 3000,        // Subido de 1000 a 3000
+    perAnalysisPrice: 1000, // Subido de 250 a 1000
     dailyFreeAnalyses: 1,
-    maxAnalysesPerDay: 10
+    maxAnalysesPerDay: 5
   },
   breedAdvisor: {
-    basePrice: 750,
-    perAdvicePrice: 150,
-    dailyFreeAdvices: 2,
-    maxAdvicesPerDay: 15
+    basePrice: 2500,        // Subido de 750 a 2500
+    perAdvicePrice: 750,    // Subido de 150 a 750
+    dailyFreeAdvices: 1,    // Reducido de 2 a 1
+    maxAdvicesPerDay: 10
   },
   evPlanner: {
-    basePrice: 300,
-    perPlanPrice: 50,
-    dailyFreePlans: 5,
-    maxPlansPerDay: 30
+    basePrice: 1000,        // Subido de 300 a 1000
+    perPlanPrice: 250,      // Subido de 50 a 250
+    dailyFreePlans: 3,      // Reducido de 5 a 3
+    maxPlansPerDay: 20
   },
   pokebox: {
     basePrice: 0,
@@ -41,12 +41,72 @@ const DEFAULT_PRICING = {
 
 // Default cooldowns (in seconds)
 const DEFAULT_COOLDOWNS = {
-  aiTutor: 30,
-  battleAnalysis: 60,
-  breedAdvisor: 45,
-  evPlanner: 15,
+  aiTutor: 60,        // Subido de 30 a 60
+  battleAnalysis: 120, // Subido de 60 a 120
+  breedAdvisor: 90,   // Subido de 45 a 90
+  evPlanner: 30,      // Subido de 15 a 30
   pokebox: 0
 };
+
+// GROQ API Key from environment
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
+
+/**
+ * Call Groq LLM API for AI Tutor responses
+ */
+async function callGroqForTutor(question, teamData = null) {
+  if (!GROQ_API_KEY) {
+    console.log('[AI TUTOR] No GROQ API key configured');
+    return null;
+  }
+
+  try {
+    const systemPrompt = `Eres un experto tutor de Pokémon competitivo para un servidor de Cobblemon (Minecraft). 
+Tu trabajo es ayudar a los jugadores con:
+- Estrategias de batalla y teambuilding
+- Movesets óptimos para Pokémon
+- Consejos de EVs/IVs y naturalezas
+- Counters y matchups
+- Breeding y shiny hunting
+- Mecánicas de Cobblemon específicas
+
+Responde en español de forma clara y concisa. Usa emojis para hacer la respuesta más amigable.
+Si el jugador proporciona datos de su equipo, úsalos para dar consejos personalizados.
+Limita tus respuestas a 300 palabras máximo.`;
+
+    const userMessage = teamData 
+      ? `Mi equipo actual: ${JSON.stringify(teamData)}\n\nMi pregunta: ${question}`
+      : question;
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-70b-versatile',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ],
+        temperature: 0.7,
+        max_tokens: 1024,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('[AI TUTOR] Groq API error:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    return data.choices[0]?.message?.content || null;
+  } catch (error) {
+    console.error('[AI TUTOR] Error calling Groq:', error.message);
+    return null;
+  }
+}
 
 function initTutoriasRoutes(getDb) {
   const router = express.Router();
@@ -59,12 +119,22 @@ function initTutoriasRoutes(getDb) {
   router.get('/pricing', async (req, res) => {
     try {
       const db = getDb();
+      const { discordId } = req.query;
+      
       let pricing = await db.collection('tutorias_config').findOne({ type: 'pricing' });
       pricing = pricing?.config || DEFAULT_PRICING;
-      res.json({ success: true, pricing });
+      
+      // Get user balance if discordId provided
+      let userBalance = 0;
+      if (discordId) {
+        const user = await db.collection('users').findOne({ discordId });
+        userBalance = user?.cobbleDollars || 0;
+      }
+      
+      res.json({ success: true, pricing, userBalance });
     } catch (error) {
       console.error('[TUTORIAS] Error getting pricing:', error);
-      res.json({ success: true, pricing: DEFAULT_PRICING });
+      res.json({ success: true, pricing: DEFAULT_PRICING, userBalance: 0 });
     }
   });
 
@@ -157,20 +227,61 @@ function initTutoriasRoutes(getDb) {
   router.post('/ai-tutor/ask', async (req, res) => {
     try {
       const { question, includeTeamData, discordId } = req.body;
+      const db = getDb();
       
       if (!question) {
         return res.status(400).json({ success: false, error: 'Pregunta requerida' });
       }
 
-      // Placeholder response - in production would call AI service
-      res.json({
-        success: true,
-        response: {
-          answer: `Gracias por tu pregunta sobre: "${question}". El sistema de IA está en desarrollo. Por ahora, te recomiendo consultar la wiki de Cobblemon o preguntar en Discord.`,
-          confidence: 0.7,
-          sources: ['Cobblemon Wiki', 'Pokémon Database', 'Smogon']
+      // Get user's team data if requested
+      let teamData = null;
+      if (includeTeamData && discordId) {
+        const user = await db.collection('users').findOne({ discordId });
+        if (user?.party) {
+          teamData = user.party.map(p => ({
+            species: p.species,
+            level: p.level,
+            nature: p.nature,
+            ability: p.ability,
+            moves: p.moves
+          }));
         }
-      });
+      }
+
+      // Try to get AI response from Groq
+      const aiAnswer = await callGroqForTutor(question, teamData);
+      
+      if (aiAnswer) {
+        // Save to history
+        await db.collection('ai_tutor_history').insertOne({
+          discordId,
+          question,
+          answer: aiAnswer,
+          includeTeamData,
+          createdAt: new Date()
+        });
+
+        res.json({
+          success: true,
+          response: {
+            answer: aiAnswer,
+            confidence: 0.9,
+            sources: ['Cobblemon Wiki', 'Smogon', 'Pokémon Database'],
+            aiPowered: true
+          }
+        });
+      } else {
+        // Fallback response if AI is unavailable
+        res.json({
+          success: true,
+          response: {
+            answer: `🤖 El servicio de IA está temporalmente no disponible. Tu pregunta fue: "${question}"\n\n📚 Mientras tanto, te recomiendo:\n• Consultar la wiki de Cobblemon\n• Preguntar en el Discord del servidor\n• Revisar guías de Smogon para estrategias competitivas`,
+            confidence: 0.5,
+            sources: ['Cobblemon Wiki', 'Discord'],
+            aiPowered: false
+          }
+        });
+      }
     } catch (error) {
       console.error('[TUTORIAS] Error in AI ask:', error);
       res.status(500).json({ success: false, error: 'Error al procesar pregunta' });
@@ -421,6 +532,243 @@ function initTutoriasRoutes(getDb) {
     } catch (error) {
       console.error('[TUTORIAS] Error in EV plan:', error);
       res.status(500).json({ success: false, error: 'Error al crear plan' });
+    }
+  });
+
+  // ============================================
+  // BATTLE LOG CAPTURE (from Plugin)
+  // ============================================
+
+  // POST /api/tutorias/battle-log/store - Store battle log from plugin
+  router.post('/battle-log/store', async (req, res) => {
+    try {
+      const db = getDb();
+      const {
+        battleId,
+        cobblemonBattleId,
+        startTime,
+        endTime,
+        duration,
+        totalTurns,
+        result,
+        winnerUuid,
+        loserUuid,
+        player1,
+        player2,
+        turns
+      } = req.body;
+
+      if (!battleId || !winnerUuid || !loserUuid) {
+        return res.status(400).json({ success: false, error: 'Missing required fields' });
+      }
+
+      // Find discord IDs for players by their Minecraft UUIDs
+      const winner = await db.collection('users').findOne({ minecraftUuid: winnerUuid });
+      const loser = await db.collection('users').findOne({ minecraftUuid: loserUuid });
+
+      const battleLog = {
+        battleId,
+        cobblemonBattleId,
+        startTime: new Date(startTime),
+        endTime: new Date(endTime),
+        duration,
+        totalTurns,
+        result,
+        winner: {
+          uuid: winnerUuid,
+          discordId: winner?.discordId || player1?.discordId || null,
+          username: winner?.username || null,
+          team: player1?.team || []
+        },
+        loser: {
+          uuid: loserUuid,
+          discordId: loser?.discordId || player2?.discordId || null,
+          username: loser?.username || null,
+          team: player2?.team || []
+        },
+        turns: turns || [],
+        analyzed: false,
+        analysisResult: null,
+        createdAt: new Date()
+      };
+
+      await db.collection('battle_logs').insertOne(battleLog);
+
+      // Also create a battle_analyses entry for the frontend
+      await db.collection('battle_analyses').insertOne({
+        battleId,
+        discordId: winner?.discordId || loser?.discordId,
+        date: new Date(),
+        opponent: loser?.username || loserUuid,
+        opponentUuid: loserUuid,
+        result: result === 'KO' ? 'WIN' : result,
+        duration: Math.floor(duration / 1000), // Convert to seconds
+        turns: totalTurns,
+        analyzed: false,
+        createdAt: new Date()
+      });
+
+      console.log(`[BATTLE LOG] Stored battle ${battleId}: ${winnerUuid} vs ${loserUuid} (${result})`);
+
+      res.json({ success: true, message: 'Battle log stored', battleId });
+    } catch (error) {
+      console.error('[TUTORIAS] Error storing battle log:', error);
+      res.status(500).json({ success: false, error: 'Error storing battle log' });
+    }
+  });
+
+  // GET /api/tutorias/battle-log/list - Get battle logs for a player
+  router.get('/battle-log/list', async (req, res) => {
+    try {
+      const { discordId, minecraftUuid, limit = 20 } = req.query;
+      const db = getDb();
+
+      let query = {};
+      if (discordId) {
+        query.$or = [
+          { 'winner.discordId': discordId },
+          { 'loser.discordId': discordId }
+        ];
+      } else if (minecraftUuid) {
+        query.$or = [
+          { 'winner.uuid': minecraftUuid },
+          { 'loser.uuid': minecraftUuid }
+        ];
+      }
+
+      const battles = await db.collection('battle_logs')
+        .find(query)
+        .sort({ createdAt: -1 })
+        .limit(parseInt(limit))
+        .toArray();
+
+      res.json({ success: true, battles });
+    } catch (error) {
+      console.error('[TUTORIAS] Error getting battle logs:', error);
+      res.json({ success: true, battles: [] });
+    }
+  });
+
+  // GET /api/tutorias/battle-log/:battleId - Get specific battle log
+  router.get('/battle-log/:battleId', async (req, res) => {
+    try {
+      const { battleId } = req.params;
+      const db = getDb();
+
+      const battle = await db.collection('battle_logs').findOne({ battleId });
+
+      if (!battle) {
+        return res.json({ success: false, error: 'Battle not found' });
+      }
+
+      res.json({ success: true, battle });
+    } catch (error) {
+      console.error('[TUTORIAS] Error getting battle log:', error);
+      res.status(500).json({ success: false, error: 'Error getting battle log' });
+    }
+  });
+
+  // POST /api/tutorias/battle-log/analyze - Request AI analysis of a battle
+  router.post('/battle-log/analyze', async (req, res) => {
+    try {
+      const { battleId, discordId } = req.body;
+      const db = getDb();
+
+      const battle = await db.collection('battle_logs').findOne({ battleId });
+
+      if (!battle) {
+        return res.status(404).json({ success: false, error: 'Battle not found' });
+      }
+
+      if (battle.analyzed && battle.analysisResult) {
+        return res.json({ success: true, analysis: battle.analysisResult, cached: true });
+      }
+
+      // Call Groq for battle analysis
+      if (!GROQ_API_KEY) {
+        return res.json({ 
+          success: false, 
+          error: 'AI analysis not available',
+          message: 'El servicio de análisis AI no está configurado'
+        });
+      }
+
+      const analysisPrompt = `Analiza esta batalla Pokémon y proporciona consejos:
+
+Ganador: ${battle.winner.username || battle.winner.uuid}
+Equipo ganador: ${JSON.stringify(battle.winner.team)}
+
+Perdedor: ${battle.loser.username || battle.loser.uuid}  
+Equipo perdedor: ${JSON.stringify(battle.loser.team)}
+
+Resultado: ${battle.result}
+Turnos totales: ${battle.totalTurns}
+Duración: ${Math.floor(battle.duration / 1000)} segundos
+
+Proporciona:
+1. Resumen de la batalla
+2. Momentos clave
+3. Errores del perdedor
+4. Consejos de mejora
+5. Puntuación general (1-10)
+
+Responde en español, de forma concisa y útil.`;
+
+      try {
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${GROQ_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'llama-3.1-70b-versatile',
+            messages: [
+              { role: 'system', content: 'Eres un experto analista de batallas Pokémon competitivas.' },
+              { role: 'user', content: analysisPrompt }
+            ],
+            temperature: 0.7,
+            max_tokens: 1500,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Groq API error');
+        }
+
+        const data = await response.json();
+        const analysisText = data.choices[0]?.message?.content;
+
+        if (analysisText) {
+          // Save analysis
+          await db.collection('battle_logs').updateOne(
+            { battleId },
+            { 
+              $set: { 
+                analyzed: true, 
+                analysisResult: analysisText,
+                analyzedAt: new Date()
+              } 
+            }
+          );
+
+          // Also update battle_analyses
+          await db.collection('battle_analyses').updateOne(
+            { battleId },
+            { $set: { analyzed: true, analysisResult: analysisText } }
+          );
+
+          res.json({ success: true, analysis: analysisText, cached: false });
+        } else {
+          res.json({ success: false, error: 'No analysis generated' });
+        }
+      } catch (aiError) {
+        console.error('[TUTORIAS] AI analysis error:', aiError);
+        res.json({ success: false, error: 'AI analysis failed' });
+      }
+    } catch (error) {
+      console.error('[TUTORIAS] Error analyzing battle:', error);
+      res.status(500).json({ success: false, error: 'Error analyzing battle' });
     }
   });
 
