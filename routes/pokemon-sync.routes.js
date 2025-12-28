@@ -336,6 +336,19 @@ router.get('/queue-status', (req, res) => {
 });
 
 /**
+ * GET /api/pokemon-sync/version
+ * Debug endpoint to verify routes are loaded with latest code
+ */
+router.get('/version', (req, res) => {
+  res.json({
+    success: true,
+    version: '2.0.0',
+    features: ['poll', 'add', 'remove', 'smart-remove-duplicates', 'bulk-remove'],
+    loadedAt: new Date().toISOString()
+  });
+});
+
+/**
  * POST /api/pokemon-sync/smart-remove-duplicates
  * Intelligently remove duplicate Pokemon, keeping the best one of each species
  * Criteria: Higher IVs > Higher Level > Shiny > Protected
