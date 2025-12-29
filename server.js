@@ -4578,6 +4578,13 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
   console.log('🔄 [ROUTES] Pokemon Sync routes loaded');
 
   // ============================================
+  // MODULAR ROUTES - Bulk Items (Admin Item Giver)
+  // ============================================
+  const bulkItemsRoutes = require('./routes/bulk-items.routes');
+  app.use('/api/admin/bulk-items', bulkItemsRoutes);
+  console.log('🎁 [ROUTES] Bulk Items routes loaded');
+
+  // ============================================
   // MODULAR ROUTES - Pokemon Gacha API
   // ============================================
   initPokemonGachaRoutes(app, getDb(), getDb().collection('users'));
