@@ -13,6 +13,11 @@ import { z } from 'zod';
 // ============================================
 
 /**
+ * Formato de batalla (1v1 o 2v2)
+ */
+export type BattleFormat = '1v1' | '2v2';
+
+/**
  * Tipos de victoria en un match
  */
 export type VictoryType = 'KO' | 'FORFEIT' | 'TIMEOUT' | 'DRAW' | 'ADMIN_DECISION' | 'BYE';
@@ -154,6 +159,7 @@ export interface Tournament {
   maxParticipants: number;
   minParticipants?: number;
   bracketType: 'single' | 'double';
+  battleFormat: BattleFormat;     // '1v1' o '2v2'
   format?: string;               // ej: "6v6 Singles", "3v3 Doubles"
   
   // Estado
@@ -212,6 +218,7 @@ export interface CreateTournamentData {
   maxParticipants: number;
   minParticipants?: number;
   bracketType?: 'single' | 'double';
+  battleFormat?: BattleFormat;
   format?: string;
   prizes: string;
   rules?: string;
@@ -447,6 +454,7 @@ export function createDefaultTournament(data: CreateTournamentData, createdBy: s
     maxParticipants: data.maxParticipants,
     minParticipants: data.minParticipants,
     bracketType: data.bracketType || 'single',
+    battleFormat: data.battleFormat || '1v1',
     format: data.format,
     status: 'registration',
     currentRound: 0,

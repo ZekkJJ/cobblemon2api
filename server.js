@@ -3161,15 +3161,24 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
       // Find active match between these players
       for (const round of tournament.bracket.rounds || []) {
         for (const match of round.matches || []) {
-          if (match.status === 'ready' || match.status === 'active') {
-            const matchPlayers = [match.player1Id, match.player2Id];
-            if (matchPlayers.includes(p1.id) && matchPlayers.includes(p2.id)) {
-              return res.json({ 
-                success: true, 
-                data: { match, tournament }
-              });
-            }
-          }
+          // Check ready, active, OR pending matches that have both players assigned
+          // This is crucial for detecting second round matches!
+          const matchPlayers = [match.player1Id, match.player2Id];
+          const hasBothPlayers = matchPlayers.includes(p1.id) && matchPlayers.includes(p2.id);
+          
+          if (!hasBothPlayers) continue;
+          
+          // Skip completed matches
+          if (match.status === 'completed') continue;
+          
+          // For pending matches, only consider if BOTH players are assigned
+          if (match.status === 'pending' && (!match.player1Id || !match.player2Id)) continue;
+          
+          // Match found!
+          return res.json({ 
+            success: true, 
+            data: { match, tournament }
+          });
         }
       }
 
@@ -3200,8 +3209,13 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
 
       // Find and update the match
       let matchFound = false;
-      for (const round of tournament.bracket.rounds) {
-        for (const match of round.matches) {
+      let matchRoundIndex = -1;
+      let matchIndex = -1;
+      
+      for (let r = 0; r < tournament.bracket.rounds.length; r++) {
+        const round = tournament.bracket.rounds[r];
+        for (let m = 0; m < round.matches.length; m++) {
+          const match = round.matches[m];
           if (match.id === req.params.matchId) {
             match.winnerId = winnerId;
             match.loserId = loserId;
@@ -3209,6 +3223,8 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
             match.victoryType = victoryType || 'KO';
             match.completedAt = new Date();
             matchFound = true;
+            matchRoundIndex = r;
+            matchIndex = m;
             break;
           }
         }
@@ -3219,12 +3235,60 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
         return res.status(404).json({ success: false, message: 'Match not found' });
       }
 
+      // CRITICAL: Advance winner to next round
+      const nextRoundIndex = matchRoundIndex + 1;
+      if (nextRoundIndex < tournament.bracket.rounds.length) {
+        const nextRound = tournament.bracket.rounds[nextRoundIndex];
+        const nextMatchIndex = Math.floor(matchIndex / 2);
+        const nextMatch = nextRound.matches[nextMatchIndex];
+        
+        if (nextMatch) {
+          // Determine if winner goes to player1 or player2 slot
+          if (matchIndex % 2 === 0) {
+            nextMatch.player1Id = winnerId;
+          } else {
+            nextMatch.player2Id = winnerId;
+          }
+          
+          // If both players are now assigned, mark match as ready
+          if (nextMatch.player1Id && nextMatch.player2Id) {
+            nextMatch.status = 'ready';
+          }
+          
+          console.log(`[TOURNAMENTS] Advanced ${winnerId} to round ${nextRoundIndex + 1}, match ${nextMatchIndex + 1}`);
+        }
+      } else {
+        // This was the final - tournament is complete
+        tournament.bracket.winnerId = winnerId;
+        tournament.status = 'completed';
+        tournament.winnerId = winnerId;
+        
+        // Find winner username
+        const winner = tournament.participants.find(p => p.id === winnerId);
+        if (winner) {
+          tournament.winnerUsername = winner.username;
+        }
+        
+        console.log(`[TOURNAMENTS] Tournament ${tournament.name} completed! Winner: ${winnerId}`);
+      }
+
+      // Check if current round is complete
+      const currentRound = tournament.bracket.rounds[matchRoundIndex];
+      const roundComplete = currentRound.matches.every(m => m.status === 'completed');
+      if (roundComplete) {
+        currentRound.isComplete = true;
+        tournament.bracket.currentRound = matchRoundIndex + 2; // Next round number (1-indexed)
+      }
+
       // Update tournament
       await db.collection('tournaments').updateOne(
         { _id: tournament._id },
         { 
           $set: { 
             bracket: tournament.bracket,
+            status: tournament.status,
+            winnerId: tournament.winnerId,
+            winnerUsername: tournament.winnerUsername,
             updatedAt: new Date()
           }
         }
