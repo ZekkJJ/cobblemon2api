@@ -2913,7 +2913,7 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
   // POST /api/tournaments - Create tournament (admin)
   app.post('/api/tournaments', async (req, res) => {
     try {
-      const { name, description, startDate, maxParticipants, bracketType, prizes, rules, format, registrationSeconds } = req.body;
+      const { name, description, startDate, maxParticipants, bracketType, battleFormat, prizes, rules, format, registrationSeconds } = req.body;
       
       if (!name || !description || !startDate || !maxParticipants || !prizes) {
         return res.status(400).json({ error: 'Missing required fields' });
@@ -2928,6 +2928,7 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
         startDate: new Date(startDate),
         maxParticipants: parseInt(maxParticipants),
         bracketType: bracketType || 'single',
+        battleFormat: battleFormat || '1v1', // '1v1' or '2v2'
         prizes,
         rules: rules || '',
         format: format || '6v6 Singles',
@@ -2944,7 +2945,7 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
       const result = await getDb().collection('tournaments').insertOne(tournament);
       tournament._id = result.insertedId;
 
-      console.log(`[TOURNAMENTS] Created tournament: ${name} (${code}) - ${tournament.registrationSeconds}s registration`);
+      console.log(`[TOURNAMENTS] Created tournament: ${name} (${code}) - ${tournament.battleFormat} - ${tournament.registrationSeconds}s registration`);
       res.status(201).json({ success: true, data: tournament, message: `Torneo creado con código: ${code}` });
     } catch (error) {
       console.error('[TOURNAMENTS CREATE] Error:', error);
@@ -2955,7 +2956,7 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
   // PUT /api/tournaments/:id - Update tournament (admin)
   app.put('/api/tournaments/:id', async (req, res) => {
     try {
-      const { name, description, startDate, maxParticipants, status, prizes, rules, format } = req.body;
+      const { name, description, startDate, maxParticipants, status, battleFormat, prizes, rules, format } = req.body;
       
       const updateData = { updatedAt: new Date() };
       if (name) updateData.name = name;
@@ -2963,6 +2964,7 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
       if (startDate) updateData.startDate = new Date(startDate);
       if (maxParticipants) updateData.maxParticipants = parseInt(maxParticipants);
       if (status) updateData.status = status;
+      if (battleFormat) updateData.battleFormat = battleFormat;
       if (prizes) updateData.prizes = prizes;
       if (rules !== undefined) updateData.rules = rules;
       if (format) updateData.format = format;
@@ -3313,61 +3315,165 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
         return res.status(404).json({ error: 'Tournament not found' });
       }
 
-      if (tournament.participants.length < 2) {
-        return res.status(400).json({ error: 'Need at least 2 participants to start' });
+      const is2v2 = tournament.battleFormat === '2v2';
+      const minParticipants = is2v2 ? 4 : 2;
+
+      if (tournament.participants.length < minParticipants) {
+        return res.status(400).json({ error: `Need at least ${minParticipants} participants to start a ${tournament.battleFormat || '1v1'} tournament` });
       }
 
-      // Generate simple bracket
+      // For 2v2: need even number of participants (multiple of 4 ideally)
+      if (is2v2 && tournament.participants.length % 2 !== 0) {
+        return res.status(400).json({ error: '2v2 tournaments need an even number of participants' });
+      }
+
+      // Generate bracket based on format
       const participants = [...tournament.participants];
       const rounds = [];
       let roundNumber = 1;
-      let currentParticipants = participants;
 
-      while (currentParticipants.length > 1) {
-        const matches = [];
-        for (let i = 0; i < currentParticipants.length; i += 2) {
-          const match = {
+      if (is2v2) {
+        // 2v2 BRACKET: Form teams by seed pairing (1+8 vs 4+5, 2+7 vs 3+6, etc.)
+        // Sort by seed
+        participants.sort((a, b) => (a.seed || 999) - (b.seed || 999));
+        
+        // Form teams: pair highest with lowest seeds
+        const teams = [];
+        const half = Math.floor(participants.length / 2);
+        for (let i = 0; i < half; i++) {
+          const highSeed = participants[i];
+          const lowSeed = participants[participants.length - 1 - i];
+          teams.push({
             id: crypto.randomBytes(4).toString('hex'),
-            player1Id: currentParticipants[i]?.id || null,
-            player2Id: currentParticipants[i + 1]?.id || null,
-            winnerId: null,
-            status: 'pending',
-            roundNumber,
-          };
-          matches.push(match);
+            player1: highSeed,
+            player2: lowSeed,
+            name: `${highSeed.username} & ${lowSeed.username}`,
+            combinedSeed: highSeed.seed + lowSeed.seed,
+          });
         }
-        rounds.push({
-          roundNumber,
-          name: currentParticipants.length === 2 ? 'Final' : `Ronda ${roundNumber}`,
-          matches,
-        });
-        currentParticipants = matches.map(() => null); // Placeholder for next round
-        roundNumber++;
-      }
 
-      // Update first round matches to ready
-      if (rounds[0]) {
-        rounds[0].matches.forEach(m => {
-          if (m.player1Id && m.player2Id) {
-            m.status = 'ready';
+        // Sort teams by combined seed for bracket placement
+        teams.sort((a, b) => a.combinedSeed - b.combinedSeed);
+
+        // Generate bracket with teams
+        let currentTeams = teams;
+        while (currentTeams.length > 1) {
+          const matches = [];
+          for (let i = 0; i < currentTeams.length; i += 2) {
+            const team1 = currentTeams[i];
+            const team2 = currentTeams[i + 1];
+            const match = {
+              id: crypto.randomBytes(4).toString('hex'),
+              // For 2v2, store team info
+              team1Id: team1?.id || null,
+              team1Players: team1 ? [team1.player1.id, team1.player2.id] : [],
+              team1Name: team1?.name || null,
+              team2Id: team2?.id || null,
+              team2Players: team2 ? [team2.player1.id, team2.player2.id] : [],
+              team2Name: team2?.name || null,
+              // Legacy fields for compatibility
+              player1Id: team1?.id || null,
+              player2Id: team2?.id || null,
+              winnerId: null,
+              status: 'pending',
+              roundNumber,
+              is2v2: true,
+            };
+            matches.push(match);
           }
-        });
-      }
-
-      await getDb().collection('tournaments').updateOne(
-        { _id: new ObjectId(req.params.id) },
-        { 
-          $set: { 
-            status: 'active',
-            bracket: { rounds },
-            startedAt: new Date(),
-            updatedAt: new Date(),
-          } 
+          rounds.push({
+            roundNumber,
+            name: currentTeams.length === 2 ? 'Final' : `Ronda ${roundNumber}`,
+            matches,
+            is2v2: true,
+          });
+          currentTeams = matches.map(() => null); // Placeholder for next round
+          roundNumber++;
         }
-      );
 
-      console.log(`[TOURNAMENTS] Started tournament: ${tournament.name}`);
-      res.json({ success: true, message: 'Tournament started' });
+        // Store teams in bracket
+        const bracket = { 
+          rounds, 
+          teams,
+          battleFormat: '2v2',
+        };
+
+        // Update first round matches to ready
+        if (rounds[0]) {
+          rounds[0].matches.forEach(m => {
+            if (m.team1Id && m.team2Id) {
+              m.status = 'ready';
+            }
+          });
+        }
+
+        await getDb().collection('tournaments').updateOne(
+          { _id: new ObjectId(req.params.id) },
+          { 
+            $set: { 
+              status: 'active',
+              bracket,
+              startedAt: new Date(),
+              updatedAt: new Date(),
+            } 
+          }
+        );
+
+        console.log(`[TOURNAMENTS] Started 2v2 tournament: ${tournament.name} with ${teams.length} teams`);
+        res.json({ success: true, message: 'Tournament started', teams });
+
+      } else {
+        // 1v1 BRACKET: Standard single elimination
+        let currentParticipants = participants;
+
+        while (currentParticipants.length > 1) {
+          const matches = [];
+          for (let i = 0; i < currentParticipants.length; i += 2) {
+            const match = {
+              id: crypto.randomBytes(4).toString('hex'),
+              player1Id: currentParticipants[i]?.id || null,
+              player2Id: currentParticipants[i + 1]?.id || null,
+              winnerId: null,
+              status: 'pending',
+              roundNumber,
+              is2v2: false,
+            };
+            matches.push(match);
+          }
+          rounds.push({
+            roundNumber,
+            name: currentParticipants.length === 2 ? 'Final' : `Ronda ${roundNumber}`,
+            matches,
+            is2v2: false,
+          });
+          currentParticipants = matches.map(() => null); // Placeholder for next round
+          roundNumber++;
+        }
+
+        // Update first round matches to ready
+        if (rounds[0]) {
+          rounds[0].matches.forEach(m => {
+            if (m.player1Id && m.player2Id) {
+              m.status = 'ready';
+            }
+          });
+        }
+
+        await getDb().collection('tournaments').updateOne(
+          { _id: new ObjectId(req.params.id) },
+          { 
+            $set: { 
+              status: 'active',
+              bracket: { rounds, battleFormat: '1v1' },
+              startedAt: new Date(),
+              updatedAt: new Date(),
+            } 
+          }
+        );
+
+        console.log(`[TOURNAMENTS] Started 1v1 tournament: ${tournament.name}`);
+        res.json({ success: true, message: 'Tournament started' });
+      }
     } catch (error) {
       console.error('[TOURNAMENTS START] Error:', error);
       res.status(500).json({ error: 'Internal server error' });
