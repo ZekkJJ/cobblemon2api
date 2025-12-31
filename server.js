@@ -20,6 +20,7 @@ const { initDiscordBot, generateVerificationCode, isPlayerVerified, getBotStatus
 const { initPokemonGachaRoutes } = require('./routes/pokemon-gacha.routes');
 const { initTutoriasRoutes } = require('./routes/tutorias.routes');
 const { initLegendaryPoolRoutes } = require('./routes/legendary-pool.routes');
+const { initTournamentBetsRoutes } = require('./routes/tournament-bets.routes');
 
 // Environment variables
 const PORT = process.env.PORT || 25617;
@@ -3322,6 +3323,72 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
         }
       );
 
+      // RESOLVE BETS for this match
+      try {
+        const is2v2 = tournament.battleFormat === '2v2';
+        const match = tournament.bracket.rounds[matchRoundIndex].matches[matchIndex];
+        
+        // Determine which slot won
+        let winnerSlot = null;
+        if (is2v2) {
+          winnerSlot = match.team1Id === winnerId ? 'slot1' : 'slot2';
+        } else {
+          winnerSlot = match.player1Id === winnerId ? 'slot1' : 'slot2';
+        }
+
+        if (winnerSlot) {
+          const betsCollection = db.collection('tournament_bets');
+          const usersCollection = db.collection('users');
+          const lockedBalanceCollection = db.collection('locked_balances');
+          
+          const pendingBets = await betsCollection.find({ 
+            matchId: req.params.matchId, 
+            status: 'pending' 
+          }).toArray();
+
+          if (pendingBets.length > 0) {
+            const slot1Total = pendingBets.filter(b => b.betOn === 'slot1').reduce((sum, b) => sum + b.amount, 0);
+            const slot2Total = pendingBets.filter(b => b.betOn === 'slot2').reduce((sum, b) => sum + b.amount, 0);
+            const totalPool = slot1Total + slot2Total;
+            const winnerPool = winnerSlot === 'slot1' ? slot1Total : slot2Total;
+            const HOUSE_CUT = 0.05;
+
+            for (const bet of pendingBets) {
+              const isWinner = bet.betOn === winnerSlot;
+              
+              if (isWinner && winnerPool > 0) {
+                const payout = Math.floor((bet.amount / winnerPool) * totalPool * (1 - HOUSE_CUT));
+                await usersCollection.updateOne(
+                  { $or: [{ discordId: bet.discordId }, { minecraftUuid: bet.minecraftUuid }] },
+                  { $inc: { cobbleDollars: payout } }
+                );
+                await betsCollection.updateOne(
+                  { _id: bet._id },
+                  { $set: { status: 'won', payout, resolvedAt: new Date(), winnerId } }
+                );
+                console.log(`[BETS] ${bet.username} WON ${payout} CD`);
+              } else {
+                await betsCollection.updateOne(
+                  { _id: bet._id },
+                  { $set: { status: 'lost', payout: 0, resolvedAt: new Date(), winnerId } }
+                );
+              }
+              
+              // Unlock balance
+              await lockedBalanceCollection.deleteOne({
+                minecraftUuid: bet.minecraftUuid,
+                betId: bet._id.toString(),
+                type: 'tournament_bet',
+              });
+            }
+            console.log(`[BETS] Resolved ${pendingBets.length} bets for match ${req.params.matchId}`);
+          }
+        }
+      } catch (betError) {
+        console.error('[BETS] Error resolving bets:', betError);
+        // Don't fail the match result if bet resolution fails
+      }
+
       console.log(`[TOURNAMENTS] Match ${req.params.matchId} result: ${winnerId} won (${victoryType})`);
       res.json({ success: true, message: 'Match result recorded' });
     } catch (error) {
@@ -4785,6 +4852,12 @@ NO menciones especies específicas. Sé DRAMÁTICO como comentarista de WWE. Esp
   // ============================================
   app.use('/api/legendary-pool', initLegendaryPoolRoutes(getDb, () => client));
   console.log('🐉 [ROUTES] Legendary Pool routes loaded');
+
+  // ============================================
+  // MODULAR ROUTES - Tournament Betting API
+  // ============================================
+  app.use('/api/bets', initTournamentBetsRoutes(getDb));
+  console.log('🎲 [ROUTES] Tournament Bets routes loaded');
 
   // ============================================
   // MODULAR ROUTES - Pokemon Gacha API
