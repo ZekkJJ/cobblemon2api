@@ -6,6 +6,10 @@
  * - Consultar balance de jugadores
  * - Procesar transacciones (add/remove/set)
  * - Sincronizar economía entre plugin y web
+ * 
+ * ANTI-EXPLOIT: Checks locked_balances collection to prevent /syncnow exploit
+ * When a player contributes to legendary pool, their contribution is "locked"
+ * and cannot be recovered by syncing a higher in-game balance.
  */
 
 const express = require('express');
@@ -20,6 +24,24 @@ function initEconomyRoutes(getDb) {
   const getUsersCollection = () => getDb().collection('users');
   const getTransactionsCollection = () => getDb().collection('economy_transactions');
   const getPendingSyncCollection = () => getDb().collection('economy_pending_sync');
+  const getLockedBalanceCollection = () => getDb().collection('locked_balances');
+
+  /**
+   * ANTI-EXPLOIT: Get total locked balance for a player
+   * Locked balances come from legendary pool contributions and other web transactions
+   * that haven't been synced to the game yet.
+   */
+  const getTotalLockedBalance = async (uuid) => {
+    try {
+      const lockedBalances = await getLockedBalanceCollection()
+        .find({ minecraftUuid: uuid })
+        .toArray();
+      return lockedBalances.reduce((sum, lb) => sum + (lb.amount || 0), 0);
+    } catch (error) {
+      console.error('[ECONOMY] Error getting locked balance:', error);
+      return 0;
+    }
+  };
 
   // ============================================
   // GET /api/economy/balance/:uuid - Get player balance
@@ -68,6 +90,7 @@ function initEconomyRoutes(getDb) {
   // ============================================
   // POST /api/economy/transaction - Process economy transaction
   // Plugin calls this for add/remove/set operations
+  // ANTI-EXPLOIT: For 'set' operations, enforces locked balance protection
   // ============================================
   router.post('/transaction', async (req, res) => {
     try {
@@ -99,6 +122,9 @@ function initEconomyRoutes(getDb) {
       const previousBalance = user?.cobbleDollars || 0;
       let newBalance = previousBalance;
 
+      // ANTI-EXPLOIT: Get locked balance for this player
+      const lockedBalance = await getTotalLockedBalance(uuid);
+
       // Calculate new balance based on transaction type
       switch (type) {
         case 'add':
@@ -108,7 +134,20 @@ function initEconomyRoutes(getDb) {
           newBalance = Math.max(0, previousBalance - amount);
           break;
         case 'set':
-          newBalance = amount;
+          // ANTI-EXPLOIT: When setting balance (from /syncnow), 
+          // the new balance cannot exceed (incoming amount - locked amount)
+          // This prevents players from recovering money spent on web
+          if (lockedBalance > 0) {
+            // The maximum allowed balance is the incoming amount minus what's locked
+            const maxAllowedBalance = Math.max(0, amount - lockedBalance);
+            // Use the MINIMUM of current backend balance and max allowed
+            // This ensures web transactions are respected
+            newBalance = Math.min(previousBalance, maxAllowedBalance);
+            
+            console.log(`[ECONOMY] ANTI-EXPLOIT: ${username || uuid} tried to set balance to ${amount}, but has ${lockedBalance} locked. Max allowed: ${maxAllowedBalance}, Final: ${newBalance}`);
+          } else {
+            newBalance = amount;
+          }
           break;
       }
 
@@ -145,17 +184,19 @@ function initEconomyRoutes(getDb) {
         amount,
         previousBalance,
         newBalance,
+        lockedBalance: lockedBalance || 0,
         reason: reason || 'No reason provided',
         source: source || 'plugin',
         timestamp: new Date()
       });
 
-      console.log(`[ECONOMY] Transaction: ${type} ${amount} for ${username || uuid} | ${previousBalance} -> ${newBalance} | Reason: ${reason || 'N/A'}`);
+      console.log(`[ECONOMY] Transaction: ${type} ${amount} for ${username || uuid} | ${previousBalance} -> ${newBalance} | Locked: ${lockedBalance} | Reason: ${reason || 'N/A'}`);
 
       res.json({ 
         success: true, 
         previousBalance,
         newBalance,
+        lockedBalance,
         type,
         amount
       });
@@ -344,6 +385,7 @@ function initEconomyRoutes(getDb) {
   // ============================================
   // POST /api/economy/sync - Bulk sync from plugin
   // Plugin can send multiple balances at once
+  // ANTI-EXPLOIT: Enforces locked balance protection for each player
   // ============================================
   router.post('/sync', async (req, res) => {
     try {
@@ -358,17 +400,40 @@ function initEconomyRoutes(getDb) {
 
       let updated = 0;
       let created = 0;
+      let protected = 0;
 
       for (const player of players) {
         const { uuid, username, balance } = player;
         
         if (!uuid || typeof balance !== 'number') continue;
 
+        // ANTI-EXPLOIT: Get locked balance for this player
+        const lockedBalance = await getTotalLockedBalance(uuid);
+        
+        // Get current backend balance
+        const existingUser = await getUsersCollection().findOne({ minecraftUuid: uuid });
+        const currentBackendBalance = existingUser?.cobbleDollars || 0;
+        
+        let finalBalance = balance;
+        
+        // ANTI-EXPLOIT: If player has locked balance, enforce protection
+        if (lockedBalance > 0) {
+          // The maximum allowed balance is the incoming amount minus what's locked
+          const maxAllowedBalance = Math.max(0, balance - lockedBalance);
+          // Use the MINIMUM of current backend balance and max allowed
+          finalBalance = Math.min(currentBackendBalance, maxAllowedBalance);
+          
+          if (finalBalance !== balance) {
+            console.log(`[ECONOMY] ANTI-EXPLOIT SYNC: ${username || uuid} tried to sync ${balance}, locked: ${lockedBalance}, final: ${finalBalance}`);
+            protected++;
+          }
+        }
+
         const result = await getUsersCollection().updateOne(
           { minecraftUuid: uuid },
           { 
             $set: { 
-              cobbleDollars: balance,
+              cobbleDollars: finalBalance,
               minecraftUsername: username,
               lastEconomyUpdate: new Date()
             },
@@ -383,12 +448,13 @@ function initEconomyRoutes(getDb) {
         else if (result.modifiedCount > 0) updated++;
       }
 
-      console.log(`[ECONOMY] Bulk sync: ${updated} updated, ${created} created`);
+      console.log(`[ECONOMY] Bulk sync: ${updated} updated, ${created} created, ${protected} protected from exploit`);
 
       res.json({ 
         success: true, 
         updated,
         created,
+        protected,
         total: players.length
       });
     } catch (error) {
@@ -489,6 +555,92 @@ function initEconomyRoutes(getDb) {
       res.json({ success: true });
     } catch (error) {
       console.error('[ECONOMY] Error confirming sync:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // ============================================
+  // GET /api/economy/locked-balance/:uuid - Get locked balance for player
+  // Used by plugin and frontend to check how much is locked
+  // ============================================
+  router.get('/locked-balance/:uuid', async (req, res) => {
+    try {
+      const { uuid } = req.params;
+      
+      const lockedBalances = await getLockedBalanceCollection()
+        .find({ minecraftUuid: uuid })
+        .toArray();
+
+      const totalLocked = lockedBalances.reduce((sum, lb) => sum + (lb.amount || 0), 0);
+
+      res.json({
+        success: true,
+        totalLocked,
+        details: lockedBalances.map(lb => ({
+          poolId: lb.poolId,
+          amount: lb.amount,
+          createdAt: lb.createdAt,
+          lastUpdate: lb.lastUpdate
+        }))
+      });
+    } catch (error) {
+      console.error('[ECONOMY] Error getting locked balance:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // ============================================
+  // POST /api/economy/clear-locked/:uuid - Clear locked balance after successful sync
+  // Plugin calls this AFTER successfully setting the player's in-game balance
+  // This confirms the web transaction was applied in-game
+  // ============================================
+  router.post('/clear-locked/:uuid', async (req, res) => {
+    try {
+      const { uuid } = req.params;
+      const { confirmedBalance } = req.body;
+      
+      // Get current locked balance
+      const lockedBalances = await getLockedBalanceCollection()
+        .find({ minecraftUuid: uuid })
+        .toArray();
+      
+      const totalLocked = lockedBalances.reduce((sum, lb) => sum + (lb.amount || 0), 0);
+      
+      if (totalLocked === 0) {
+        return res.json({ success: true, message: 'No locked balance to clear', cleared: 0 });
+      }
+
+      // Get backend balance
+      const user = await getUsersCollection().findOne({ minecraftUuid: uuid });
+      const backendBalance = user?.cobbleDollars || 0;
+
+      // Only clear if the confirmed in-game balance matches or is less than backend
+      // This ensures the deduction was actually applied in-game
+      if (typeof confirmedBalance === 'number' && confirmedBalance <= backendBalance) {
+        // Clear all locked balances for this player
+        const result = await getLockedBalanceCollection().deleteMany({ minecraftUuid: uuid });
+        
+        console.log(`[ECONOMY] Cleared ${totalLocked} locked balance for ${uuid}. In-game: ${confirmedBalance}, Backend: ${backendBalance}`);
+        
+        res.json({ 
+          success: true, 
+          cleared: totalLocked,
+          deletedCount: result.deletedCount
+        });
+      } else {
+        // Don't clear - in-game balance is higher than backend (potential exploit attempt)
+        console.log(`[ECONOMY] REFUSED to clear locked balance for ${uuid}. In-game: ${confirmedBalance}, Backend: ${backendBalance}, Locked: ${totalLocked}`);
+        
+        res.json({ 
+          success: false, 
+          error: 'In-game balance is higher than backend balance',
+          inGameBalance: confirmedBalance,
+          backendBalance,
+          lockedBalance: totalLocked
+        });
+      }
+    } catch (error) {
+      console.error('[ECONOMY] Error clearing locked balance:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   });
