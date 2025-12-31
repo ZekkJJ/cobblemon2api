@@ -325,17 +325,9 @@ function initLegendaryPoolRoutes(getDb, getClient) {
         transactionId: contributionId
       });
 
-      // 9. Create pending sync for plugin to remove money in-game
-      await getDb().collection('economy_pending_sync').insertOne({
-        uuid: minecraftUuid,
-        username: username || user.minecraftUsername || 'Unknown',
-        type: 'remove',
-        amount: contributionAmount,
-        reason: 'Legendary Pool contribution',
-        source: 'legendary_pool',
-        synced: false,
-        createdAt: new Date()
-      });
+      // NOTE: NO crear economy_pending_sync aquí porque el plugin ya hace
+      // syncPlayerBalance() después de contribuir, que ejecuta "cobbledollars set"
+      // con el balance actualizado del backend. Crear pending_sync causaría doble descuento.
 
       console.log(`[LEGENDARY POOL] ${username || minecraftUuid} contributed ${contributionAmount} CD. Pool: ${newPoolAmount}/${pool.goalAmount}`);
 
