@@ -873,21 +873,45 @@ function createApp() {
         synced: false
       });
       
-      const shouldUpdateBalance = pendingSyncs === 0; // Only update if no pending syncs
+      // ANTI-EXPLOIT: Check for locked balances (legendary pool contributions, etc.)
+      // Locked balances represent money spent on web that hasn't been synced to game yet
+      const lockedBalances = await db.collection('locked_balances')
+        .find({ minecraftUuid: uuid })
+        .toArray();
+      const totalLockedBalance = lockedBalances.reduce((sum, lb) => sum + (lb.amount || 0), 0);
+      
+      // Determine if we should update balance and what the final balance should be
+      let shouldUpdateBalance = pendingSyncs === 0;
+      let finalBalance = inGameBalance;
       
       if (pendingSyncs > 0) {
         console.log(`[SYNC] Skipping balance update for ${username} - ${pendingSyncs} pending economy syncs`);
+        shouldUpdateBalance = false;
+      }
+      
+      // ANTI-EXPLOIT: If player has locked balance, enforce protection
+      // The incoming balance cannot exceed (in-game balance - locked amount)
+      if (shouldUpdateBalance && totalLockedBalance > 0 && inGameBalance !== undefined) {
+        const currentBackendBalance = user?.cobbleDollars || 0;
+        const maxAllowedBalance = Math.max(0, inGameBalance - totalLockedBalance);
+        // Use the MINIMUM of current backend balance and max allowed
+        finalBalance = Math.min(currentBackendBalance, maxAllowedBalance);
+        
+        if (finalBalance !== inGameBalance) {
+          console.log(`[SYNC] ANTI-EXPLOIT: ${username} tried to sync ${inGameBalance}, locked: ${totalLockedBalance}, backend: ${currentBackendBalance}, final: ${finalBalance}`);
+        }
       }
 
       if (!user) {
         // Create new user - only save party if it has data
+        // For new users with locked balance, start at 0 (they shouldn't have locked balance anyway)
         const newUser = {
           minecraftUuid: uuid,
           minecraftUsername: username,
           online: online || false,
           party: (party && Array.isArray(party) && party.length > 0) ? party : [],
           pcStorage: (pcStorage && Array.isArray(pcStorage) && pcStorage.length > 0) ? pcStorage : [],
-          cobbleDollars: shouldUpdateBalance ? (inGameBalance || 0) : 0,
+          cobbleDollars: shouldUpdateBalance ? (finalBalance || 0) : 0,
           badges: badges || 0,
           playtime: playtime || 0,
           x: x,
@@ -899,7 +923,7 @@ function createApp() {
           updatedAt: new Date(),
         };
         await db.collection('users').insertOne(newUser);
-        return res.json({ success: true, verified: false, banned: false, pendingSyncs });
+        return res.json({ success: true, verified: false, banned: false, pendingSyncs, lockedBalance: totalLockedBalance });
       }
 
       // Update existing user
@@ -920,9 +944,9 @@ function createApp() {
       }
       
       // CRITICAL: Only update balance if there are NO pending economy syncs
-      // This prevents the in-game balance from overwriting web transactions
-      if (shouldUpdateBalance && inGameBalance !== undefined) {
-        updateData.cobbleDollars = inGameBalance;
+      // AND apply locked balance protection
+      if (shouldUpdateBalance && finalBalance !== undefined) {
+        updateData.cobbleDollars = finalBalance;
       }
       
       if (badges !== undefined) updateData.badges = badges;
@@ -943,6 +967,7 @@ function createApp() {
         banned: user.banned || false,
         banReason: user.banReason,
         pendingSyncs, // Tell plugin how many pending syncs there are
+        lockedBalance: totalLockedBalance, // Tell plugin about locked balance
       });
     } catch (error) {
       console.error('[PLAYERS SYNC] Error:', error);

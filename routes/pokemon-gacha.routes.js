@@ -725,14 +725,17 @@ class PokemonGachaService {
     const user = await usersCollection.findOne({ discordId: playerId });
     if (!user) throw new Error('Jugador no encontrado');
     
+    // Obtener el banner para usar sus precios personalizados
+    const banner = await this.getBanner(bannerId);
+    const cost = Number(banner?.singlePullCost || PULL_COSTS.single);
+    
     // IMPORTANTE: Usar el balance correcto - cobbleDollars es el campo principal
     // cobbleDollarsBalance puede estar desincronizado, usar el mayor de los dos
     const balanceA = Number(user.cobbleDollars) || 0;
     const balanceB = Number(user.cobbleDollarsBalance) || 0;
     const balance = Math.max(balanceA, balanceB);
-    const cost = Number(PULL_COSTS.single);
     
-    console.log('[GACHA DEBUG] cobbleDollars:', balanceA, 'cobbleDollarsBalance:', balanceB, 'Using:', balance, 'Cost:', cost);
+    console.log('[GACHA DEBUG] cobbleDollars:', balanceA, 'cobbleDollarsBalance:', balanceB, 'Using:', balance, 'Cost:', cost, 'Banner:', bannerId);
     
     if (balance < cost) {
       throw new Error(`Balance insuficiente. Necesitas ${cost} CD`);
@@ -751,7 +754,7 @@ class PokemonGachaService {
         username: user.minecraftUsername || 'Unknown',
         type: 'remove',
         amount: cost,
-        reason: 'Gacha pull x1',
+        reason: `Gacha pull x1 (${banner?.nameEs || bannerId})`,
         source: 'gacha',
         synced: false,
         createdAt: new Date()
@@ -791,14 +794,17 @@ class PokemonGachaService {
     const user = await usersCollection.findOne({ discordId: playerId });
     if (!user) throw new Error('Jugador no encontrado');
     
+    // Obtener el banner para usar sus precios personalizados
+    const banner = await this.getBanner(bannerId);
+    const cost = Number(banner?.multiPullCost || PULL_COSTS.multi);
+    
     // IMPORTANTE: Usar el balance correcto - cobbleDollars es el campo principal
     // cobbleDollarsBalance puede estar desincronizado, usar el mayor de los dos
     const balanceA = Number(user.cobbleDollars) || 0;
     const balanceB = Number(user.cobbleDollarsBalance) || 0;
     const balance = Math.max(balanceA, balanceB);
-    const cost = Number(PULL_COSTS.multi);
     
-    console.log('[GACHA DEBUG] Multi-pull cobbleDollars:', balanceA, 'cobbleDollarsBalance:', balanceB, 'Using:', balance, 'Cost:', cost);
+    console.log('[GACHA DEBUG] Multi-pull cobbleDollars:', balanceA, 'cobbleDollarsBalance:', balanceB, 'Using:', balance, 'Cost:', cost, 'Banner:', bannerId);
     
     if (balance < cost) {
       throw new Error(`Balance insuficiente. Necesitas ${cost} CD`);
@@ -816,7 +822,7 @@ class PokemonGachaService {
         username: user.minecraftUsername || 'Unknown',
         type: 'remove',
         amount: cost,
-        reason: 'Gacha pull x10',
+        reason: `Gacha pull x10 (${banner?.nameEs || bannerId})`,
         source: 'gacha',
         synced: false,
         createdAt: new Date()
