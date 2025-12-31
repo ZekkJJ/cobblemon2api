@@ -50,6 +50,27 @@ function initLegendaryPoolRoutes(getDb, getClient) {
   const getUsersCollection = () => getDb().collection('users');
   const getPoolHistoryCollection = () => getDb().collection('pool_history');
 
+  // Ensure indexes exist (creates collections if they don't exist)
+  const ensureIndexes = async () => {
+    try {
+      await getPoolsCollection().createIndex({ status: 1 });
+      await getContributionsCollection().createIndex({ poolId: 1, minecraftUuid: 1 }, { unique: true });
+      await getContributionsCollection().createIndex({ poolId: 1, totalContributed: -1 });
+      await getLockedBalanceCollection().createIndex({ minecraftUuid: 1, poolId: 1 }, { unique: true });
+      await getDb().collection('pool_transactions').createIndex({ poolId: 1, timestamp: -1 });
+      await getPoolHistoryCollection().createIndex({ completedAt: -1 });
+      console.log('[LEGENDARY POOL] Indexes created successfully');
+    } catch (e) {
+      // Indexes might already exist, that's fine
+      if (!e.message.includes('already exists')) {
+        console.error('[LEGENDARY POOL] Error creating indexes:', e.message);
+      }
+    }
+  };
+  
+  // Run index creation on startup
+  ensureIndexes();
+
   // ============================================
   // GET /api/legendary-pool/active - Get current active pool
   // ============================================
@@ -136,9 +157,6 @@ function initLegendaryPoolRoutes(getDb, getClient) {
   // POST /api/legendary-pool/contribute - Contribute to pool (ANTI-EXPLOIT)
   // ============================================
   router.post('/contribute', async (req, res) => {
-    const client = getClient();
-    const session = client.startSession();
-    
     try {
       const { minecraftUuid, amount, username } = req.body;
 
@@ -175,151 +193,161 @@ function initLegendaryPoolRoutes(getDb, getClient) {
         });
       }
 
-      let result = null;
+      // 1. Get active pool
+      const pool = await getPoolsCollection().findOne({ status: 'active' });
 
-      // Start transaction for atomicity
-      await session.withTransaction(async () => {
-        // 1. Get active pool
-        const pool = await getPoolsCollection().findOne(
-          { status: 'active' },
-          { session }
-        );
+      if (!pool) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'No hay un pool activo en este momento' 
+        });
+      }
 
-        if (!pool) {
-          throw new Error('No hay un pool activo en este momento');
+      // Check if pool is expired
+      if (pool.expiresAt && new Date(pool.expiresAt) < new Date()) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'El pool ha expirado' 
+        });
+      }
+
+      // Check if pool is already at goal
+      if (pool.currentAmount >= pool.goalAmount) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'El pool ya alcanzó su meta' 
+        });
+      }
+
+      // 2. Get user's current balance
+      const user = await getUsersCollection().findOne({ minecraftUuid });
+
+      if (!user) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Jugador no encontrado. Debes verificar tu cuenta primero.' 
+        });
+      }
+
+      // Use the higher of the two balance fields (same as gacha)
+      const balanceA = Number(user.cobbleDollars) || 0;
+      const balanceB = Number(user.cobbleDollarsBalance) || 0;
+      const currentBalance = Math.max(balanceA, balanceB);
+
+      // 3. Check if user has enough balance
+      if (currentBalance < contributionAmount) {
+        return res.status(400).json({ 
+          success: false, 
+          error: `Balance insuficiente. Tienes ${currentBalance.toLocaleString()} CD, necesitas ${contributionAmount.toLocaleString()} CD` 
+        });
+      }
+
+      // 4. IMMEDIATELY deduct from user's balance (ANTI-EXPLOIT)
+      const newBalance = currentBalance - contributionAmount;
+      await getUsersCollection().updateOne(
+        { minecraftUuid },
+        { 
+          $inc: { 
+            cobbleDollars: -contributionAmount,
+            cobbleDollarsBalance: -contributionAmount 
+          },
+          $set: { lastPoolContribution: new Date() }
         }
+      );
 
-        // Check if pool is expired
-        if (pool.expiresAt && new Date(pool.expiresAt) < new Date()) {
-          throw new Error('El pool ha expirado');
-        }
+      // 5. Create/update locked balance record (prevents /syncnow exploit)
+      await getLockedBalanceCollection().updateOne(
+        { minecraftUuid, poolId: pool._id.toString() },
+        {
+          $inc: { amount: contributionAmount },
+          $set: { 
+            username: username || user.minecraftUsername,
+            lastUpdate: new Date()
+          },
+          $setOnInsert: {
+            createdAt: new Date()
+          }
+        },
+        { upsert: true }
+      );
 
-        // Check if pool is already at goal (race condition prevention)
-        if (pool.currentAmount >= pool.goalAmount) {
-          throw new Error('El pool ya alcanzó su meta');
-        }
-
-        // 2. Get user's current balance
-        const user = await getUsersCollection().findOne(
-          { minecraftUuid },
-          { session }
-        );
-
-        if (!user) {
-          throw new Error('Jugador no encontrado. Debes verificar tu cuenta primero.');
-        }
-
-        const currentBalance = user.cobbleDollars || 0;
-
-        // 3. Check if user has enough balance
-        if (currentBalance < contributionAmount) {
-          throw new Error(`Balance insuficiente. Tienes ${currentBalance.toLocaleString()} CD, necesitas ${contributionAmount.toLocaleString()} CD`);
-        }
-
-        // 4. IMMEDIATELY deduct from user's balance (ANTI-EXPLOIT)
-        const newBalance = currentBalance - contributionAmount;
-        await getUsersCollection().updateOne(
-          { minecraftUuid },
-          { 
-            $set: { 
-              cobbleDollars: newBalance,
-              lastPoolContribution: new Date()
+      // 6. Update contribution record
+      const contributionId = crypto.randomBytes(8).toString('hex');
+      await getContributionsCollection().updateOne(
+        { minecraftUuid, poolId: pool._id.toString() },
+        {
+          $inc: { totalContributed: contributionAmount },
+          $push: {
+            contributions: {
+              id: contributionId,
+              amount: contributionAmount,
+              timestamp: new Date()
             }
           },
-          { session }
-        );
-
-        // 5. Create/update locked balance record (prevents /syncnow exploit)
-        await getLockedBalanceCollection().updateOne(
-          { minecraftUuid, poolId: pool._id.toString() },
-          {
-            $inc: { amount: contributionAmount },
-            $set: { 
-              username: username || user.minecraftUsername,
-              lastUpdate: new Date()
-            },
-            $setOnInsert: {
-              createdAt: new Date()
-            }
+          $set: {
+            username: username || user.minecraftUsername,
+            lastContribution: new Date()
           },
-          { upsert: true, session }
-        );
+          $setOnInsert: {
+            createdAt: new Date()
+          }
+        },
+        { upsert: true }
+      );
 
-        // 6. Update contribution record
-        const contributionId = crypto.randomBytes(8).toString('hex');
-        await getContributionsCollection().updateOne(
-          { minecraftUuid, poolId: pool._id.toString() },
-          {
-            $inc: { totalContributed: contributionAmount },
-            $push: {
-              contributions: {
-                id: contributionId,
-                amount: contributionAmount,
-                timestamp: new Date()
-              }
-            },
-            $set: {
-              username: username || user.minecraftUsername,
-              lastContribution: new Date()
-            },
-            $setOnInsert: {
-              createdAt: new Date()
-            }
-          },
-          { upsert: true, session }
-        );
+      // 7. Update pool total
+      const newPoolAmount = pool.currentAmount + contributionAmount;
+      const poolCompleted = newPoolAmount >= pool.goalAmount;
+      
+      await getPoolsCollection().updateOne(
+        { _id: pool._id },
+        {
+          $inc: { currentAmount: contributionAmount },
+          $set: { 
+            lastUpdate: new Date(),
+            ...(poolCompleted ? { status: 'completed', completedAt: new Date() } : {})
+          }
+        }
+      );
 
-        // 7. Update pool total
-        const newPoolAmount = pool.currentAmount + contributionAmount;
-        const poolCompleted = newPoolAmount >= pool.goalAmount;
-        
-        await getPoolsCollection().updateOne(
-          { _id: pool._id },
-          {
-            $inc: { currentAmount: contributionAmount },
-            $set: { 
-              lastUpdate: new Date(),
-              ...(poolCompleted ? { status: 'completed', completedAt: new Date() } : {})
-            }
-          },
-          { session }
-        );
-
-        // 8. Log transaction for audit
-        await getDb().collection('pool_transactions').insertOne({
-          type: 'contribution',
-          poolId: pool._id.toString(),
-          minecraftUuid,
-          username: username || user.minecraftUsername,
-          amount: contributionAmount,
-          previousBalance: currentBalance,
-          newBalance,
-          poolAmountBefore: pool.currentAmount,
-          poolAmountAfter: newPoolAmount,
-          timestamp: new Date(),
-          transactionId: contributionId
-        }, { session });
-
-        result = {
-          poolId: pool._id.toString(),
-          newPoolAmount,
-          poolCompleted,
-          goalAmount: pool.goalAmount
-        };
-
-        console.log(`[LEGENDARY POOL] ${username || minecraftUuid} contributed ${contributionAmount} CD. Pool: ${newPoolAmount}/${pool.goalAmount}`);
+      // 8. Log transaction for audit
+      await getDb().collection('pool_transactions').insertOne({
+        type: 'contribution',
+        poolId: pool._id.toString(),
+        minecraftUuid,
+        username: username || user.minecraftUsername,
+        amount: contributionAmount,
+        previousBalance: currentBalance,
+        newBalance,
+        poolAmountBefore: pool.currentAmount,
+        poolAmountAfter: newPoolAmount,
+        timestamp: new Date(),
+        transactionId: contributionId
       });
 
-      // Get updated data after transaction
-      const pool = await getPoolsCollection().findOne({ _id: new (require('mongodb').ObjectId)(result.poolId) });
+      // 9. Create pending sync for plugin to remove money in-game
+      await getDb().collection('economy_pending_sync').insertOne({
+        uuid: minecraftUuid,
+        username: username || user.minecraftUsername || 'Unknown',
+        type: 'remove',
+        amount: contributionAmount,
+        reason: 'Legendary Pool contribution',
+        source: 'legendary_pool',
+        synced: false,
+        createdAt: new Date()
+      });
+
+      console.log(`[LEGENDARY POOL] ${username || minecraftUuid} contributed ${contributionAmount} CD. Pool: ${newPoolAmount}/${pool.goalAmount}`);
+
+      // Get updated contribution data
       const contribution = await getContributionsCollection().findOne({
-        poolId: result.poolId,
+        poolId: pool._id.toString(),
         minecraftUuid
       });
 
       // Get rank
       const allContributions = await getContributionsCollection()
-        .find({ poolId: result.poolId })
+        .find({ poolId: pool._id.toString() })
         .sort({ totalContributed: -1 })
         .toArray();
       
@@ -329,19 +357,17 @@ function initLegendaryPoolRoutes(getDb, getClient) {
       res.json({
         success: true,
         message: '¡Contribución exitosa!',
-        newTotal: pool.currentAmount,
-        poolProgress: ((pool.currentAmount / pool.goalAmount) * 100).toFixed(2),
-        yourTotal: contribution.totalContributed,
+        newTotal: newPoolAmount,
+        poolProgress: ((newPoolAmount / pool.goalAmount) * 100).toFixed(2),
+        yourTotal: contribution?.totalContributed || contributionAmount,
         yourRank: rank,
         isTopContributor,
-        poolCompleted: pool.status === 'completed'
+        poolCompleted
       });
 
     } catch (error) {
       console.error('[LEGENDARY POOL] Contribution error:', error);
       res.status(400).json({ success: false, error: error.message });
-    } finally {
-      await session.endSession();
     }
   });
 
@@ -586,9 +612,6 @@ function initLegendaryPoolRoutes(getDb, getClient) {
   // ADMIN: POST /api/legendary-pool/expire - Force expire and refund
   // ============================================
   router.post('/expire', async (req, res) => {
-    const client = getClient();
-    const session = client.startSession();
-
     try {
       const { poolId } = req.body;
 
@@ -603,77 +626,79 @@ function initLegendaryPoolRoutes(getDb, getClient) {
         return res.status(400).json({ success: false, error: 'Invalid poolId format' });
       }
 
+      const pool = await getPoolsCollection().findOne({ _id: objectId, status: 'active' });
+
+      if (!pool) {
+        return res.status(404).json({ success: false, error: 'Active pool not found' });
+      }
+
+      // Get all contributions
+      const contributions = await getContributionsCollection()
+        .find({ poolId: pool._id.toString() })
+        .toArray();
+
       let refundCount = 0;
       let totalRefunded = 0;
 
-      await session.withTransaction(async () => {
-        const pool = await getPoolsCollection().findOne(
-          { _id: objectId, status: 'active' },
-          { session }
-        );
+      // Refund 80% to each contributor
+      for (const contrib of contributions) {
+        const refundAmount = Math.floor(contrib.totalContributed * REFUND_PERCENTAGE);
+        
+        if (refundAmount > 0) {
+          await getUsersCollection().updateOne(
+            { minecraftUuid: contrib.minecraftUuid },
+            { $inc: { cobbleDollars: refundAmount, cobbleDollarsBalance: refundAmount } }
+          );
 
-        if (!pool) {
-          throw new Error('Active pool not found');
+          // Log refund
+          await getDb().collection('pool_transactions').insertOne({
+            type: 'refund',
+            poolId: pool._id.toString(),
+            minecraftUuid: contrib.minecraftUuid,
+            username: contrib.username,
+            originalAmount: contrib.totalContributed,
+            refundAmount,
+            refundPercentage: REFUND_PERCENTAGE,
+            timestamp: new Date()
+          });
+
+          // Create pending sync for plugin to add money in-game
+          await getDb().collection('economy_pending_sync').insertOne({
+            uuid: contrib.minecraftUuid,
+            username: contrib.username || 'Unknown',
+            type: 'add',
+            amount: refundAmount,
+            reason: 'Legendary Pool refund (pool expired)',
+            source: 'legendary_pool_refund',
+            synced: false,
+            createdAt: new Date()
+          });
+
+          refundCount++;
+          totalRefunded += refundAmount;
         }
+      }
 
-        // Get all contributions
-        const contributions = await getContributionsCollection()
-          .find({ poolId: pool._id.toString() })
-          .toArray();
+      // Update pool status
+      await getPoolsCollection().updateOne(
+        { _id: pool._id },
+        { $set: { status: 'expired', expiredAt: new Date() } }
+      );
 
-        // Refund 80% to each contributor
-        for (const contrib of contributions) {
-          const refundAmount = Math.floor(contrib.totalContributed * REFUND_PERCENTAGE);
-          
-          if (refundAmount > 0) {
-            await getUsersCollection().updateOne(
-              { minecraftUuid: contrib.minecraftUuid },
-              { $inc: { cobbleDollars: refundAmount } },
-              { session }
-            );
+      // Clear locked balances
+      await getLockedBalanceCollection().deleteMany({ poolId: pool._id.toString() });
 
-            // Log refund
-            await getDb().collection('pool_transactions').insertOne({
-              type: 'refund',
-              poolId: pool._id.toString(),
-              minecraftUuid: contrib.minecraftUuid,
-              username: contrib.username,
-              originalAmount: contrib.totalContributed,
-              refundAmount,
-              refundPercentage: REFUND_PERCENTAGE,
-              timestamp: new Date()
-            }, { session });
-
-            refundCount++;
-            totalRefunded += refundAmount;
-          }
-        }
-
-        // Update pool status
-        await getPoolsCollection().updateOne(
-          { _id: pool._id },
-          { $set: { status: 'expired', expiredAt: new Date() } },
-          { session }
-        );
-
-        // Clear locked balances
-        await getLockedBalanceCollection().deleteMany(
-          { poolId: pool._id.toString() },
-          { session }
-        );
-
-        // Save to history
-        await getPoolHistoryCollection().insertOne({
-          poolId: pool._id.toString(),
-          targetPokemon: pool.targetPokemon,
-          goalAmount: pool.goalAmount,
-          finalAmount: pool.currentAmount,
-          status: 'expired',
-          totalContributors: contributions.length,
-          refundPercentage: REFUND_PERCENTAGE,
-          totalRefunded,
-          expiredAt: new Date()
-        }, { session });
+      // Save to history
+      await getPoolHistoryCollection().insertOne({
+        poolId: pool._id.toString(),
+        targetPokemon: pool.targetPokemon,
+        goalAmount: pool.goalAmount,
+        finalAmount: pool.currentAmount,
+        status: 'expired',
+        totalContributors: contributions.length,
+        refundPercentage: REFUND_PERCENTAGE,
+        totalRefunded,
+        expiredAt: new Date()
       });
 
       console.log(`[LEGENDARY POOL] Pool expired. Refunded ${totalRefunded} CD to ${refundCount} contributors`);
@@ -686,8 +711,6 @@ function initLegendaryPoolRoutes(getDb, getClient) {
     } catch (error) {
       console.error('[LEGENDARY POOL] Expire error:', error);
       res.status(500).json({ success: false, error: error.message });
-    } finally {
-      await session.endSession();
     }
   });
 
