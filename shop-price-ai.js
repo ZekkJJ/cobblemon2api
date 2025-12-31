@@ -11,61 +11,80 @@ const { MongoClient } = require('mongodb');
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
-// Multiplicadores de rareza - cuanto más raro, más caro respecto al promedio
+// Multiplicadores de rareza - basados en el percentil 75 de la economía
 const RARITY_MULTIPLIERS = {
-  // Standard balls - precio cercano al promedio
-  'poke_ball': { rarity: 'common', multiplier: 0.3 },      // 30% del promedio
-  'great_ball': { rarity: 'common', multiplier: 0.5 },     // 50% del promedio
-  'ultra_ball': { rarity: 'uncommon', multiplier: 0.8 },   // 80% del promedio
+  // Standard balls - accesibles pero no regaladas
+  'poke_ball': { rarity: 'common', multiplier: 0.01 },      // 1% del p75
+  'great_ball': { rarity: 'common', multiplier: 0.02 },     // 2% del p75
+  'ultra_ball': { rarity: 'uncommon', multiplier: 0.05 },   // 5% del p75
   
-  // Special balls - precio igual o mayor al promedio
-  'premier_ball': { rarity: 'common', multiplier: 0.3 },
-  'luxury_ball': { rarity: 'uncommon', multiplier: 0.7 },
-  'heal_ball': { rarity: 'common', multiplier: 0.4 },
+  // Special balls
+  'premier_ball': { rarity: 'common', multiplier: 0.01 },
+  'luxury_ball': { rarity: 'uncommon', multiplier: 0.04 },
+  'heal_ball': { rarity: 'common', multiplier: 0.015 },
   
-  // Situational balls - precio moderado-alto
-  'net_ball': { rarity: 'uncommon', multiplier: 0.7 },
-  'dive_ball': { rarity: 'uncommon', multiplier: 0.7 },
-  'nest_ball': { rarity: 'uncommon', multiplier: 0.7 },
-  'repeat_ball': { rarity: 'uncommon', multiplier: 0.7 },
-  'timer_ball': { rarity: 'uncommon', multiplier: 0.7 },
-  'quick_ball': { rarity: 'rare', multiplier: 1.0 },       // 100% del promedio
-  'dusk_ball': { rarity: 'uncommon', multiplier: 0.8 },
+  // Situational balls - precio moderado
+  'net_ball': { rarity: 'uncommon', multiplier: 0.04 },
+  'dive_ball': { rarity: 'uncommon', multiplier: 0.04 },
+  'nest_ball': { rarity: 'uncommon', multiplier: 0.04 },
+  'repeat_ball': { rarity: 'uncommon', multiplier: 0.04 },
+  'timer_ball': { rarity: 'uncommon', multiplier: 0.04 },
+  'quick_ball': { rarity: 'rare', multiplier: 0.06 },
+  'dusk_ball': { rarity: 'uncommon', multiplier: 0.05 },
   
   // Apricorn balls - precio alto (raras)
-  'level_ball': { rarity: 'rare', multiplier: 1.5 },       // 150% del promedio
-  'lure_ball': { rarity: 'rare', multiplier: 1.5 },
-  'moon_ball': { rarity: 'rare', multiplier: 1.5 },
-  'friend_ball': { rarity: 'rare', multiplier: 1.5 },
-  'love_ball': { rarity: 'rare', multiplier: 1.8 },        // 180% del promedio
-  'heavy_ball': { rarity: 'rare', multiplier: 1.5 },
-  'fast_ball': { rarity: 'rare', multiplier: 1.5 },
+  'level_ball': { rarity: 'rare', multiplier: 0.08 },
+  'lure_ball': { rarity: 'rare', multiplier: 0.08 },
+  'moon_ball': { rarity: 'rare', multiplier: 0.08 },
+  'friend_ball': { rarity: 'rare', multiplier: 0.08 },
+  'love_ball': { rarity: 'rare', multiplier: 0.10 },
+  'heavy_ball': { rarity: 'rare', multiplier: 0.08 },
+  'fast_ball': { rarity: 'rare', multiplier: 0.08 },
   
   // Special rare balls
-  'safari_ball': { rarity: 'rare', multiplier: 1.2 },
-  'sport_ball': { rarity: 'rare', multiplier: 1.2 },
-  'dream_ball': { rarity: 'epic', multiplier: 2.0 },       // 200% del promedio
-  'beast_ball': { rarity: 'epic', multiplier: 3.0 },       // 300% del promedio
+  'safari_ball': { rarity: 'rare', multiplier: 0.07 },
+  'sport_ball': { rarity: 'rare', multiplier: 0.07 },
+  'dream_ball': { rarity: 'epic', multiplier: 0.15 },
+  'beast_ball': { rarity: 'epic', multiplier: 0.25 },
   
-  // Master Ball - extremadamente cara
-  'master_ball': { rarity: 'legendary', multiplier: 10.0 }, // 1000% del promedio
+  // Master Ball - extremadamente cara (50% del balance de un jugador rico)
+  'master_ball': { rarity: 'legendary', multiplier: 0.50 },
+  
+  // ============================================
+  // COMIDA DE MINECRAFT
+  // ============================================
+  'golden_apple': { rarity: 'rare', multiplier: 0.05 },
+  'enchanted_golden_apple': { rarity: 'legendary', multiplier: 0.35 },
+  'golden_carrot': { rarity: 'uncommon', multiplier: 0.02 },
+  'cooked_beef': { rarity: 'common', multiplier: 0.005 },
+  'cooked_porkchop': { rarity: 'common', multiplier: 0.005 },
+  
+  // ============================================
+  // POKÉMON CANDIES
+  // ============================================
+  'rare_candy': { rarity: 'epic', multiplier: 0.12 },
+  'exp_candy_xs': { rarity: 'common', multiplier: 0.005 },
+  'exp_candy_s': { rarity: 'uncommon', multiplier: 0.015 },
+  'exp_candy_m': { rarity: 'rare', multiplier: 0.04 },
+  'exp_candy_l': { rarity: 'epic', multiplier: 0.10 },
+  'exp_candy_xl': { rarity: 'legendary', multiplier: 0.20 },
 };
 
-// Precios mínimos para evitar que sean demasiado baratos
+// Precios mínimos AGRESIVOS para evitar que sean demasiado baratos
 const MIN_PRICES = {
-  'common': 100,
-  'uncommon': 500,
-  'rare': 1500,
-  'epic': 5000,
-  'legendary': 50000,
+  'common': 500,
+  'uncommon': 2000,
+  'rare': 8000,
+  'epic': 25000,
+  'legendary': 150000,  // Master Ball MÍNIMO 150k
 };
 
 // Precios máximos para evitar que sean imposibles
 const MAX_PRICES = {
-  'common': 2000,
-  'uncommon': 8000,
-  'rare': 25000,
-  'epic': 100000,
+  'common': 5000,
+  'uncommon': 15000,
+  'rare': 40000,
+  'epic': 150000,
   'legendary': 500000,
 };
 
@@ -102,17 +121,28 @@ async function analyzeAndUpdatePrices() {
     const maxBalance = Math.max(...balances);
     const minBalance = Math.min(...balances);
     
-    // Usar la mediana como base (más resistente a outliers)
-    const basePrice = medianBalance;
+    // Calcular percentil 75 (jugadores ricos) - ESTO ES LO IMPORTANTE
+    const p75Balance = getPercentile(balances, 75);
+    
+    // Calcular promedio de los top 10 jugadores
+    const sortedBalances = [...balances].sort((a, b) => b - a);
+    const top10 = sortedBalances.slice(0, Math.min(10, sortedBalances.length));
+    const top10Average = Math.round(top10.reduce((a, b) => a + b, 0) / top10.length);
+    
+    // USAR EL MAYOR entre p75 y top10Average como base
+    // Esto asegura que los precios reflejen la economía de los jugadores activos
+    const basePrice = Math.max(p75Balance, top10Average);
 
     console.log('📊 Economy Analysis:');
     console.log(`   Players with balance: ${balances.length}`);
     console.log(`   Total economy: ${totalBalance.toLocaleString()} CobbleDollars`);
     console.log(`   Average balance: ${averageBalance.toLocaleString()}`);
     console.log(`   Median balance: ${medianBalance.toLocaleString()}`);
+    console.log(`   75th Percentile: ${p75Balance.toLocaleString()}`);
+    console.log(`   Top 10 Average: ${top10Average.toLocaleString()}`);
     console.log(`   Min balance: ${minBalance.toLocaleString()}`);
     console.log(`   Max balance: ${maxBalance.toLocaleString()}`);
-    console.log(`\n🎯 Base price (median): ${basePrice.toLocaleString()}\n`);
+    console.log(`\n🎯 Base price (max of p75/top10): ${basePrice.toLocaleString()}\n`);
 
     // 3. Calcular nuevos precios para cada pokébola
     const shopItems = await db.collection('shop_items').find({}).toArray();
@@ -237,6 +267,12 @@ function getMedian(arr) {
   const sorted = [...arr].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 !== 0 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+}
+
+function getPercentile(arr, percentile) {
+  const sorted = [...arr].sort((a, b) => a - b);
+  const index = Math.ceil((percentile / 100) * sorted.length) - 1;
+  return sorted[Math.max(0, index)];
 }
 
 // Ejecutar
