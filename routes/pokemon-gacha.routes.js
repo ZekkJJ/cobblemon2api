@@ -64,7 +64,7 @@ const FUSION_CONFIG = {
   // Bonus temporal de probabilidad (comprable con stardust)
   LUCK_BOOST_COST: 500,      // 500 stardust
   LUCK_BOOST_DURATION_MS: 30 * 60 * 1000, // 30 minutos
-  LUCK_BOOST_MULTIPLIER: 1.5, // +50% probabilidad de raros+
+  LUCK_BOOST_MULTIPLIER: 2.0, // +100% probabilidad de raros+ (EVENTO ESPECIAL)
 };
 
 // Precisión decimal: usamos enteros multiplicados por 10^8 para evitar errores de punto flotante
