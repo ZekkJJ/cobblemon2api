@@ -17,12 +17,12 @@ const RARITY_MULTIPLIERS = {
   'poke_ball': { rarity: 'common', multiplier: 0.01 },      // 1% del p75
   'great_ball': { rarity: 'common', multiplier: 0.02 },     // 2% del p75
   'ultra_ball': { rarity: 'uncommon', multiplier: 0.05 },   // 5% del p75
-  
+
   // Special balls
   'premier_ball': { rarity: 'common', multiplier: 0.01 },
   'luxury_ball': { rarity: 'uncommon', multiplier: 0.04 },
   'heal_ball': { rarity: 'common', multiplier: 0.015 },
-  
+
   // Situational balls - precio moderado
   'net_ball': { rarity: 'uncommon', multiplier: 0.04 },
   'dive_ball': { rarity: 'uncommon', multiplier: 0.04 },
@@ -31,7 +31,7 @@ const RARITY_MULTIPLIERS = {
   'timer_ball': { rarity: 'uncommon', multiplier: 0.04 },
   'quick_ball': { rarity: 'rare', multiplier: 0.06 },
   'dusk_ball': { rarity: 'uncommon', multiplier: 0.05 },
-  
+
   // Apricorn balls - precio alto (raras)
   'level_ball': { rarity: 'rare', multiplier: 0.08 },
   'lure_ball': { rarity: 'rare', multiplier: 0.08 },
@@ -40,16 +40,16 @@ const RARITY_MULTIPLIERS = {
   'love_ball': { rarity: 'rare', multiplier: 0.10 },
   'heavy_ball': { rarity: 'rare', multiplier: 0.08 },
   'fast_ball': { rarity: 'rare', multiplier: 0.08 },
-  
+
   // Special rare balls
   'safari_ball': { rarity: 'rare', multiplier: 0.07 },
   'sport_ball': { rarity: 'rare', multiplier: 0.07 },
   'dream_ball': { rarity: 'epic', multiplier: 0.15 },
   'beast_ball': { rarity: 'epic', multiplier: 0.25 },
-  
+
   // Master Ball - extremadamente cara (50% del balance de un jugador rico)
   'master_ball': { rarity: 'legendary', multiplier: 0.50 },
-  
+
   // ============================================
   // COMIDA DE MINECRAFT
   // ============================================
@@ -58,7 +58,7 @@ const RARITY_MULTIPLIERS = {
   'golden_carrot': { rarity: 'uncommon', multiplier: 0.02 },
   'cooked_beef': { rarity: 'common', multiplier: 0.005 },
   'cooked_porkchop': { rarity: 'common', multiplier: 0.005 },
-  
+
   // ============================================
   // POKÉMON CANDIES
   // ============================================
@@ -102,7 +102,7 @@ async function analyzeAndUpdatePrices() {
     console.log('🤖 Analyzing player economy...\n');
 
     const db = client.db(process.env.MONGODB_DATABASE || 'admin');
-    
+
     // 1. Obtener todos los balances de jugadores
     const users = await db.collection('users').find({
       cobbleDollars: { $exists: true, $gt: 0 }
@@ -120,18 +120,19 @@ async function analyzeAndUpdatePrices() {
     const medianBalance = getMedian(balances);
     const maxBalance = Math.max(...balances);
     const minBalance = Math.min(...balances);
-    
+
     // Calcular percentil 75 (jugadores ricos) - ESTO ES LO IMPORTANTE
     const p75Balance = getPercentile(balances, 75);
-    
+
     // Calcular promedio de los top 10 jugadores
     const sortedBalances = [...balances].sort((a, b) => b - a);
     const top10 = sortedBalances.slice(0, Math.min(10, sortedBalances.length));
     const top10Average = Math.round(top10.reduce((a, b) => a + b, 0) / top10.length);
-    
-    // USAR EL MAYOR entre p75 y top10Average como base
-    // Esto asegura que los precios reflejen la economía de los jugadores activos
-    const basePrice = Math.max(p75Balance, top10Average);
+
+    // USAR PERCENTIL 75 como base principal
+    // Ignoramos top10Average para evitar que unos pocos billonarios inflen los precios para todos
+    // Si p75 es muy bajo, usamos la mediana * 1.5 como fallback
+    const basePrice = Math.max(p75Balance, medianBalance * 1.5);
 
     console.log('📊 Economy Analysis:');
     console.log(`   Players with balance: ${balances.length}`);
@@ -139,29 +140,29 @@ async function analyzeAndUpdatePrices() {
     console.log(`   Average balance: ${averageBalance.toLocaleString()}`);
     console.log(`   Median balance: ${medianBalance.toLocaleString()}`);
     console.log(`   75th Percentile: ${p75Balance.toLocaleString()}`);
-    console.log(`   Top 10 Average: ${top10Average.toLocaleString()}`);
+    console.log(`   Top 10 Average: ${top10Average.toLocaleString()} (Ignored for pricing to protect economy)`);
     console.log(`   Min balance: ${minBalance.toLocaleString()}`);
     console.log(`   Max balance: ${maxBalance.toLocaleString()}`);
-    console.log(`\n🎯 Base price (max of p75/top10): ${basePrice.toLocaleString()}\n`);
+    console.log(`\n🎯 Base price (p75): ${basePrice.toLocaleString()}\n`);
 
     // 3. Calcular nuevos precios para cada pokébola
     const shopItems = await db.collection('shop_items').find({}).toArray();
-    
+
     console.log('💰 New Prices:');
     console.log('─'.repeat(60));
 
     for (const item of shopItems) {
       const config = RARITY_MULTIPLIERS[item.id] || { rarity: 'uncommon', multiplier: 1.0 };
-      
+
       // Calcular precio base según rareza
       let newPrice = Math.round(basePrice * config.multiplier);
-      
+
       // Aplicar límites mínimos y máximos
       const minPrice = MIN_PRICES[config.rarity] || 100;
       const maxPrice = MAX_PRICES[config.rarity] || 100000;
-      
+
       newPrice = Math.max(minPrice, Math.min(maxPrice, newPrice));
-      
+
       // Redondear a números bonitos (múltiplos de 50 o 100)
       if (newPrice < 1000) {
         newPrice = Math.round(newPrice / 50) * 50;
@@ -174,8 +175,8 @@ async function analyzeAndUpdatePrices() {
       // Actualizar en la base de datos
       await db.collection('shop_items').updateOne(
         { id: item.id },
-        { 
-          $set: { 
+        {
+          $set: {
             currentPrice: newPrice,
             lastPriceUpdate: new Date(),
             priceAnalysis: {
@@ -184,15 +185,15 @@ async function analyzeAndUpdatePrices() {
               rarity: config.rarity,
               playersAnalyzed: balances.length,
             }
-          } 
+          }
         }
       );
 
-      const priceChange = item.currentPrice ? 
+      const priceChange = item.currentPrice ?
         ((newPrice - item.currentPrice) / item.currentPrice * 100).toFixed(1) : 'NEW';
-      const changeIcon = priceChange === 'NEW' ? '🆕' : 
-        parseFloat(priceChange) > 0 ? '📈' : 
-        parseFloat(priceChange) < 0 ? '📉' : '➡️';
+      const changeIcon = priceChange === 'NEW' ? '🆕' :
+        parseFloat(priceChange) > 0 ? '📈' :
+          parseFloat(priceChange) < 0 ? '📉' : '➡️';
 
       console.log(`   ${changeIcon} ${item.name.padEnd(15)} ${config.rarity.padEnd(10)} $${newPrice.toLocaleString().padStart(8)} (${priceChange}%)`);
     }
@@ -203,7 +204,7 @@ async function analyzeAndUpdatePrices() {
 
     for (const item of shopItems) {
       const config = RARITY_MULTIPLIERS[item.id] || { rarity: 'uncommon', multiplier: 1.0 };
-      
+
       // Stock basado en rareza
       let maxStock, minStock;
       switch (config.rarity) {
@@ -230,12 +231,12 @@ async function analyzeAndUpdatePrices() {
 
       await db.collection('shop_items').updateOne(
         { id: item.id },
-        { 
-          $set: { 
+        {
+          $set: {
             currentStock: newStock,
             maxStock: maxStock,
             lastStockUpdate: new Date(),
-          } 
+          }
         }
       );
 
